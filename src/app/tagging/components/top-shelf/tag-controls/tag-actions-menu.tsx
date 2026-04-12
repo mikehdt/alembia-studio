@@ -64,29 +64,42 @@ export const TagActionsMenu = () => {
   const isAutoTaggerInitialised = useAppSelector(selectIsInitialised);
 
   // Fetch auto-tagger models on mount to determine if any are ready.
-  // Retries once after a short delay to handle Turbopack cold-compilation races
-  // where the API route may 404 on the very first request.
+  // Retries with backoff to handle Turbopack cold-compilation races where
+  // the API route may 404 for several seconds on a fresh dev server.
   useEffect(() => {
-    if (!isAutoTaggerInitialised) {
-      const fetchModels = (isRetry: boolean) => {
-        fetch('/api/auto-tagger/models')
-          .then((res) => {
-            if (!res.ok) throw new Error(`${res.status}`);
-            return res.json();
-          })
-          .then((data) => {
-            dispatch(setModelsAndProviders(data));
-          })
-          .catch((err) => {
-            if (!isRetry) {
-              setTimeout(() => fetchModels(true), 3000);
-            } else {
-              console.error('Failed to fetch auto-tagger models:', err);
-            }
-          });
-      };
-      fetchModels(false);
-    }
+    if (isAutoTaggerInitialised) return;
+
+    const retryDelaysMs = [1000, 3000, 6000];
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const fetchModels = (attempt: number) => {
+      fetch('/api/auto-tagger/models')
+        .then((res) => {
+          if (!res.ok) throw new Error(`${res.status}`);
+          return res.json();
+        })
+        .then((data) => {
+          if (!cancelled) dispatch(setModelsAndProviders(data));
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          if (attempt < retryDelaysMs.length) {
+            timeoutId = setTimeout(
+              () => fetchModels(attempt + 1),
+              retryDelaysMs[attempt],
+            );
+          } else {
+            console.error('Failed to fetch auto-tagger models:', err);
+          }
+        });
+    };
+    fetchModels(0);
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [isAutoTaggerInitialised, dispatch]);
 
   // Whether there are any assets available for auto-tagging (cheap count check)
