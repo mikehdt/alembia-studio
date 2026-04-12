@@ -16,7 +16,7 @@ export const WD14_MODELS: TaggerModel[] = [
     name: 'EVA02-Large v3',
     provider: PROVIDER_ID,
     repoId: 'SmilingWolf/wd-eva02-large-tagger-v3',
-    description: 'Most accurate WD tagger (recommended)',
+    description: 'Most accurate WD tagger',
     isDefault: true,
     files: [
       { name: 'model.onnx', size: 1_260_435_999 }, // ~1.2GB

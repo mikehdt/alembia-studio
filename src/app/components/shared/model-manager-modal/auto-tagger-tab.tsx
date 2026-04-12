@@ -58,7 +58,7 @@ export function AutoTaggerTab() {
   }, [models.length, fetchModels]);
 
   return (
-    <div className="flex flex-col gap-4 p-1">
+    <div className="flex flex-col gap-4 px-1">
       <p className="text-sm text-slate-600 dark:text-slate-400">
         Models for automatic image tagging and captioning.
       </p>

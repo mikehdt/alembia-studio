@@ -38,7 +38,7 @@ type PerformanceSectionProps = {
 };
 
 const PRECISION_ITEMS: DropdownItem<string>[] = [
-  { value: 'bf16', label: 'bfloat16 (recommended)' },
+  { value: 'bf16', label: 'bfloat16' },
   { value: 'fp16', label: 'float16' },
   { value: 'fp8', label: 'float8 (lower VRAM)' },
 ];

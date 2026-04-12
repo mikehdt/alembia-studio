@@ -175,6 +175,6 @@ export const highlightTriggerPhrases = (
   return highlightPatterns(
     text,
     phrases,
-    'box-decoration-clone rounded bg-green-200/60 px-0.5 -mx-0.5 dark:bg-green-700/50 shadow-sm shadow-green-500/50 inner-shadow-sm inner-shadow-green-500',
+    'box-decoration-clone text-green-950 rounded-md bg-green-200/60 px-1 -mx-1 shadow-sm shadow-green-500/50 inset-shadow-xs inset-shadow-green-300/50 outline outline-green-300 dark:text-green-100 dark:outline-green-700 dark:bg-green-700/50 dark:inset-shadow-green-600/50',
   );
 };

@@ -23,7 +23,7 @@ export const VLM_MODELS: TaggerModel[] = [
     provider: PROVIDER_ID,
     runtime: 'transformers',
     repoId: 'huihui-ai/Huihui-Qwen3-VL-4B-Instruct-abliterated',
-    description: 'Fast GPU captioning, fp16, ~9GB VRAM (recommended)',
+    description: 'Fast GPU captioning, fp16, ~9GB VRAM',
     isDefault: true,
     vramEstimate: 9,
     files: [

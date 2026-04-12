@@ -115,7 +115,7 @@ export function SettingsTab() {
   const showSavedPing = savedAt !== null && Date.now() - savedAt < 2500;
 
   return (
-    <div className="flex flex-col gap-5 p-1">
+    <div className="flex flex-col gap-5 px-1">
       {/* HuggingFace token */}
       <section className="flex flex-col gap-2">
         <div className="text-sm text-slate-500">
@@ -225,7 +225,7 @@ export function SettingsTab() {
           label="Keep tagger models in memory after tagging"
         />
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 pt-3">
           <Button
             onClick={handleUnload}
             color="slate"
@@ -238,7 +238,7 @@ export function SettingsTab() {
           </Button>
           {showUnloadedPing && (
             <span className="text-teal-600 dark:text-teal-400">
-              Model released.
+              Model released
             </span>
           )}
         </div>
