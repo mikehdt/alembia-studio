@@ -9,7 +9,7 @@ import { getModelById } from './models';
 
 export type ExpertiseTier = 'simple' | 'intermediate' | 'advanced' | 'expert';
 
-export type ConceptualGroup =
+type ConceptualGroup =
   | 'whatToTrain'
   | 'dataset'
   | 'learning'
@@ -18,7 +18,7 @@ export type ConceptualGroup =
   | 'sampling'
   | 'saving';
 
-export type FieldMeta = {
+type FieldMeta = {
   tier: ExpertiseTier;
   group: ConceptualGroup;
   /** Key on TrainingDefaults to compare against (null for fields with no model default) */
@@ -201,7 +201,7 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
   saveEverySteps: { tier: 'simple', group: 'saving', defaultKey: null },
 };
 
-export const GROUP_META: Record<
+const GROUP_META: Record<
   ConceptualGroup,
   { label: string; order: number }
 > = {
@@ -247,7 +247,7 @@ export function getVisibleFields(
 }
 
 /** Get all field names belonging to a conceptual group. */
-export function getFieldsForGroup(group: ConceptualGroup): string[] {
+function getFieldsForGroup(group: ConceptualGroup): string[] {
   return Object.entries(FIELD_REGISTRY)
     .filter(([, meta]) => meta.group === group)
     .map(([field]) => field);

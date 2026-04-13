@@ -1,4 +1,5 @@
 'use server';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
@@ -6,7 +7,10 @@ import path from 'node:path';
 import { imageDimensionsFromStream } from 'image-dimensions';
 import sharp from 'sharp';
 
-import { isSupportedImageExtension } from '@/app/constants';
+import {
+  isSupportedAssetExtension,
+  isSupportedVideoExtension,
+} from '@/app/constants';
 
 import {
   type ImageAsset,
@@ -147,7 +151,7 @@ export const getImageFileList = async (
   const rootImages = rootEntries
     .filter((entry) => entry.isFile())
     .map((entry) => entry.name)
-    .filter((file) => isSupportedImageExtension(path.extname(file)));
+    .filter((file) => isSupportedAssetExtension(path.extname(file)));
 
   allImageFiles.push(...rootImages);
 
@@ -168,7 +172,7 @@ export const getImageFileList = async (
       const subdirFiles = fs.readdirSync(subdirPath);
 
       const subdirImages = subdirFiles
-        .filter((file) => isSupportedImageExtension(path.extname(file)))
+        .filter((file) => isSupportedAssetExtension(path.extname(file)))
         .map((file) => `${subdirName}/${file}`); // Store with relative path
 
       allImageFiles.push(...subdirImages);
@@ -190,9 +194,16 @@ export const getImageFileList = async (
   return { files: uniqueFiles };
 };
 
-/** Cached blur data for reuse when assets haven't changed */
+/**
+ * Cached per-asset derived data (blur placeholders for images, dimensions for
+ * videos). Keyed by fileId; the lastModified stamp is the cache validity check.
+ */
 export type BlurCache = {
-  [fileId: string]: { lastModified: number; blurDataUrl: string };
+  [fileId: string]: {
+    lastModified: number;
+    blurDataUrl?: string;
+    videoDimensions?: ImageDimensions;
+  };
 };
 
 /**
@@ -249,6 +260,77 @@ export const getMultipleImageAssetDetails = async (
 
 const BLUR_MAX_DIMENSION = 10;
 
+const VIDEO_FALLBACK_DIMENSIONS: ImageDimensions = { width: 1920, height: 1080 };
+let warnedMissingFfprobe = false;
+
+/**
+ * Probe a video file for its native pixel dimensions using system ffprobe.
+ * Returns a 16:9 fallback if ffprobe isn't installed or the probe fails — the
+ * gallery still works, just with an inaccurate aspect ratio.
+ */
+const getVideoDimensions = (filePath: string): Promise<ImageDimensions> => {
+  return new Promise((resolve) => {
+    const proc = spawn(
+      'ffprobe',
+      [
+        '-v',
+        'error',
+        '-select_streams',
+        'v:0',
+        '-show_entries',
+        'stream=width,height',
+        '-of',
+        'json',
+        filePath,
+      ],
+      { windowsHide: true },
+    );
+
+    let stdout = '';
+    let stderr = '';
+    proc.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    proc.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    proc.on('error', (err) => {
+      if (!warnedMissingFfprobe) {
+        warnedMissingFfprobe = true;
+        console.warn(
+          `ffprobe not available — video dimensions will fall back to 16:9. Install ffmpeg to fix. (${err.message})`,
+        );
+      }
+      resolve(VIDEO_FALLBACK_DIMENSIONS);
+    });
+
+    proc.on('close', (code) => {
+      if (code !== 0) {
+        console.warn(
+          `ffprobe failed for ${filePath} (exit ${code}): ${stderr.trim()}`,
+        );
+        resolve(VIDEO_FALLBACK_DIMENSIONS);
+        return;
+      }
+      try {
+        const parsed = JSON.parse(stdout) as {
+          streams?: { width?: number; height?: number }[];
+        };
+        const stream = parsed.streams?.[0];
+        if (stream?.width && stream?.height) {
+          resolve({ width: stream.width, height: stream.height });
+        } else {
+          resolve(VIDEO_FALLBACK_DIMENSIONS);
+        }
+      } catch (err) {
+        console.warn(`Failed to parse ffprobe output for ${filePath}:`, err);
+        resolve(VIDEO_FALLBACK_DIMENSIONS);
+      }
+    });
+  });
+};
+
 /**
  * Generate a tiny blur placeholder image as a base64 data URL.
  * The image is resized to fit within 10x10 pixels while maintaining aspect ratio.
@@ -296,21 +378,32 @@ export const getImageAssetDetails = async (
   const stats = fs.statSync(fullFilePath);
   const lastModified = Math.floor(stats.mtime.getTime() / 1000); // Unix timestamp in seconds
 
-  // @ts-expect-error ReadableStream.from being weird
-  const stream = ReadableStream.from(createReadStream(fullFilePath));
+  const isVideo = isSupportedVideoExtension(`.${fileExtension}`);
+  const cachedEntry = blurCache?.[fileId];
+  const canUseCache = cachedEntry?.lastModified === lastModified;
 
-  // Check if we have cached blur data that's still valid
-  const cachedBlur = blurCache?.[fileId];
-  const canUseCachedBlur =
-    cachedBlur && cachedBlur.lastModified === lastModified;
+  // Videos: probe dimensions via ffprobe (cached across reloads), skip blur.
+  // Poster frames will come later.
+  let dimensions: ImageDimensions;
+  let blurDataUrl: string | undefined;
 
-  // Run dimension reading and blur generation in parallel (skip blur if cached)
-  const [dimensions, blurDataUrl] = await Promise.all([
-    imageDimensionsFromStream(stream) as Promise<ImageDimensions>,
-    canUseCachedBlur
-      ? Promise.resolve(cachedBlur.blurDataUrl)
-      : generateBlurDataUrl(fullFilePath),
-  ]);
+  if (isVideo) {
+    dimensions =
+      (canUseCache ? cachedEntry?.videoDimensions : undefined) ??
+      (await getVideoDimensions(fullFilePath));
+    blurDataUrl = undefined;
+  } else {
+    // @ts-expect-error ReadableStream.from being weird
+    const stream = ReadableStream.from(createReadStream(fullFilePath));
+
+    // Run dimension reading and blur generation in parallel (skip blur if cached)
+    [dimensions, blurDataUrl] = await Promise.all([
+      imageDimensionsFromStream(stream) as Promise<ImageDimensions>,
+      canUseCache && cachedEntry?.blurDataUrl
+        ? Promise.resolve(cachedEntry.blurDataUrl)
+        : generateBlurDataUrl(fullFilePath),
+    ]);
+  }
 
   // Calculate Kohya bucket for this image (using SDXL 1024 settings)
   const bucket = calculateKohyaBucket(

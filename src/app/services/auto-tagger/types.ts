@@ -45,14 +45,14 @@ export type ModelFile = {
   size: number;
 };
 
-export type ModelStatus =
+type ModelStatus =
   | 'not_installed'
   | 'downloading'
   | 'ready'
   | 'error'
   | 'checking';
 
-export type DownloadProgress = {
+type DownloadProgress = {
   modelId: string;
   status: ModelStatus;
   currentFile?: string;

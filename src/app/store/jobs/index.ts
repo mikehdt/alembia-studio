@@ -263,7 +263,7 @@ export const {
 
 const selectJobs = (state: RootState) => state.jobs;
 
-export const selectAllJobs = createSelector(selectJobs, (s) =>
+const selectAllJobs = createSelector(selectJobs, (s) =>
   Object.values(s.jobs).sort((a, b) => a.createdAt - b.createdAt),
 );
 
@@ -285,7 +285,7 @@ export const selectCompletedJobs = createSelector(selectAllJobs, (jobs) =>
   ),
 );
 
-export const selectJobsByType = <T extends Job['type']>(type: T) =>
+const selectJobsByType = <T extends Job['type']>(type: T) =>
   createSelector(selectAllJobs, (jobs) =>
     jobs.filter((j): j is Extract<Job, { type: T }> => j.type === type),
   );
@@ -304,7 +304,7 @@ export const selectActiveTrainingJob = createSelector(
 );
 
 /** All currently-running download jobs. */
-export const selectActiveDownloads = createSelector(
+const selectActiveDownloads = createSelector(
   selectAllJobs,
   (jobs): DownloadJob[] =>
     jobs.filter(
@@ -347,7 +347,7 @@ export const selectActiveTaggingJob = (projectFolderName: string) =>
   });
 
 /** Any active tagging job across all projects. */
-export const selectAnyActiveTaggingJob = createSelector(
+const selectAnyActiveTaggingJob = createSelector(
   selectAllJobs,
   (jobs): TaggingJob | null => {
     const found = jobs.find(
@@ -360,7 +360,7 @@ export const selectAnyActiveTaggingJob = createSelector(
 );
 
 /** Whether the GPU is busy (training or tagging active — blocks other GPU work). */
-export const selectIsGpuBusy = createSelector(
+const selectIsGpuBusy = createSelector(
   selectActiveTrainingJob,
   selectAnyActiveTaggingJob,
   (training, tagging) => training !== null || tagging !== null,
@@ -379,9 +379,9 @@ export const selectHasJobs = createSelector(
 export type {
   DownloadJob,
   Job,
-  JobsState,
-  JobStatus,
-  JobType,
+  
+  
+  
   TaggingJob,
   TaggingProgress,
   TaggingSummary,

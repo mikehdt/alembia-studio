@@ -4,16 +4,9 @@ import { DownloadIcon, RefreshCwIcon, Trash2Icon, XIcon } from 'lucide-react';
 
 import type { DownloadJob } from '@/app/store/jobs';
 
+import { formatBytes } from '../activity-panel/helpers';
 import { Button } from '../button';
 import { ProgressBar } from '../progress-bar/progress-bar';
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-}
 
 /**
  * Right-hand-side content for a model row in the Model Manager modal

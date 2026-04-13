@@ -174,7 +174,7 @@ export async function tagImageInWorker(
 /**
  * Release the cached ONNX session in the worker (frees memory/GPU).
  */
-export async function unloadModel(): Promise<void> {
+async function unloadModel(): Promise<void> {
   if (!worker || !workerReady) return;
   await enqueue({ type: 'unload' });
 }
@@ -182,7 +182,7 @@ export async function unloadModel(): Promise<void> {
 /**
  * Terminate the worker thread entirely.
  */
-export async function terminateWorker(): Promise<void> {
+async function terminateWorker(): Promise<void> {
   if (worker) {
     await worker.terminate();
     worker = null;

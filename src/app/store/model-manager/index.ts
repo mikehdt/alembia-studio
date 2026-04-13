@@ -93,8 +93,8 @@ export const modelManagerReducer = modelManagerSlice.reducer;
 
 export const {
   setModelStatus,
-  setModelStatuses,
-  setModelsFolder,
+  
+  
   setIsScanning,
   openModelManagerModal,
   closeModelManagerModal,
@@ -106,7 +106,7 @@ export const {
 
 const selectModelManager = (state: RootState) => state.modelManager;
 
-export const selectModelsFolder = createSelector(
+const selectModelsFolder = createSelector(
   selectModelManager,
   (s) => s.modelsFolder,
 );
@@ -133,15 +133,15 @@ export const selectAllModelStatuses = createSelector(
 );
 
 /** Get the status entry for a specific model. */
-export const selectModelEntry = (modelId: string) =>
+const selectModelEntry = (modelId: string) =>
   createSelector(selectModelManager, (s) => s.models[modelId] ?? null);
 
 /** Check if a shared component is ready (by sharedId → modelId mapping). */
-export const selectModelStatusById = (modelId: string) =>
+const selectModelStatusById = (modelId: string) =>
   createSelector(
     selectModelManager,
     (s) => s.models[modelId]?.status ?? ('not_installed' as ModelStatus),
   );
 
 // Re-export types
-export type { ModelEntry, ModelManagerState };
+;

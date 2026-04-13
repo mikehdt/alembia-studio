@@ -20,23 +20,12 @@ import {
 } from '@/app/store/model-manager';
 import type { ModelEntry } from '@/app/store/model-manager/types';
 
+import { formatBytes } from '../activity-panel/helpers';
 import { useDownloadActions } from '../activity-panel/use-download-actions';
 import { Dropdown, type DropdownItem } from '../dropdown';
 import { DeleteInstalledButton } from './delete-installed-button';
 import { DownloadRowButton, DownloadRowStatus } from './download-row-status';
 import { getModelStatus } from './use-model-manager';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-}
 
 type TrainingModelGroup = {
   architecture: ModelArchitecture;
@@ -191,7 +180,14 @@ function DownloadableModelRow({
   );
 
   const variantItems = useMemo<DropdownItem<string>[]>(
-    () => model.variants?.map((v) => ({ value: v.id, label: v.label })) ?? [],
+    () =>
+      model.variants?.map((v) => {
+        const size = v.files.reduce((sum, f) => sum + f.size, 0);
+        return {
+          value: v.id,
+          label: `${v.label} (${formatBytes(size)})`,
+        };
+      }) ?? [],
     [model.variants],
   );
 

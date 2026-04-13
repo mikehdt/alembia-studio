@@ -16,6 +16,7 @@ export const completeAfterDelay = createAsyncThunk<void, void>(
   },
 );
 
+import { isSupportedVideoExtension } from '@/app/constants';
 // Import removed since DEFAULT_BATCH_SIZE is now used through helpers
 import {
   AssetTagOperation,
@@ -76,10 +77,12 @@ export const loadAllAssets = createAsyncThunk<
     const captionMode = project.config.captionMode;
     const blurCache: BlurCache = {};
     for (const asset of images) {
-      if (asset.blurDataUrl) {
+      const isVideo = isSupportedVideoExtension(`.${asset.fileExtension}`);
+      if (asset.blurDataUrl || isVideo) {
         blurCache[asset.fileId] = {
           lastModified: asset.lastModified,
           blurDataUrl: asset.blurDataUrl,
+          videoDimensions: isVideo ? asset.dimensions : undefined,
         };
       }
     }

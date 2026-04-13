@@ -5,7 +5,10 @@ import path from 'node:path';
 
 import sharp from 'sharp';
 
-import { isSupportedImageExtension } from '@/app/constants';
+import {
+  isSupportedAssetExtension,
+  isSupportedImageExtension,
+} from '@/app/constants';
 import type { AutoTaggerSettings } from '@/app/services/auto-tagger';
 
 import { isValidRepeatFolder, parseSubfolder } from './subfolder-utils';
@@ -204,11 +207,11 @@ export const getProjectList = async (): Promise<Project[]> => {
             withFileTypes: true,
           });
 
-          // Count images in root directory
+          // Count assets (images + videos) in root directory
           const rootImageCount = projectEntries
             .filter((entry) => entry.isFile())
             .filter((entry) =>
-              isSupportedImageExtension(path.extname(entry.name)),
+              isSupportedAssetExtension(path.extname(entry.name)),
             ).length;
 
           // Count images in valid repeat subfolders
@@ -225,7 +228,7 @@ export const getProjectList = async (): Promise<Project[]> => {
                 const subdirPath = path.join(projectPath, subdirName);
                 const subdirFiles = fs.readdirSync(subdirPath);
                 const subdirImages = subdirFiles.filter((file) =>
-                  isSupportedImageExtension(path.extname(file)),
+                  isSupportedAssetExtension(path.extname(file)),
                 );
                 subfolderImageCount += subdirImages.length;
               } catch (subdirError) {
@@ -508,7 +511,7 @@ export const saveAutoTaggerSettings = async (
   }
 };
 
-export type ProjectFolderDetail = {
+type ProjectFolderDetail = {
   name: string;
   imageCount: number;
   detectedRepeats: number;
@@ -529,10 +532,10 @@ export const getProjectFolders = async (
   const entries = fs.readdirSync(projectPath, { withFileTypes: true });
   const folders: ProjectFolderDetail[] = [];
 
-  // Root images
+  // Root assets (images + videos)
   const rootImageCount = entries
     .filter((e) => e.isFile())
-    .filter((e) => isSupportedImageExtension(path.extname(e.name))).length;
+    .filter((e) => isSupportedAssetExtension(path.extname(e.name))).length;
 
   if (rootImageCount > 0) {
     folders.push({
@@ -552,7 +555,7 @@ export const getProjectFolders = async (
       const subdirPath = path.join(projectPath, entry.name);
       const imageCount = fs
         .readdirSync(subdirPath)
-        .filter((f) => isSupportedImageExtension(path.extname(f))).length;
+        .filter((f) => isSupportedAssetExtension(path.extname(f))).length;
 
       if (imageCount > 0) {
         folders.push({

@@ -13,7 +13,7 @@ const providers: TaggerProvider[] = [wd14Provider, vlmProvider];
 /**
  * Get the provider definition that owns a given model.
  */
-export function getProviderForModel(
+function getProviderForModel(
   modelId: string,
 ): TaggerProvider | undefined {
   for (const provider of providers) {

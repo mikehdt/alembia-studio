@@ -30,13 +30,13 @@ export const SHARED_COMPONENTS: DownloadableModel[] = [
     variants: [
       {
         id: 'fp16',
-        label: 'fp16 (9.1 GB)',
+        label: 'fp16',
         description: 'Full precision — best quality',
         files: [{ name: 't5xxl_fp16.safetensors', size: 9_787_841_024 }],
       },
       {
         id: 'fp8',
-        label: 'fp8 (4.6 GB)',
+        label: 'fp8',
         description: 'Half the size, minimal quality loss',
         files: [{ name: 't5xxl_fp8_e4m3fn.safetensors', size: 4_893_934_904 }],
       },
@@ -87,7 +87,7 @@ export const SHARED_COMPONENTS: DownloadableModel[] = [
     variants: [
       {
         id: 'bf16',
-        label: 'bf16 (16.4 GB)',
+        label: 'bf16',
         description: 'Full precision — best quality',
         files: [
           {
@@ -98,7 +98,7 @@ export const SHARED_COMPONENTS: DownloadableModel[] = [
       },
       {
         id: 'fp8',
-        label: 'fp8 (8.7 GB)',
+        label: 'fp8',
         description: 'Half the size, minimal quality loss',
         files: [
           {
@@ -145,7 +145,7 @@ export const SHARED_COMPONENTS: DownloadableModel[] = [
 const FLUX1_DEPS = ['t5-xxl', 'clip-l', 'flux-ae'];
 const FLUX2_DEPS = ['qwen3-8b', 'flux2-vae'];
 
-export const TRAINING_CHECKPOINTS: DownloadableModel[] = [
+const TRAINING_CHECKPOINTS: DownloadableModel[] = [
   // --- Flux.2 family ---
   {
     id: 'dl-flux2-klein-9b',
@@ -164,13 +164,13 @@ export const TRAINING_CHECKPOINTS: DownloadableModel[] = [
     variants: [
       {
         id: 'bf16',
-        label: 'bf16 (18.2 GB)',
+        label: 'bf16',
         description: 'Full precision',
         files: [{ name: 'flux-2-klein-9b.safetensors', size: 18_200_000_000 }],
       },
       {
         id: 'fp8',
-        label: 'fp8 (9.4 GB)',
+        label: 'fp8',
         description: 'Half the size, good for <12 GB VRAM',
         files: [
           { name: 'flux-2-klein-9b-fp8.safetensors', size: 9_430_000_000 },
@@ -198,13 +198,13 @@ export const TRAINING_CHECKPOINTS: DownloadableModel[] = [
     variants: [
       {
         id: 'bf16',
-        label: 'bf16 (22.2 GB)',
+        label: 'bf16',
         description: 'Full precision',
         files: [{ name: 'flux1-dev.safetensors', size: 23_802_932_552 }],
       },
       {
         id: 'fp8',
-        label: 'fp8 (11.9 GB)',
+        label: 'fp8',
         description: 'Half the size, good for <16 GB VRAM',
         files: [{ name: 'flux1-dev-fp8.safetensors', size: 11_905_822_720 }],
         repoId: 'Kijai/flux-fp8',
@@ -228,13 +228,13 @@ export const TRAINING_CHECKPOINTS: DownloadableModel[] = [
     variants: [
       {
         id: 'bf16',
-        label: 'bf16 (22.1 GB)',
+        label: 'bf16',
         description: 'Full precision',
         files: [{ name: 'flux1-schnell.safetensors', size: 23_782_506_688 }],
       },
       {
         id: 'fp8',
-        label: 'fp8 (11.9 GB)',
+        label: 'fp8',
         description: 'Half the size, good for <16 GB VRAM',
         files: [
           {
@@ -283,9 +283,142 @@ export const TRAINING_CHECKPOINTS: DownloadableModel[] = [
   },
 
   // --- Z-Image ---
-  // Z-Image Turbo uses diffusers sharded format (3-part transformer).
-  // Download support deferred — users should download via HuggingFace CLI
-  // or web UI for now. Uncomment once sharded download support is added.
+  // Z-Image Turbo ships as a full diffusers pipeline directory: the
+  // transformer, text encoder, VAE, tokenizer, and scheduler all live in
+  // one HF repo under well-known subfolders, so we bundle every file
+  // under one download rather than splitting into shared components —
+  // the text encoder (Qwen3-4B) isn't reused by any other model yet.
+  //
+  // The default variant is Disty0's SDNQ int4 quant — a full pipeline at
+  // ~6.5 GB, used during dev for fast iteration. It's inference-only;
+  // ai-toolkit won't train against SDNQ weights. The `bf16` variant
+  // downloads the original Tongyi fp32 release (~32.8 GB, stored fp32
+  // even though it runs in bf16) for when training is actually wired up
+  // and we need a loader-compatible base.
+  {
+    id: 'dl-zimage-turbo',
+    name: 'Z-Image Turbo',
+    repoId: 'Disty0/Z-Image-Turbo-SDNQ-uint4-svd-r32',
+    feature: 'training',
+    architecture: 'zimage',
+    componentType: 'checkpoint',
+    description:
+      'Fast DiT with Qwen3-4B text encoder — int4 quant for dev, bf16 for training',
+    files: [
+      { name: 'model_index.json', size: 457 },
+      { name: 'scheduler/scheduler_config.json', size: 487 },
+      { name: 'transformer/config.json', size: 1_328 },
+      { name: 'transformer/quantization_config.json', size: 723 },
+      {
+        name: 'transformer/diffusion_pytorch_model.safetensors',
+        size: 3_484_396_712,
+      },
+      { name: 'text_encoder/config.json', size: 2_681 },
+      { name: 'text_encoder/generation_config.json', size: 214 },
+      { name: 'text_encoder/quantization_config.json', size: 1_025 },
+      {
+        name: 'text_encoder/model.safetensors',
+        size: 2_840_784_408,
+      },
+      { name: 'vae/config.json', size: 920 },
+      {
+        name: 'vae/diffusion_pytorch_model.safetensors',
+        size: 167_666_902,
+      },
+      { name: 'tokenizer/tokenizer_config.json', size: 9_732 },
+      { name: 'tokenizer/tokenizer.json', size: 11_422_654 },
+      { name: 'tokenizer/merges.txt', size: 1_671_853 },
+      { name: 'tokenizer/vocab.json', size: 2_776_833 },
+    ],
+    variants: [
+      {
+        id: 'int4',
+        label: 'int4 (SDNQ)',
+        description:
+          'Quantised full pipeline — dev/inference only, not trainable by ai-toolkit',
+        files: [
+          { name: 'model_index.json', size: 457 },
+          { name: 'scheduler/scheduler_config.json', size: 487 },
+          { name: 'transformer/config.json', size: 1_328 },
+          { name: 'transformer/quantization_config.json', size: 723 },
+          {
+            name: 'transformer/diffusion_pytorch_model.safetensors',
+            size: 3_484_396_712,
+          },
+          { name: 'text_encoder/config.json', size: 2_681 },
+          { name: 'text_encoder/generation_config.json', size: 214 },
+          { name: 'text_encoder/quantization_config.json', size: 1_025 },
+          {
+            name: 'text_encoder/model.safetensors',
+            size: 2_840_784_408,
+          },
+          { name: 'vae/config.json', size: 920 },
+          {
+            name: 'vae/diffusion_pytorch_model.safetensors',
+            size: 167_666_902,
+          },
+          { name: 'tokenizer/tokenizer_config.json', size: 9_732 },
+          { name: 'tokenizer/tokenizer.json', size: 11_422_654 },
+          { name: 'tokenizer/merges.txt', size: 1_671_853 },
+          { name: 'tokenizer/vocab.json', size: 2_776_833 },
+        ],
+      },
+      {
+        id: 'bf16',
+        label: 'bf16',
+        description: 'Full pipeline (fp32-stored) — required for training',
+        repoId: 'Tongyi-MAI/Z-Image-Turbo',
+        files: [
+          { name: 'model_index.json', size: 467 },
+          { name: 'scheduler/scheduler_config.json', size: 173 },
+          { name: 'transformer/config.json', size: 473 },
+          {
+            name: 'transformer/diffusion_pytorch_model.safetensors.index.json',
+            size: 48_969,
+          },
+          {
+            name: 'transformer/diffusion_pytorch_model-00001-of-00003.safetensors',
+            size: 9_973_693_184,
+          },
+          {
+            name: 'transformer/diffusion_pytorch_model-00002-of-00003.safetensors',
+            size: 9_973_714_824,
+          },
+          {
+            name: 'transformer/diffusion_pytorch_model-00003-of-00003.safetensors',
+            size: 4_672_282_880,
+          },
+          { name: 'text_encoder/config.json', size: 726 },
+          { name: 'text_encoder/generation_config.json', size: 239 },
+          {
+            name: 'text_encoder/model.safetensors.index.json',
+            size: 32_819,
+          },
+          {
+            name: 'text_encoder/model-00001-of-00003.safetensors',
+            size: 3_957_900_840,
+          },
+          {
+            name: 'text_encoder/model-00002-of-00003.safetensors',
+            size: 3_987_450_520,
+          },
+          {
+            name: 'text_encoder/model-00003-of-00003.safetensors',
+            size: 99_630_640,
+          },
+          { name: 'vae/config.json', size: 805 },
+          {
+            name: 'vae/diffusion_pytorch_model.safetensors',
+            size: 167_666_902,
+          },
+          { name: 'tokenizer/tokenizer_config.json', size: 9_732 },
+          { name: 'tokenizer/tokenizer.json', size: 11_422_654 },
+          { name: 'tokenizer/merges.txt', size: 1_671_853 },
+          { name: 'tokenizer/vocab.json', size: 2_776_833 },
+        ],
+      },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -309,7 +442,7 @@ export function getTrainingDownloadable(
 /**
  * Get the shared component definition by its sharedId.
  */
-export function getSharedComponent(
+function getSharedComponent(
   sharedId: string,
 ): DownloadableModel | undefined {
   return SHARED_COMPONENTS.find((m) => m.sharedId === sharedId);

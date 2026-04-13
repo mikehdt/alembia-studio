@@ -82,7 +82,7 @@ function normalizeEvent(raw: RawBatchProgressEvent): BatchProgressEvent {
  *   (config.json, tokenizer, weight shards). We return the model directory
  *   so `from_pretrained(dir)` picks up everything.
  */
-export function getVlmModelPath(model: TaggerModel): string {
+function getVlmModelPath(model: TaggerModel): string {
   if (model.files.length === 0) {
     throw new Error(`VLM model ${model.id} has no files defined`);
   }
@@ -101,7 +101,7 @@ function getRuntime(model: TaggerModel): VlmRuntime {
  * Caption a single image via the sidecar.
  * Synchronous-ish: waits for the result and returns it.
  */
-export async function captionImageViaSidecar(
+async function captionImageViaSidecar(
   model: TaggerModel,
   imagePath: string,
   options: VlmOptions,

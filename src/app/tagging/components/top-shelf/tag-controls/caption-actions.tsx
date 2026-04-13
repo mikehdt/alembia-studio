@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/app/components/shared/button';
 import { ResponsiveToolbarGroup } from '@/app/components/shared/responsive-toolbar-group';
 import { ToolbarDivider } from '@/app/components/shared/toolbar-divider';
+import { isSupportedVideoExtension } from '@/app/constants';
 import { selectFilteredAssets } from '@/app/store/assets';
 import {
   selectHasReadyModel,
@@ -76,10 +77,12 @@ const AutoTaggerButton = () => {
     if (!isTaggerModalOpen) return [];
     const source =
       selectedAssetsData.length > 0 ? selectedAssetsData : filteredAssets;
-    return source.map((asset) => ({
-      fileId: asset.fileId,
-      fileExtension: asset.fileExtension,
-    }));
+    return source
+      .filter((asset) => !isSupportedVideoExtension(`.${asset.fileExtension}`))
+      .map((asset) => ({
+        fileId: asset.fileId,
+        fileExtension: asset.fileExtension,
+      }));
   }, [isTaggerModalOpen, selectedAssetsData, filteredAssets]);
 
   const openTaggerModal = useCallback(() => setIsTaggerModalOpen(true), []);

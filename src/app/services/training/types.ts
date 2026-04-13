@@ -82,7 +82,7 @@ export type TrainingJobConfig = {
 
 // --- Per-Project Settings (stored in project config JSON) ---
 
-export type TrainingSettings = {
+type TrainingSettings = {
   datasets?: TrainingDataset[];
   provider?: TrainingProvider;
   baseModel?: string;

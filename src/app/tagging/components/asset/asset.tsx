@@ -4,6 +4,7 @@ import { memo, MouseEvent, useCallback, useState } from 'react';
 
 import { Button } from '@/app/components/shared/button';
 import { Checkbox } from '@/app/components/shared/checkbox';
+import { isSupportedVideoExtension } from '@/app/constants';
 import { ImageDimensions, IoState, KohyaBucket } from '@/app/store/assets';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import {
@@ -83,8 +84,12 @@ const AssetComponent = ({
   const showCropVisualization =
     localCropOverride ?? globalShowCropVisualization;
 
-  // Determine if cropping would occur (when aspect ratios don't match)
+  const isVideo = isSupportedVideoExtension(`.${fileExtension}`);
+
+  // Determine if cropping would occur (when aspect ratios don't match).
+  // Videos don't participate in bucket/crop logic.
   const wouldCrop =
+    !isVideo &&
     dimensions.width / dimensions.height !== bucket.width / bucket.height;
 
   const dimensionsComposed = composeDimensions(dimensions);
@@ -175,7 +180,11 @@ const AssetComponent = ({
           previewState={previewState}
         />
 
-        {wouldCrop ? (
+        {isVideo ? (
+          <span title="Videos don't use crop buckets">
+            <EyeIcon className="h-4 w-4 self-center opacity-30" />
+          </span>
+        ) : wouldCrop ? (
           <Button
             size="xs"
             variant="ghost"
@@ -211,21 +220,35 @@ const AssetComponent = ({
               ).join('/'),
             }}
           >
-            <Image
-              className="object-contain"
-              src={imageUrl}
-              width={dimensions.width}
-              height={dimensions.height}
-              alt=""
-              priority={filteredIndex <= 4}
-              placeholder={blurDataUrl ? 'blur' : 'empty'}
-              blurDataURL={blurDataUrl}
-            />
-            <CropVisualization
-              dimensions={dimensions}
-              bucket={bucket}
-              isVisible={showCropVisualization}
-            />
+            {isVideo ? (
+              <video
+                className="h-full w-full object-contain"
+                src={imageUrl}
+                controls
+                muted
+                playsInline
+                preload="metadata"
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <>
+                <Image
+                  className="object-contain"
+                  src={imageUrl}
+                  width={dimensions.width}
+                  height={dimensions.height}
+                  alt=""
+                  priority={filteredIndex <= 4}
+                  placeholder={blurDataUrl ? 'blur' : 'empty'}
+                  blurDataURL={blurDataUrl}
+                />
+                <CropVisualization
+                  dimensions={dimensions}
+                  bucket={bucket}
+                  isVisible={showCropVisualization}
+                />
+              </>
+            )}
           </span>
         </div>
 

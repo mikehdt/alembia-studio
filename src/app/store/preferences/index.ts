@@ -50,5 +50,5 @@ export const subscribePreferencesPersistence = (store: {
   });
 };
 
-export type { PreferencesState, ThemeMode, TrainingViewMode } from './types';
+export type {  ThemeMode, TrainingViewMode } from './types';
 export { TagEditMode } from './types';

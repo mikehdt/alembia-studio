@@ -70,7 +70,7 @@ export function clearPendingTagResults(projectFolderName: string): void {
 }
 
 /** Whether there are pending results waiting to be flushed. */
-export function hasPendingTagResults(projectFolderName: string): boolean {
+function hasPendingTagResults(projectFolderName: string): boolean {
   return getPendingTagResults(projectFolderName).length > 0;
 }
 

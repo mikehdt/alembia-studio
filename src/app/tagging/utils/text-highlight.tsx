@@ -70,13 +70,13 @@ export const highlightText = (
   return result;
 };
 
-export type HighlightRange = { start: number; end: number };
+type HighlightRange = { start: number; end: number };
 
 /**
  * Computes merged, sorted highlight ranges for multiple patterns in text.
  * Pure function — no React dependency — reusable for both rendering and filtering.
  */
-export const computeHighlightRanges = (
+const computeHighlightRanges = (
   text: string,
   patterns: string[],
 ): HighlightRange[] => {

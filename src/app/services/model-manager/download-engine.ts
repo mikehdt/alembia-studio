@@ -51,6 +51,9 @@ export async function* downloadModelFiles(
     const file = files[fileIdx];
     const fileIndex = fileIdx + 1; // 1-based for display
     const filePath = path.join(targetDir, file.name);
+    // file.name may contain subdirectories (e.g. "transformer/shard.safetensors"
+    // for diffusers pipeline repos). createWriteStream won't mkdir for us.
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
 
     // Inspect any existing file on disk to decide whether to skip,
     // resume, or restart this file.

@@ -319,7 +319,7 @@ export function getSidecarStatus(): {
 /**
  * Shut down the sidecar process gracefully.
  */
-export function shutdownSidecar(): void {
+function shutdownSidecar(): void {
   if (!state.process) return;
 
   if (process.platform === 'win32') {

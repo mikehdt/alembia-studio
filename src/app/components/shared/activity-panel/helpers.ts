@@ -10,8 +10,15 @@ export function formatDuration(ms: number): string {
 
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
-  const k = 1024;
+  // Decimal (1000-based) to match HuggingFace and every other download UI
+  // the user is likely to compare against. Keeps row totals and variant
+  // labels consistent — binary math would show 17.0 GB next to an 18.2 GB
+  // HF file.
+  const k = 1000;
   const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const i = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(k)),
+    sizes.length - 1,
+  );
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 }

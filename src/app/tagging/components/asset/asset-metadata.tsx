@@ -8,6 +8,7 @@ import { memo, useCallback } from 'react';
 
 import { Button } from '@/app/components/shared/button';
 import { useToast } from '@/app/components/shared/toast';
+import { isSupportedVideoExtension } from '@/app/constants';
 import type { RootState } from '@/app/store';
 import {
   IoState,
@@ -87,6 +88,8 @@ const AssetMetadataComponent = ({
     ioState !== IoState.SAVING;
 
   const { showToast } = useToast();
+
+  const isVideo = isSupportedVideoExtension(`.${fileExtension}`);
 
   // Calculate pressed states based on filter arrays
   const dimensionsActive = filterSizes.includes(dimensionsComposed);
@@ -183,18 +186,20 @@ const AssetMetadataComponent = ({
           {dimensions.width}&times;{dimensions.height}
         </Button>
 
-        <Button
-          type="button"
-          color="slate"
-          size="xs"
-          width="md"
-          isPressed={bucketActive}
-          onClick={handleToggleBucket}
-          title="Bucket dimensions"
-        >
-          <ArchiveIcon />
-          {bucket.width}&times;{bucket.height}
-        </Button>
+        {!isVideo && (
+          <Button
+            type="button"
+            color="slate"
+            size="xs"
+            width="md"
+            isPressed={bucketActive}
+            onClick={handleToggleBucket}
+            title="Bucket dimensions"
+          >
+            <ArchiveIcon />
+            {bucket.width}&times;{bucket.height}
+          </Button>
+        )}
 
         <Button
           type="button"
@@ -211,7 +216,7 @@ const AssetMetadataComponent = ({
           <Button
             type="button"
             color="indigo"
-            size="sm"
+            size="xs"
             width="md"
             isPressed={subfolderActive}
             onClick={handleToggleSubfolder}
@@ -236,7 +241,8 @@ const AssetMetadataComponent = ({
         <span className="flex shrink-0 gap-2 pl-2">
           <Button
             color="stone"
-            size="md"
+            size="xs"
+            width="lg"
             onClick={handleCancelAction}
             disabled={isTagEditing || isSaving}
             title={isTagEditing ? 'Finish tag operation first' : ''}
@@ -246,7 +252,8 @@ const AssetMetadataComponent = ({
 
           <Button
             color="teal"
-            size="md"
+            size="xs"
+            width="lg"
             onClick={handleSaveAction}
             disabled={isTagEditing || isSaving}
             title={isTagEditing ? 'Finish tag operation first' : ''}

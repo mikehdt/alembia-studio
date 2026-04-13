@@ -448,12 +448,18 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     description: 'Fast, high-quality image generation',
     provider: 'ai-toolkit',
     components: [
-      { type: 'checkpoint', label: 'Transformer', required: true },
-      { type: 't5', label: 'T5-XXL Text Encoder', required: true },
-      { type: 'clip_l', label: 'CLIP-L Text Encoder', required: true },
-      { type: 'ae', label: 'Autoencoder (AE)', required: true },
+      {
+        type: 'checkpoint',
+        label: 'Pipeline (transformer + Qwen3-4B + VAE)',
+        required: true,
+        downloadId: 'dl-zimage-turbo',
+        hint: 'Diffusers pipeline directory — everything bundled in one download',
+      },
     ],
-    tips: ['Fewer sample steps needed (8) due to turbo architecture'],
+    tips: [
+      'Fewer sample steps needed (8) due to turbo architecture',
+      'Uses Qwen3-4B as the text encoder — no separate T5/CLIP needed',
+    ],
     availableResolutions: [256, 512, 768, 1024, 1536, 2048],
     hiddenFields: ['noiseScheduler'],
     defaults: {
@@ -667,7 +673,7 @@ export const OPTIMIZER_OPTIONS = [
   },
 ];
 
-export type SchedulerOption = {
+type SchedulerOption = {
   value: string;
   label: string;
   hint: string;
