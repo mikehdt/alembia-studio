@@ -1,7 +1,11 @@
 import { createSelector } from '@reduxjs/toolkit';
 
 import { composeDimensions } from '../../utils/helpers';
-import { selectAllImages, selectFilteredAssets } from '../assets';
+import {
+  selectAllAssetsTagless,
+  selectAllImages,
+  selectFilteredAssets,
+} from '../assets';
 import {
   selectFilterTags,
   selectHasActiveFilters,
@@ -144,6 +148,7 @@ export const selectAssetsWithActiveFilters = createSelector(
   [
     (state: RootState) => selectHasActiveFilters(state),
     (state: RootState) => selectHasActiveVisibility(state),
+    selectAllAssetsTagless,
     selectFilteredAssets,
     selectAllImages,
     // Extract specific fields — avoids recomputation when unrelated filter
@@ -158,6 +163,7 @@ export const selectAssetsWithActiveFilters = createSelector(
   (
     hasActiveFilters,
     hasActiveVisibility,
+    allAssetsTagless,
     filteredAssets,
     allImages,
     filterTags,
@@ -168,6 +174,10 @@ export const selectAssetsWithActiveFilters = createSelector(
     filenamePatterns,
   ) => {
     if (!hasActiveFilters && !hasActiveVisibility) {
+      // When every asset is tagless, treat it as an implicit Tagless scope
+      // so Add Tags / Auto Tagger operate on the whole project without
+      // forcing the user to tick a redundant filter first.
+      if (allAssetsTagless) return allImages;
       return [];
     }
 

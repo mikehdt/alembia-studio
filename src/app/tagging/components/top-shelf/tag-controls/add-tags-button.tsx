@@ -2,6 +2,7 @@ import { TagIcon } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { Button } from '@/app/components/shared/button';
+import { selectAllAssetsTagless } from '@/app/store/assets';
 import {
   selectHasActiveFilters,
   selectHasActiveVisibility,
@@ -23,11 +24,13 @@ export const AddTagsButton = () => {
   const selectedAssetsCount = useAppSelector(selectSelectedAssetsCount);
   const hasActiveFilters = useAppSelector(selectHasActiveFilters);
   const hasActiveVisibility = useAppSelector(selectHasActiveVisibility);
+  const allAssetsTagless = useAppSelector(selectAllAssetsTagless);
   const assetsWithActiveFiltersCount = useAppSelector(
     selectAssetsWithActiveFiltersCount,
   );
 
-  const hasActiveScope = hasActiveFilters || hasActiveVisibility;
+  const hasActiveScope =
+    hasActiveFilters || hasActiveVisibility || allAssetsTagless;
   const canAddTags = selectedAssetsCount > 0 || hasActiveScope;
 
   const openModal = useCallback(() => setIsModalOpen(true), []);

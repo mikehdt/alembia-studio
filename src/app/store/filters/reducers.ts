@@ -31,6 +31,11 @@ export const coreReducers = {
 
   toggleTagFilter: (state: Filters, { payload }: PayloadAction<string>) => {
     state.filterTags = toggleFilter(state.filterTags, payload);
+    // Tagless scope is mutually exclusive with tag filters — clear it once
+    // the user starts filtering by tags so the two don't conflict.
+    if (state.filterTags.length > 0) {
+      state.visibility.scopeTagless = false;
+    }
   },
 
   toggleSizeFilter: (state: Filters, { payload }: PayloadAction<string>) => {
@@ -168,6 +173,8 @@ export const coreReducers = {
   },
 
   toggleVisibilityScopeTagless: (state: Filters) => {
+    // Mirror the UI guard: can't enable Tagless while tag filters are set.
+    if (!state.visibility.scopeTagless && state.filterTags.length > 0) return;
     state.visibility.scopeTagless = !state.visibility.scopeTagless;
   },
 

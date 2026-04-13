@@ -6,7 +6,7 @@ import { composeDimensions } from '../../utils/helpers';
 import { wrapSelector } from '../../utils/selector-perf';
 import type { RootState } from '../';
 import { TagSortDirection, TagSortType } from '../project';
-import { KeyedCountList, SortType, TagState } from './types';
+import { ImageAsset, KeyedCountList, SortType, TagState } from './types';
 import { buildTagCountsCache, hasState } from './utils';
 
 // Base selector that extracts all images from RootState
@@ -154,20 +154,31 @@ export const selectHasModifiedAssets = wrapSelector(
   ),
 );
 
+const isAssetTagless = (asset: ImageAsset, captionMode: string): boolean => {
+  if (captionMode === 'caption') {
+    return !asset.captionText?.trim();
+  }
+  return asset.tagList.every(
+    (tag) =>
+      hasState(asset.tagStatus[tag], TagState.TO_DELETE) ||
+      hasState(asset.tagStatus[tag], TagState.TO_ADD),
+  );
+};
+
 // Custom selector to check if any assets have no persisted tags (or no caption text)
 export const selectHasTaglessAssets = createSelector(
   [selectAllImages, (state: RootState) => state.project.config.captionMode],
   (images, captionMode) =>
-    images.some((asset) => {
-      if (captionMode === 'caption') {
-        return !asset.captionText?.trim();
-      }
-      return asset.tagList.every(
-        (tag) =>
-          hasState(asset.tagStatus[tag], TagState.TO_DELETE) ||
-          hasState(asset.tagStatus[tag], TagState.TO_ADD),
-      );
-    }),
+    images.some((asset) => isAssetTagless(asset, captionMode)),
+);
+
+// True when every asset is tagless — used to enable tag actions implicitly
+// so users don't need to click "Tagless only" on a fresh, untagged project.
+export const selectAllAssetsTagless = createSelector(
+  [selectAllImages, (state: RootState) => state.project.config.captionMode],
+  (images, captionMode) =>
+    images.length > 0 &&
+    images.every((asset) => isAssetTagless(asset, captionMode)),
 );
 
 export const selectHasSubfolderAssets = createSelector(

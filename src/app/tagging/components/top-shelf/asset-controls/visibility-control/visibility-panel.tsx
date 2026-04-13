@@ -46,9 +46,10 @@ export const VisibilityPanel = () => {
 
   const captionMode = useAppSelector(selectCaptionMode);
   const tagSection = sections.find((s) => s.key === 'tags');
-  const hasTagSelections = tagSection && tagSection.count > 0;
+  const hasTagSelections = !!(tagSection && tagSection.count > 0);
   const taglessLabel =
     captionMode === 'caption' ? 'Uncaptioned only' : 'Tagless only';
+  const taglessBlockedByTags = hasTagSelections && hasTaglessAssets;
 
   return (
     <>
@@ -61,15 +62,13 @@ export const VisibilityPanel = () => {
         <div className="flex items-center justify-between gap-1.5">
           <Checkbox
             isSelected={visibility.scopeTagless}
-            disabled={!hasTaglessAssets}
+            disabled={!hasTaglessAssets || hasTagSelections}
             onChange={handleToggleScopeTagless}
             label={taglessLabel}
           />
-          {hasTagSelections && hasTaglessAssets ? (
-            <span title="Tag filters are ignored while Tagless is active — tagless assets have no tags to match against">
-              <TriangleAlertIcon
-                className={`h-5 w-5 shrink-0 ${visibility.scopeTagless ? 'text-amber-500' : 'text-slate-400'}`}
-              />
+          {taglessBlockedByTags ? (
+            <span title="Clear tag filters to enable Tagless scope — the two can't be combined.">
+              <TriangleAlertIcon className="h-5 w-5 shrink-0 text-amber-500" />
             </span>
           ) : null}
         </div>
@@ -95,7 +94,6 @@ export const VisibilityPanel = () => {
           key={section.key}
           section={section}
           onSetMode={handleSetClassMode}
-          disabled={section.key === 'tags' && visibility.scopeTagless}
         />
       ))}
 
@@ -107,11 +105,9 @@ export const VisibilityPanel = () => {
 const ClassModeSection = ({
   section,
   onSetMode,
-  disabled = false,
 }: {
   section: SectionConfig;
   onSetMode: (classKey: SectionConfig['key'], mode: ClassFilterMode) => void;
-  disabled?: boolean;
 }) => {
   if (!section.available) return null;
 
@@ -131,7 +127,6 @@ const ClassModeSection = ({
           options={CLASS_MODES}
           value={section.mode}
           onChange={(mode) => onSetMode(section.key, mode)}
-          disabled={disabled}
         />
       </div>
     </>

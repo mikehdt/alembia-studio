@@ -313,7 +313,16 @@ export function useAutoTagger({
    * completed or the user returned to a project with pending results.
    */
   const flushAndFinalise = useCallback(
-    (projectFolderName: string, jobId: string, cancelled: boolean) => {
+    async (
+      projectFolderName: string,
+      jobId: string,
+      cancelled: boolean,
+      // Optional pause between dispatching flush + summary state and the
+      // final `completeTagging`. Lets the progress bar render at 100% for
+      // a beat before the modal flips to the summary view; otherwise the
+      // last image's "done" frame is invisible. Skipped on cancel.
+      completionDelayMs = 0,
+    ) => {
       // Compute summary from localStorage before flushing clears it.
       // Enrich with errorCount + providerType so the activity-panel card can
       // distinguish "partial success" from "fully successful" and choose
@@ -331,13 +340,6 @@ export function useAutoTagger({
       // Flush: read from localStorage → dispatch addMultipleTags → clear
       dispatch(flushPendingTagResults(projectFolderName));
 
-      // Update the job in the queue
-      if (cancelled) {
-        // cancelTagging already dispatched by the abort handler
-      } else {
-        dispatch(completeTagging({ id: jobId, summary: summaryData }));
-      }
-
       // Deselect assets that received tags
       if (unselectOnComplete && summaryData.imagesWithNewTags > 0) {
         // Re-read isn't needed — we know which assets were tagged from the summary
@@ -351,6 +353,22 @@ export function useAutoTagger({
           }),
         );
       }
+
+      // Update the job in the queue. The delay (if any) lets the progress
+      // bar settle on 100% before the modal flips to the summary view.
+      if (cancelled) {
+        // cancelTagging already dispatched by the abort handler
+        return;
+      }
+      if (completionDelayMs > 0) {
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => setTimeout(resolve, completionDelayMs));
+        });
+        // If the user cancelled during the settle window, don't overwrite
+        // their cancellation with a completed state.
+        if (currentJobIdRef.current !== jobId) return;
+      }
+      dispatch(completeTagging({ id: jobId, summary: summaryData }));
     },
     [dispatch, unselectOnComplete, selectedAssets, selectedProviderType],
   );
@@ -455,6 +473,21 @@ export function useAutoTagger({
         dispatch(updateJobStatus({ id: jobId, status: 'running' }));
       };
 
+      // Track the most-recent loading event so a `loaded` transition can
+      // re-emit it at 100% before pausing. Without this, the model-ready
+      // tick from the sidecar gets clobbered by the immediate switch to
+      // image-tagging and never paints.
+      let lastLoadingMessage = 'Loading model';
+
+      // Brief pause to let the previous progress state paint before moving
+      // to the next phase. Same trick `completeAfterDelay` uses for the
+      // project loader: RAF guarantees a render frame, then the timeout
+      // gives the user time to perceive 100%. 350ms matches that helper.
+      const settleFrame = () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => setTimeout(resolve, 350));
+        });
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -471,6 +504,7 @@ export function useAutoTagger({
 
               if (event.type === 'loading') {
                 promoteToRunning();
+                lastLoadingMessage = event.message ?? 'Loading model';
                 // Model-loading sub-state — show a spinner with the shard
                 // progress while the sidecar reads weights into GPU/RAM.
                 dispatch(
@@ -480,10 +514,45 @@ export function useAutoTagger({
                       current: 0,
                       total: selectedAssets.length,
                       loading: {
-                        message: event.message ?? 'Loading model',
+                        message: lastLoadingMessage,
                         current: event.current ?? 0,
                         total: event.total ?? 0,
                       },
+                    },
+                  }),
+                );
+              } else if (event.type === 'loaded') {
+                // Loading → tagging transition. Force the loading bar to
+                // 100% (some sidecar backends end on a non-100% shard tick),
+                // pause briefly so the user perceives "loaded", then drop
+                // the loading sub-state to reveal the image counter.
+                promoteToRunning();
+                dispatch(
+                  updateTaggingProgress({
+                    id: jobId,
+                    progress: {
+                      current: event.current ?? 0,
+                      total: selectedAssets.length,
+                      loading: {
+                        message: lastLoadingMessage,
+                        current: 1,
+                        total: 1,
+                      },
+                    },
+                  }),
+                );
+                await settleFrame();
+                // The user may have hit Cancel during the pause; bail out
+                // of the transition rather than blowing away cancelled
+                // state with a fresh progress dispatch.
+                if (currentJobIdRef.current !== jobId) continue;
+                dispatch(
+                  updateTaggingProgress({
+                    id: jobId,
+                    progress: {
+                      current: event.current ?? 0,
+                      total: event.total ?? selectedAssets.length,
+                      currentFileId: event.fileId,
                     },
                   }),
                 );
@@ -521,7 +590,15 @@ export function useAutoTagger({
                 throw new Error(event.error);
               } else if (event.type === 'complete') {
                 receivedComplete = true;
-                flushAndFinalise(projectFolderName, jobId, false);
+                // 350ms pause between the final progress event and the
+                // summary view so the progress bar visibly hits 100%.
+                // Awaited (not fire-and-forget) so the outer try/finally
+                // doesn't clear `currentJobIdRef` before the delayed
+                // `completeTagging` dispatch lands — that would trip the
+                // cancel-check inside flushAndFinalise and silently swallow
+                // the completion, leaving the modal stuck on the progress
+                // view forever.
+                await flushAndFinalise(projectFolderName, jobId, false, 350);
 
                 // Save settings as defaults for this project
                 const settingsToSave: AutoTaggerSettings = {

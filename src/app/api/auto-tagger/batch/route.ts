@@ -62,7 +62,7 @@ type BatchTagRequest = {
 };
 
 type BatchProgressEvent = {
-  type: 'progress' | 'result' | 'complete' | 'error' | 'loading';
+  type: 'progress' | 'result' | 'complete' | 'error' | 'loading' | 'loaded';
   current?: number;
   total?: number;
   fileId?: string;
@@ -426,14 +426,14 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
-          // Load complete — emit a progress event at <dropped>/total (with no
-          // `loading` sub-state) so the client clears the loading overlay
-          // and switches to the "Captioning N of M" view before the first
-          // image finishes. Without this, the UI would sit on the last
-          // loading tick for the full duration of the first inference.
+          // Load complete — emit a `loaded` event so the client can show the
+          // loading bar at 100% briefly before transitioning to the
+          // image-counter view. The client handles the 100%-fill + brief
+          // pause + switch-to-tagging dance; doing it server-side would
+          // hold the SSE stream open while the sidecar starts inference.
           if ('loadingComplete' in event) {
             sendEvent({
-              type: 'progress',
+              type: 'loaded',
               current: completed,
               total,
               fileId: sidecarIndexToAsset[0]?.fileId,
