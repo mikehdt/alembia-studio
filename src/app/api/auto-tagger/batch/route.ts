@@ -172,21 +172,44 @@ export async function POST(request: NextRequest) {
     // Trailing position matters: VLMs weight the last line of the prompt
     // more heavily than earlier context when deciding what to produce.
     //
-    // We use ` | ` as a separator (with surrounding spaces) rather than
-    // commas, because trigger phrases can be multi-word or even full
-    // sentences with punctuation inside — commas would be ambiguous, and
-    // the pipe is rare enough in natural prose to act as a clean delimiter.
+    // Phrases are presented as a bulleted list (one per line) instead of a
+    // pipe-separated single line. The pipe format invited the model to copy
+    // the entire delimiter line verbatim into the caption; a bulleted list
+    // looks like data the model has to *read* and weave in, not template
+    // text it can echo. The position instruction (prepend/append) tells
+    // the model exactly where the phrases should land in the output.
     if (
       vlmOptions.injectTriggerPhrases &&
       triggerPhrases.length > 0 &&
       getProviderTypeForModel(modelId) === 'vlm'
     ) {
-      const phraseList = triggerPhrases
+      const cleaned = triggerPhrases
         .map((p) => p.trim())
-        .filter((p) => p.length > 0)
-        .join(' | ');
-      if (phraseList.length > 0) {
-        vlmOptions.prompt = `${vlmOptions.prompt.trimEnd()}\n\nYou must reproduce each of the following phrases verbatim — word for word, including any punctuation — at least once in the caption. Phrases are separated by a pipe character (|):\n${phraseList}`;
+        .filter((p) => p.length > 0);
+      if (cleaned.length > 0) {
+        const bulletList = cleaned.map((p) => `- ${p}`).join('\n');
+        let positionInstruction: string;
+        switch (vlmOptions.triggerPhraseInsertMode) {
+          case 'prepend':
+            positionInstruction =
+              'Begin the caption with the phrases above (each on its own line, in the order given), then write the rest of the caption normally on the lines that follow.';
+            break;
+          case 'integrate':
+            // The fallback clause is essential: nonsense phrases would
+            // otherwise force the model into contortions trying to "make
+            // them fit." Giving an explicit out (place at end if it doesn't
+            // fit) preserves the must-appear constraint without sacrificing
+            // caption quality on phrases that genuinely don't belong.
+            positionInstruction =
+              'Where a phrase fits naturally into the description of what is depicted, weave it into the prose at that point. For phrases that do not fit naturally — for example, sentences unrelated to the image — add them at the end of the caption on their own lines instead. Do not force a phrase into a place where it does not belong.';
+            break;
+          case 'append':
+          default:
+            positionInstruction =
+              'After finishing the caption, add the phrases above on new lines at the end (each on its own line, in the order given).';
+            break;
+        }
+        vlmOptions.prompt = `${vlmOptions.prompt.trimEnd()}\n\nThe following phrases must each appear in the caption exactly once, character-for-character including punctuation:\n${bulletList}\n\n${positionInstruction}`;
       }
     }
 
@@ -321,9 +344,41 @@ export async function POST(request: NextRequest) {
       // and yields one event per image, so we match results back to assets by
       // their sequence index rather than by path string — this avoids subtle
       // path-normalisation mismatches between Node and Python.
-      const imagePaths = assets.map((a) =>
-        path.join(projectPath, `${a.fileId}.${a.fileExtension}`),
-      );
+      //
+      // Video assets are substituted with their extracted poster frame so the
+      // VLM captions a still — true video understanding is a future phase.
+      // Assets whose poster extraction fails are dropped from the sidecar
+      // batch and reported back as per-asset errors. We track the surviving
+      // sidecar→asset index mapping so result events still match the right
+      // asset after any drops.
+      const imagePaths: string[] = [];
+      const sidecarIndexToAsset: typeof assets = [];
+      for (const asset of assets) {
+        const sourcePath = path.join(
+          projectPath,
+          `${asset.fileId}.${asset.fileExtension}`,
+        );
+        let resolved: string | null = sourcePath;
+        if (isSupportedVideoExtension(`.${asset.fileExtension}`)) {
+          resolved = await ensureVideoPoster(sourcePath);
+        }
+        if (!resolved) {
+          sendEvent({
+            type: 'error',
+            fileId: asset.fileId,
+            error: 'Failed to extract poster frame from video',
+          });
+          continue;
+        }
+        imagePaths.push(resolved);
+        sidecarIndexToAsset.push(asset);
+      }
+
+      // If every asset was a failed-extraction video, there's nothing to
+      // send to the sidecar — bail before opening a WebSocket.
+      if (imagePaths.length === 0) {
+        return;
+      }
 
       const batchId = `batch-${Date.now()}`;
 
@@ -341,7 +396,11 @@ export async function POST(request: NextRequest) {
 
       // Same semantics as runOnnxBatch: `current` = images completed so far.
       // Starts at 0 (set by the hook's initial job state), hits `total` at the end.
-      let completed = 0;
+      // Note: `total` is the user-requested asset count (which may include
+      // videos we couldn't extract); progress events emit against that so the
+      // top-level UI numerator reaches `total` once we add back the dropped
+      // video errors counted before the sidecar started.
+      let completed = assets.length - sidecarIndexToAsset.length;
 
       const generator = captionBatchViaSidecar(
         resolvedModel,
@@ -365,22 +424,25 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
-          // Load complete — emit a progress event at 0/total (with no
+          // Load complete — emit a progress event at <dropped>/total (with no
           // `loading` sub-state) so the client clears the loading overlay
-          // and switches to the "Captioning 1 of N" view before the first
+          // and switches to the "Captioning N of M" view before the first
           // image finishes. Without this, the UI would sit on the last
           // loading tick for the full duration of the first inference.
           if ('loadingComplete' in event) {
             sendEvent({
               type: 'progress',
-              current: 0,
+              current: completed,
               total,
-              fileId: assets[0]?.fileId,
+              fileId: sidecarIndexToAsset[0]?.fileId,
             });
             continue;
           }
 
-          const asset = assets[completed];
+          // Map the sidecar's per-image event back to the user-facing asset
+          // via the surviving-index mapping (skips dropped videos).
+          const sidecarIndex = completed - (assets.length - sidecarIndexToAsset.length);
+          const asset = sidecarIndexToAsset[sidecarIndex];
           if ('error' in event) {
             sendEvent({
               type: 'error',
@@ -397,8 +459,10 @@ export async function POST(request: NextRequest) {
 
           // Advance completion count after each event (success or error).
           completed++;
+          const nextSidecarIndex =
+            completed - (assets.length - sidecarIndexToAsset.length);
           const nextFileId =
-            assets[completed]?.fileId ?? assets[completed - 1]?.fileId;
+            sidecarIndexToAsset[nextSidecarIndex]?.fileId ?? asset?.fileId;
           sendEvent({
             type: 'progress',
             current: completed,

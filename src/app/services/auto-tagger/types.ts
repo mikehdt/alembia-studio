@@ -74,6 +74,14 @@ export type TaggerOutput = {
 
 export type TagInsertMode = 'prepend' | 'append';
 
+/**
+ * Where injected trigger phrases should land in a VLM-generated caption.
+ * Distinct from `TagInsertMode` because 'integrate' has no analogue in the
+ * ONNX tagging flow — it asks the model to weave phrases into the prose
+ * where they fit naturally, falling back to append for ones that don't.
+ */
+export type TriggerPhraseInsertMode = 'prepend' | 'integrate' | 'append';
+
 export type TaggerOptions = {
   generalThreshold: number;
   characterThreshold: number;
@@ -110,6 +118,14 @@ export type VlmOptions = {
    * request time so the prompt the user edits stays clean.
    */
   injectTriggerPhrases: boolean;
+  /**
+   * Where injected trigger phrases should land in the generated caption.
+   * - 'prepend':   model places them at the very start, then writes the caption
+   * - 'integrate': model weaves them into the prose where they fit, falling
+   *                back to the end for phrases that don't fit naturally
+   * - 'append':    model writes the caption first, then lists them at the end
+   */
+  triggerPhraseInsertMode: TriggerPhraseInsertMode;
 };
 
 export const DEFAULT_VLM_OPTIONS: VlmOptions = {
@@ -139,6 +155,7 @@ export const DEFAULT_VLM_OPTIONS: VlmOptions = {
   maxTokens: 550,
   temperature: 0.6,
   injectTriggerPhrases: true,
+  triggerPhraseInsertMode: 'append',
 };
 
 /**

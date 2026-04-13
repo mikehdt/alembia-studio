@@ -30,6 +30,7 @@ export function AutoTaggerModal({
     unselectOnComplete,
     isTagging,
     progress,
+    jobStatus,
     summary,
     error,
     imageErrors,
@@ -40,6 +41,7 @@ export function AutoTaggerModal({
     selectedModelId,
     selectedProviderType,
     insertModeOptions,
+    triggerPhraseInsertModeOptions,
     triggerPhrases,
     handleModelChange,
     handleOptionChange,
@@ -99,6 +101,7 @@ export function AutoTaggerModal({
         ) : isTagging ? (
           <AutoTaggerProgress
             progress={progress}
+            jobStatus={jobStatus}
             providerType={selectedProviderType}
             onCancel={handleCancel}
             onLeave={handleLeave}
@@ -117,6 +120,7 @@ export function AutoTaggerModal({
             unselectOnComplete={unselectOnComplete}
             selectedModelId={selectedModelId}
             modelItems={modelItems}
+            triggerPhraseInsertModeOptions={triggerPhraseInsertModeOptions}
             selectedAssetsCount={selectedAssets.length}
             error={error}
             triggerPhrases={triggerPhrases}

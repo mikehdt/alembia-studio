@@ -379,9 +379,7 @@ export const selectHasJobs = createSelector(
 export type {
   DownloadJob,
   Job,
-  
-  
-  
+  JobStatus,
   TaggingJob,
   TaggingProgress,
   TaggingSummary,

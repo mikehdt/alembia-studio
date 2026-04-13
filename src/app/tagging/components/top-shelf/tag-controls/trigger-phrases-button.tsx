@@ -1,5 +1,12 @@
 import { HighlighterIcon, PlusIcon, XIcon } from 'lucide-react';
-import { type KeyboardEvent, memo, useCallback, useRef, useState } from 'react';
+import {
+  type KeyboardEvent,
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import { Button } from '@/app/components/shared/button';
 import { Modal } from '@/app/components/shared/modal';
@@ -31,15 +38,29 @@ export const TriggerPhrasesModal = ({
   const [addValue, setAddValue] = useState('');
   const addInputRef = useRef<HTMLInputElement>(null);
 
+  // Reset local state from Redux every time the modal opens. Without this,
+  // the lazy useState initializer runs only once for the lifetime of the
+  // component (which stays mounted across opens), so deletes/edits made in a
+  // previous Cancel'd session would persist into the next open and Save
+  // would appear "always enabled" because local phrases drifted from Redux.
+  useEffect(() => {
+    if (isOpen) {
+      setPhrases([...triggerPhrases]);
+      setAddValue('');
+    }
+  }, [isOpen, triggerPhrases]);
+
+  // Save commits exactly what's in the `phrases` array — pending text in the
+  // add-field is intentionally ignored. The + button (or Enter) is the only
+  // commit point for an individual phrase, so the modal can't sneak an
+  // un-confirmed value into the saved list.
   const handleSave = useCallback(() => {
-    // Include any pending add-field text
-    const final = addValue.trim() ? [...phrases, addValue.trim()] : phrases;
-    dispatch(setTriggerPhrases(final));
+    dispatch(setTriggerPhrases(phrases));
     if (projectFolderName) {
-      updateProject(projectFolderName, { triggerPhrases: final });
+      updateProject(projectFolderName, { triggerPhrases: phrases });
     }
     onClose();
-  }, [phrases, addValue, dispatch, projectFolderName, onClose]);
+  }, [phrases, dispatch, projectFolderName, onClose]);
 
   const handleEditPhrase = useCallback((index: number, value: string) => {
     setPhrases((prev) => {
@@ -82,8 +103,10 @@ export const TriggerPhrasesModal = ({
     [phrases, handleRemovePhrase],
   );
 
+  // Save is only enabled when the committed `phrases` array differs from
+  // the loaded value. Pending text in the add-field doesn't count — the user
+  // has to click + (or Enter) to turn it into a real change.
   const hasChanges =
-    addValue.trim() !== '' ||
     phrases.length !== triggerPhrases.length ||
     phrases.some((p, i) => p !== triggerPhrases[i]);
 

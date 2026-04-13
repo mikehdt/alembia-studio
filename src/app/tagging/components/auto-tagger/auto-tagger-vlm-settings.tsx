@@ -5,7 +5,11 @@ import { Checkbox } from '@/app/components/shared/checkbox';
 import { Dropdown, DropdownItem } from '@/app/components/shared/dropdown';
 import { FormTitle } from '@/app/components/shared/form-title/form-title';
 import { Input } from '@/app/components/shared/input/input';
-import type { VlmOptions } from '@/app/services/auto-tagger';
+import { RadioGroup } from '@/app/components/shared/radio-group';
+import type {
+  TriggerPhraseInsertMode,
+  VlmOptions,
+} from '@/app/services/auto-tagger';
 import { DEFAULT_VLM_OPTIONS } from '@/app/services/auto-tagger';
 
 type AutoTaggerVlmSettingsProps = {
@@ -13,6 +17,10 @@ type AutoTaggerVlmSettingsProps = {
   unselectOnComplete: boolean;
   selectedModelId: string | null;
   modelItems: DropdownItem<string>[];
+  triggerPhraseInsertModeOptions: {
+    value: TriggerPhraseInsertMode;
+    label: string;
+  }[];
   selectedAssetsCount: number;
   error: string | null;
   triggerPhrases: string[];
@@ -31,6 +39,7 @@ export function AutoTaggerVlmSettings({
   unselectOnComplete,
   selectedModelId,
   modelItems,
+  triggerPhraseInsertModeOptions,
   selectedAssetsCount,
   error,
   triggerPhrases,
@@ -159,6 +168,19 @@ export function AutoTaggerVlmSettings({
             phrase verbatim in the caption. Useful for LoRA training where every
             caption needs the activation token.
           </p>
+          {vlmOptions.injectTriggerPhrases && (
+            <div className="mt-2 ml-7 flex flex-col gap-2">
+              <FormTitle as="span">Phrase position</FormTitle>
+              <RadioGroup
+                name="triggerPhraseInsertMode"
+                options={triggerPhraseInsertModeOptions}
+                value={vlmOptions.triggerPhraseInsertMode}
+                onChange={(mode) =>
+                  onVlmOptionChange('triggerPhraseInsertMode', mode)
+                }
+              />
+            </div>
+          )}
         </div>
       )}
 

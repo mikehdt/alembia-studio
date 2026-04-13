@@ -6,6 +6,7 @@ import type {
   AutoTaggerSettings,
   TaggerOptions,
   TagInsertMode,
+  TriggerPhraseInsertMode,
   VlmOptions,
 } from '@/app/services/auto-tagger';
 import {
@@ -39,6 +40,7 @@ import {
   completeTagging,
   failTagging,
   selectActiveTaggingJob,
+  updateJobStatus,
   updateTaggingProgress,
 } from '@/app/store/jobs';
 import { selectKeepTaggerModelInMemory } from '@/app/store/preferences';
@@ -61,6 +63,18 @@ type UseAutoTaggerParams = {
 
 const INSERT_MODE_OPTIONS: { value: TagInsertMode; label: string }[] = [
   { value: 'prepend', label: 'Prepend to start' },
+  { value: 'append', label: 'Append to end' },
+];
+
+// Trigger phrase positioning has an extra 'integrate' option that asks the
+// model to weave phrases into the prose where they fit. Ordered spatially
+// (start → middle → end) so the radio reads as a position picker.
+const TRIGGER_PHRASE_INSERT_MODE_OPTIONS: {
+  value: TriggerPhraseInsertMode;
+  label: string;
+}[] = [
+  { value: 'prepend', label: 'Prepend to start' },
+  { value: 'integrate', label: 'Attempt to integrate' },
   { value: 'append', label: 'Append to end' },
 ];
 
@@ -104,6 +118,7 @@ export function useAutoTagger({
   // Derived state from the job
   const isTagging = activeTaggingJob !== null;
   const progress = activeTaggingJob?.progress ?? null;
+  const jobStatus = activeTaggingJob?.status ?? null;
 
   // Local settings state (not part of the job)
   const [options, setOptions] = useState<TaggerOptions>({
@@ -196,6 +211,12 @@ export function useAutoTagger({
               temperature: savedSettings.temperature ?? prev.temperature,
               injectTriggerPhrases:
                 savedSettings.injectTriggerPhrases ?? prev.injectTriggerPhrases,
+              triggerPhraseInsertMode:
+                savedSettings.triggerPhraseInsertMode === 'prepend' ||
+                savedSettings.triggerPhraseInsertMode === 'integrate' ||
+                savedSettings.triggerPhraseInsertMode === 'append'
+                  ? savedSettings.triggerPhraseInsertMode
+                  : prev.triggerPhraseInsertMode,
             }));
 
             if (
@@ -421,6 +442,18 @@ export function useAutoTagger({
       const decoder = new TextDecoder();
       let buffer = '';
       let receivedComplete = false;
+      // Flip from `preparing` → `running` once the backend emits its first
+      // signal of any kind. Until then the progress UI shows a "Starting..."
+      // indeterminate state instead of "Tagging image 1 of N" with an empty
+      // bar, which was misleading: nothing is actually being tagged yet, the
+      // model is still spinning up. One-shot flag so we don't dispatch on
+      // every event after the first.
+      let promotedToRunning = false;
+      const promoteToRunning = () => {
+        if (promotedToRunning) return;
+        promotedToRunning = true;
+        dispatch(updateJobStatus({ id: jobId, status: 'running' }));
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -437,6 +470,7 @@ export function useAutoTagger({
               const event = JSON.parse(line.slice(6));
 
               if (event.type === 'loading') {
+                promoteToRunning();
                 // Model-loading sub-state — show a spinner with the shard
                 // progress while the sidecar reads weights into GPU/RAM.
                 dispatch(
@@ -454,6 +488,7 @@ export function useAutoTagger({
                   }),
                 );
               } else if (event.type === 'progress') {
+                promoteToRunning();
                 dispatch(
                   updateTaggingProgress({
                     id: jobId,
@@ -502,6 +537,7 @@ export function useAutoTagger({
                   maxTokens: vlmOptions.maxTokens,
                   temperature: vlmOptions.temperature,
                   injectTriggerPhrases: vlmOptions.injectTriggerPhrases,
+                  triggerPhraseInsertMode: vlmOptions.triggerPhraseInsertMode,
                 };
                 saveAutoTaggerSettings(projectFolderName, settingsToSave).catch(
                   console.error,
@@ -589,6 +625,7 @@ export function useAutoTagger({
     unselectOnComplete,
     isTagging,
     progress,
+    jobStatus,
     summary,
     error,
     imageErrors,
@@ -602,6 +639,7 @@ export function useAutoTagger({
     selectedModelId,
     selectedProviderType,
     insertModeOptions: INSERT_MODE_OPTIONS,
+    triggerPhraseInsertModeOptions: TRIGGER_PHRASE_INSERT_MODE_OPTIONS,
     triggerPhrases,
     // Actions
     handleModelChange,
