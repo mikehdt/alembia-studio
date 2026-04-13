@@ -3,15 +3,9 @@ import type { ReactNode } from 'react';
 type ProgressBarSize = 'xs' | 'sm' | 'md' | 'lg';
 type ProgressBarColor = 'sky' | 'indigo' | 'teal' | 'green' | 'red' | 'amber';
 
-type ProgressBarProps = {
-  /** Current progress value */
-  value: number;
-  /** Maximum progress value */
-  max: number;
+type ProgressBarBase = {
   size?: ProgressBarSize;
   color?: ProgressBarColor;
-  /** Pulsing bar for unknown progress (ignores value/max) */
-  indeterminate?: boolean;
   /** Step positions to mark on the bar (values between 0 and max) */
   marks?: number[];
   /** Content rendered inside the fill (useful at lg size for percentage text) */
@@ -19,8 +13,26 @@ type ProgressBarProps = {
   className?: string;
 };
 
+type DeterminateProps = ProgressBarBase & {
+  /** Current progress value */
+  value: number;
+  /** Maximum progress value */
+  max: number;
+  /** Pulsing bar for unknown progress (ignores value/max) */
+  indeterminate?: boolean;
+};
+
+type IndeterminateProps = ProgressBarBase & {
+  value?: number;
+  max?: number;
+  /** Pulsing bar for unknown progress */
+  indeterminate: true;
+};
+
+type ProgressBarProps = DeterminateProps | IndeterminateProps;
+
 const trackClasses: Record<ProgressBarSize, string> = {
-  xs: 'h-1',
+  xs: 'h-1.5',
   sm: 'h-2',
   md: 'h-3',
   lg: 'h-5',
@@ -39,8 +51,8 @@ const fillColorClasses: Record<ProgressBarColor, string> = {
 };
 
 export function ProgressBar({
-  value,
-  max,
+  value = 0,
+  max = 0,
   size = 'md',
   color = 'sky',
   indeterminate = false,
@@ -58,14 +70,16 @@ export function ProgressBar({
       aria-valuemin={0}
       aria-valuemax={max}
     >
-      <div
-        className={`h-full transition-all duration-300 ease-out ${fillColorClasses[color]} ${
-          indeterminate ? 'animate-progress-indeterminate' : ''
-        } ${children ? 'flex items-center justify-end' : ''}`}
-        style={indeterminate ? { width: '40%' } : { width: `${pct}%` }}
-      >
-        {children}
-      </div>
+      {indeterminate ? (
+        <div className="animate-progress-shimmer absolute inset-0 bg-linear-to-r from-transparent via-white/30 to-transparent dark:via-white/15" />
+      ) : (
+        <div
+          className={`h-full transition-all duration-300 ease-out ${fillColorClasses[color]} ${children ? 'flex items-center justify-end' : ''}`}
+          style={{ width: `${pct}%` }}
+        >
+          {children}
+        </div>
+      )}
 
       {marks?.map((pos) => (
         <div

@@ -46,10 +46,8 @@ export function AutoTaggerProgress({
             Starting auto-{startingVerb}...
           </p>
           <div className="flex flex-col gap-2">
-            <ProgressBar value={0} max={1} color="indigo" indeterminate />
-            <p className="truncate text-xs text-slate-500">
-              Preparing model
-            </p>
+            <ProgressBar color="indigo" indeterminate />
+            <p className="truncate text-xs text-slate-500">Preparing model</p>
           </div>
         </>
       ) : isLoading ? (

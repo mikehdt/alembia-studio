@@ -195,13 +195,15 @@ export async function POST(request: NextRequest) {
               'Begin the caption with the phrases above (each on its own line, in the order given), then write the rest of the caption normally on the lines that follow.';
             break;
           case 'integrate':
-            // The fallback clause is essential: nonsense phrases would
-            // otherwise force the model into contortions trying to "make
-            // them fit." Giving an explicit out (place at end if it doesn't
-            // fit) preserves the must-appear constraint without sacrificing
-            // caption quality on phrases that genuinely don't belong.
+            // The per-phrase framing is critical: an earlier version asked
+            // the model to "weave phrases in where they fit, otherwise
+            // append" and the model would evaluate the *list* as a unit
+            // and dump everything at the end the moment one phrase looked
+            // out of place. The "Treat the phrases independently" line
+            // gives explicit permission to mix strategies across the list,
+            // which is what users actually want from this option.
             positionInstruction =
-              'Where a phrase fits naturally into the description of what is depicted, weave it into the prose at that point. For phrases that do not fit naturally — for example, sentences unrelated to the image — add them at the end of the caption on their own lines instead. Do not force a phrase into a place where it does not belong.';
+              'Evaluate each phrase on its own. If a phrase describes something visible in the image, weave it into the prose at the natural point in the description. If a phrase is unrelated to what is shown, place it at the end of the caption on its own line. Treat the phrases independently — different phrases may end up in different places.';
             break;
           case 'append':
           default:

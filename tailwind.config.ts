@@ -15,18 +15,7 @@ module.exports = {
     transitionDuration: {
       DEFAULT: '200ms',
     },
-    extend: {
-      keyframes: {
-        'progress-indeterminate': {
-          '0%': { transform: 'translateX(-100%)' },
-          '100%': { transform: 'translateX(350%)' },
-        },
-      },
-      animation: {
-        'progress-indeterminate':
-          'progress-indeterminate 2s ease-in-out infinite',
-      },
-    },
+    extend: {},
   },
   plugins: [],
 };
