@@ -7,6 +7,7 @@ import fs from 'fs';
 import { NextRequest } from 'next/server';
 import path from 'path';
 
+import { isSupportedVideoExtension } from '@/app/constants';
 import type {
   TaggerOptions,
   TagResult,
@@ -24,6 +25,7 @@ import {
   captionBatchViaSidecar,
 } from '@/app/services/auto-tagger/providers/vlm/client';
 import { tagImageInWorker } from '@/app/services/auto-tagger/providers/wd14/worker-manager';
+import { ensureVideoPoster } from '@/app/utils/asset-actions';
 
 // Server-side config reading function
 const getServerConfig = () => {
@@ -235,10 +237,34 @@ export async function POST(request: NextRequest) {
     ) {
       for (let i = 0; i < assets.length; i++) {
         const asset = assets[i];
-        const imagePath = path.join(
+        const sourcePath = path.join(
           projectPath,
           `${asset.fileId}.${asset.fileExtension}`,
         );
+
+        // For video assets, tag the extracted poster frame instead of the
+        // raw video file (the WD14 worker only knows how to load images).
+        let imagePath: string | null = sourcePath;
+        if (isSupportedVideoExtension(`.${asset.fileExtension}`)) {
+          imagePath = await ensureVideoPoster(sourcePath);
+        }
+
+        if (!imagePath) {
+          sendEvent({
+            type: 'error',
+            fileId: asset.fileId,
+            error: 'Failed to extract poster frame from video',
+          });
+          const completed = i + 1;
+          const nextFileId = assets[i + 1]?.fileId ?? asset.fileId;
+          sendEvent({
+            type: 'progress',
+            current: completed,
+            total,
+            fileId: nextFileId,
+          });
+          continue;
+        }
 
         try {
           const output = await tagImageInWorker(

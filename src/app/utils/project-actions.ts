@@ -210,8 +210,10 @@ export const getProjectList = async (): Promise<Project[]> => {
           // Count assets (images + videos) in root directory
           const rootImageCount = projectEntries
             .filter((entry) => entry.isFile())
-            .filter((entry) =>
-              isSupportedAssetExtension(path.extname(entry.name)),
+            .filter(
+              (entry) =>
+                isSupportedAssetExtension(path.extname(entry.name)) &&
+                !entry.name.toLowerCase().endsWith('.poster.jpg'),
             ).length;
 
           // Count images in valid repeat subfolders
@@ -227,8 +229,10 @@ export const getProjectList = async (): Promise<Project[]> => {
               try {
                 const subdirPath = path.join(projectPath, subdirName);
                 const subdirFiles = fs.readdirSync(subdirPath);
-                const subdirImages = subdirFiles.filter((file) =>
-                  isSupportedAssetExtension(path.extname(file)),
+                const subdirImages = subdirFiles.filter(
+                  (file) =>
+                    isSupportedAssetExtension(path.extname(file)) &&
+                    !file.toLowerCase().endsWith('.poster.jpg'),
                 );
                 subfolderImageCount += subdirImages.length;
               } catch (subdirError) {
@@ -535,7 +539,11 @@ export const getProjectFolders = async (
   // Root assets (images + videos)
   const rootImageCount = entries
     .filter((e) => e.isFile())
-    .filter((e) => isSupportedAssetExtension(path.extname(e.name))).length;
+    .filter(
+      (e) =>
+        isSupportedAssetExtension(path.extname(e.name)) &&
+        !e.name.toLowerCase().endsWith('.poster.jpg'),
+    ).length;
 
   if (rootImageCount > 0) {
     folders.push({
@@ -555,7 +563,11 @@ export const getProjectFolders = async (
       const subdirPath = path.join(projectPath, entry.name);
       const imageCount = fs
         .readdirSync(subdirPath)
-        .filter((f) => isSupportedAssetExtension(path.extname(f))).length;
+        .filter(
+          (f) =>
+            isSupportedAssetExtension(path.extname(f)) &&
+            !f.toLowerCase().endsWith('.poster.jpg'),
+        ).length;
 
       if (imageCount > 0) {
         folders.push({

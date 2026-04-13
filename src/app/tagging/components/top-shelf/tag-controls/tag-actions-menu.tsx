@@ -8,7 +8,6 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { MenuButton, MenuItem } from '@/app/components/shared/menu-button';
-import { isSupportedVideoExtension } from '@/app/constants';
 import { gatherTags } from '@/app/store/assets';
 import { selectFilteredAssets } from '@/app/store/assets';
 import {
@@ -108,17 +107,15 @@ export const TagActionsMenu = () => {
     selectedAssetsData.length > 0 || filteredAssetsCount > 0;
 
   // Prepare assets for auto-tagger: only compute the full mapped array when modal is open.
-  // Videos are excluded — they can't be tagged by WD14 or VLM yet.
+  // Videos are included — the ONNX batch route extracts a poster frame per video.
   const assetsForTagger = useMemo(() => {
     if (!isTaggerModalOpen) return [];
     const source =
       selectedAssetsData.length > 0 ? selectedAssetsData : filteredAssets;
-    return source
-      .filter((asset) => !isSupportedVideoExtension(`.${asset.fileExtension}`))
-      .map((asset) => ({
-        fileId: asset.fileId,
-        fileExtension: asset.fileExtension,
-      }));
+    return source.map((asset) => ({
+      fileId: asset.fileId,
+      fileExtension: asset.fileExtension,
+    }));
   }, [isTaggerModalOpen, selectedAssetsData, filteredAssets]);
 
   const openTaggerModal = useCallback(() => setIsTaggerModalOpen(true), []);

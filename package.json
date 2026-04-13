@@ -19,6 +19,7 @@
     "image-dimensions": "^2.5.0",
     "lucide-react": "^1.8.0",
     "next": "16.2.3",
+    "onnxruntime-node": "^1.24.3",
     "react": "19.2.5",
     "react-dom": "19.2.5",
     "react-redux": "9.2.0"

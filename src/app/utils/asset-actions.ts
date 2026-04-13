@@ -119,6 +119,11 @@ export interface ImageFileListResult {
   errorType?: ImageFileListErrorType;
 }
 
+// Filename suffix used for video poster sidecars (e.g. `clip.mp4` →
+// `clip.poster.jpg`). Declared at the top of the file so discovery filters
+// can reference it without forward-declaration warnings.
+const POSTER_SIDECAR_SUFFIX = '.poster.jpg';
+
 // Returns just a list of image files without processing them
 // Includes images from root folder and valid repeat subfolders
 export const getImageFileList = async (
@@ -151,7 +156,8 @@ export const getImageFileList = async (
   const rootImages = rootEntries
     .filter((entry) => entry.isFile())
     .map((entry) => entry.name)
-    .filter((file) => isSupportedAssetExtension(path.extname(file)));
+    .filter((file) => isSupportedAssetExtension(path.extname(file)))
+    .filter((file) => !file.toLowerCase().endsWith(POSTER_SIDECAR_SUFFIX));
 
   allImageFiles.push(...rootImages);
 
@@ -173,6 +179,7 @@ export const getImageFileList = async (
 
       const subdirImages = subdirFiles
         .filter((file) => isSupportedAssetExtension(path.extname(file)))
+        .filter((file) => !file.toLowerCase().endsWith(POSTER_SIDECAR_SUFFIX))
         .map((file) => `${subdirName}/${file}`); // Store with relative path
 
       allImageFiles.push(...subdirImages);
@@ -261,14 +268,23 @@ export const getMultipleImageAssetDetails = async (
 const BLUR_MAX_DIMENSION = 10;
 
 const VIDEO_FALLBACK_DIMENSIONS: ImageDimensions = { width: 1920, height: 1080 };
+const POSTER_FRAME_FRACTION = 0.1; // 10% into the video
 let warnedMissingFfprobe = false;
+let warnedMissingFfmpeg = false;
+
+type VideoProbe = {
+  dimensions: ImageDimensions;
+  /** Duration in seconds, or undefined if unreadable */
+  durationSec?: number;
+};
 
 /**
- * Probe a video file for its native pixel dimensions using system ffprobe.
- * Returns a 16:9 fallback if ffprobe isn't installed or the probe fails — the
- * gallery still works, just with an inaccurate aspect ratio.
+ * Probe a video file for its native pixel dimensions and duration using
+ * system ffprobe. Returns a 16:9 fallback (and no duration) if ffprobe isn't
+ * installed or the probe fails — the gallery still works, just with an
+ * inaccurate aspect ratio and no poster extraction.
  */
-const getVideoDimensions = (filePath: string): Promise<ImageDimensions> => {
+const probeVideo = (filePath: string): Promise<VideoProbe> => {
   return new Promise((resolve) => {
     const proc = spawn(
       'ffprobe',
@@ -278,7 +294,7 @@ const getVideoDimensions = (filePath: string): Promise<ImageDimensions> => {
         '-select_streams',
         'v:0',
         '-show_entries',
-        'stream=width,height',
+        'stream=width,height:format=duration',
         '-of',
         'json',
         filePath,
@@ -302,7 +318,7 @@ const getVideoDimensions = (filePath: string): Promise<ImageDimensions> => {
           `ffprobe not available — video dimensions will fall back to 16:9. Install ffmpeg to fix. (${err.message})`,
         );
       }
-      resolve(VIDEO_FALLBACK_DIMENSIONS);
+      resolve({ dimensions: VIDEO_FALLBACK_DIMENSIONS });
     });
 
     proc.on('close', (code) => {
@@ -310,23 +326,124 @@ const getVideoDimensions = (filePath: string): Promise<ImageDimensions> => {
         console.warn(
           `ffprobe failed for ${filePath} (exit ${code}): ${stderr.trim()}`,
         );
-        resolve(VIDEO_FALLBACK_DIMENSIONS);
+        resolve({ dimensions: VIDEO_FALLBACK_DIMENSIONS });
         return;
       }
       try {
         const parsed = JSON.parse(stdout) as {
           streams?: { width?: number; height?: number }[];
+          format?: { duration?: string };
         };
         const stream = parsed.streams?.[0];
-        if (stream?.width && stream?.height) {
-          resolve({ width: stream.width, height: stream.height });
-        } else {
-          resolve(VIDEO_FALLBACK_DIMENSIONS);
-        }
+        const dimensions =
+          stream?.width && stream?.height
+            ? { width: stream.width, height: stream.height }
+            : VIDEO_FALLBACK_DIMENSIONS;
+        const durationRaw = parsed.format?.duration;
+        const durationSec = durationRaw ? Number(durationRaw) : undefined;
+        resolve({
+          dimensions,
+          durationSec: Number.isFinite(durationSec) ? durationSec : undefined,
+        });
       } catch (err) {
         console.warn(`Failed to parse ffprobe output for ${filePath}:`, err);
-        resolve(VIDEO_FALLBACK_DIMENSIONS);
+        resolve({ dimensions: VIDEO_FALLBACK_DIMENSIONS });
       }
+    });
+  });
+};
+
+/**
+ * Build the poster sidecar path for a given video file path
+ * (e.g. `clip.mp4` → `clip.poster.jpg`). Internal helper — kept non-exported
+ * because server-actions modules require all exports to be async.
+ */
+const buildPosterPath = (videoPath: string): string => {
+  const ext = path.extname(videoPath);
+  const base = videoPath.substring(0, videoPath.length - ext.length);
+  return `${base}${POSTER_SIDECAR_SUFFIX}`;
+};
+
+/**
+ * Extract a single poster frame from a video at ~10% in, save it next to the
+ * video as `<name>.poster.jpg`, and return the poster path. Reuses an existing
+ * poster if it's newer than the video. Returns null if extraction fails or
+ * ffmpeg isn't available — callers should treat null as "skip this asset".
+ */
+export const ensureVideoPoster = async (
+  videoPath: string,
+): Promise<string | null> => {
+  const posterPath = buildPosterPath(videoPath);
+
+  try {
+    const videoStat = fs.statSync(videoPath);
+    if (fs.existsSync(posterPath)) {
+      const posterStat = fs.statSync(posterPath);
+      if (posterStat.mtimeMs >= videoStat.mtimeMs) {
+        return posterPath;
+      }
+    }
+  } catch (err) {
+    console.warn(`Failed to stat video ${videoPath} for poster:`, err);
+    return null;
+  }
+
+  const probe = await probeVideo(videoPath);
+  // Seek to 10% in, but cap at duration - 0.1s to avoid landing past the end
+  // on very short clips. Falls back to 0s if duration is unknown.
+  let seekSec = 0;
+  if (probe.durationSec && probe.durationSec > 0) {
+    seekSec = Math.max(
+      0,
+      Math.min(
+        probe.durationSec * POSTER_FRAME_FRACTION,
+        probe.durationSec - 0.1,
+      ),
+    );
+  }
+
+  return new Promise((resolve) => {
+    const proc = spawn(
+      'ffmpeg',
+      [
+        '-y',
+        '-ss',
+        seekSec.toFixed(3),
+        '-i',
+        videoPath,
+        '-frames:v',
+        '1',
+        '-q:v',
+        '3',
+        posterPath,
+      ],
+      { windowsHide: true },
+    );
+
+    let stderr = '';
+    proc.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    proc.on('error', (err) => {
+      if (!warnedMissingFfmpeg) {
+        warnedMissingFfmpeg = true;
+        console.warn(
+          `ffmpeg not available — videos cannot be auto-tagged. Install ffmpeg to fix. (${err.message})`,
+        );
+      }
+      resolve(null);
+    });
+
+    proc.on('close', (code) => {
+      if (code !== 0 || !fs.existsSync(posterPath)) {
+        console.warn(
+          `ffmpeg poster extraction failed for ${videoPath} (exit ${code}): ${stderr.trim().slice(-300)}`,
+        );
+        resolve(null);
+        return;
+      }
+      resolve(posterPath);
     });
   });
 };
@@ -390,7 +507,7 @@ export const getImageAssetDetails = async (
   if (isVideo) {
     dimensions =
       (canUseCache ? cachedEntry?.videoDimensions : undefined) ??
-      (await getVideoDimensions(fullFilePath));
+      (await probeVideo(fullFilePath)).dimensions;
     blurDataUrl = undefined;
   } else {
     // @ts-expect-error ReadableStream.from being weird
@@ -705,8 +822,9 @@ export const moveAssetsToFolder = async (
       );
       await renameWithRetry(oldImagePath, newImagePath);
 
-      // Move associated sidecar files (.txt tags, .npz cache) if they exist
-      for (const ext of ['.txt', '.npz']) {
+      // Move associated sidecar files (.txt tags, .npz cache, .poster.jpg
+      // for video assets) if they exist
+      for (const ext of ['.txt', '.npz', POSTER_SIDECAR_SUFFIX]) {
         const oldPath = path.join(dir, `${plan.oldFileId}${ext}`);
         const newPath = path.join(dir, `${plan.newFileId}${ext}`);
         if (fs.existsSync(oldPath)) {
