@@ -233,6 +233,7 @@ export const saveAsset = createAsyncThunk<
       updateTags,
       newTagStatus,
       imageIndexById,
+      flattenedTags,
     );
   }
 

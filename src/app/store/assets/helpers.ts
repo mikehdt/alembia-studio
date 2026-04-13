@@ -48,6 +48,9 @@ export function createCleanTagStatus(tags: string[]): {
  * @param updatedTags The tags after filtering
  * @param newTagStatus The clean tag status object
  * @param imageIndexById Lookup map from fileId to array index
+ * @param flattenedTags The exact string written to disk — also stashed as
+ *   captionText/savedCaptionText so a later switch into caption mode reads
+ *   the same content the .txt file holds, without needing a project reload
  * @returns SaveAssetResult object ready for the reducer
  */
 export function createSaveAssetResult(
@@ -55,6 +58,7 @@ export function createSaveAssetResult(
   updatedTags: string[],
   newTagStatus: { [key: string]: number },
   imageIndexById: { [fileId: string]: number },
+  flattenedTags?: string,
 ): SaveAssetResult {
   return {
     assetIndex: imageIndexById[asset.fileId] ?? -1,
@@ -62,6 +66,8 @@ export function createSaveAssetResult(
     tagList: updatedTags,
     tagStatus: newTagStatus,
     savedTagList: [...updatedTags], // Store the current order as the saved order
+    captionText: flattenedTags,
+    savedCaptionText: flattenedTags,
   };
 }
 
@@ -131,6 +137,7 @@ export function processSaveResults(
             updateTags,
             newTagStatus,
             imageIndexById,
+            createFlattenedTags(updateTags, captionMode),
           ),
         );
       }
