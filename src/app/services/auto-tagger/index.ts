@@ -16,8 +16,14 @@ export type {
   TagResult,
   TriggerPhraseInsertMode,
   VlmOptions,
+  VlmVideoOptions,
+  VlmVideoQuality,
 } from './types';
-export { DEFAULT_TAGGER_OPTIONS, DEFAULT_VLM_OPTIONS } from './types';
+export {
+  DEFAULT_TAGGER_OPTIONS,
+  DEFAULT_VLM_OPTIONS,
+  VLM_VIDEO_QUALITY_PIXELS,
+} from './types';
 
 // Model Registry (client-safe utilities - no fs operations)
 export {

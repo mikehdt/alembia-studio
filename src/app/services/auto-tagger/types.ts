@@ -38,6 +38,19 @@ export type TaggerModel = {
    * Defaults to 'llama-cpp' for backwards compatibility with existing GGUF entries.
    */
   runtime?: VlmRuntime;
+  /**
+   * Whether this model can natively process video frames. True for Qwen-VL
+   * via transformers (real video token support), false/undefined for GGUF
+   * (which only sees stills). Videos sent to a non-video model fall back
+   * to poster-frame substitution upstream of the sidecar.
+   */
+  supportsVideo?: boolean;
+  /**
+   * Per-model defaults for the video sampling controls. Lets a smaller
+   * model ship with a larger frame budget than a memory-heavier one
+   * without the user having to know the math.
+   */
+  videoDefaults?: VlmVideoOptions;
 };
 
 export type ModelFile = {
@@ -81,6 +94,40 @@ export type TagInsertMode = 'prepend' | 'append';
  * where they fit naturally, falling back to append for ones that don't.
  */
 export type TriggerPhraseInsertMode = 'prepend' | 'integrate' | 'append';
+
+/**
+ * Frame quality preset for video captioning. Maps to a `max_pixels` value
+ * the qwen-vl-utils video reader uses to resize each sampled frame before
+ * passing it to the model. Higher quality = bigger VRAM footprint per frame
+ * = slower inference, but more visual detail per frame.
+ */
+export type VlmVideoQuality = 'low' | 'standard' | 'high';
+
+/**
+ * Per-batch video sampling controls. Only applied when at least one selected
+ * asset is a video AND the chosen model declares `supportsVideo: true`.
+ * The actual `fps` per video is derived as `min(maxFps, frameBudget/duration)`
+ * so a 5-minute clip still gets uniform coverage across its full length while
+ * a 5-second clip doesn't oversample.
+ */
+export type VlmVideoOptions = {
+  /** Total frames sampled across the whole clip, regardless of duration. */
+  frameBudget: number;
+  /** Hard cap on sample rate so short clips don't oversample. */
+  maxFps: number;
+  /** Quality preset — controls the per-frame resolution sent to the model. */
+  quality: VlmVideoQuality;
+};
+
+/**
+ * `max_pixels` value passed to qwen-vl-utils for each quality preset.
+ * Numbers are roughly the patch counts Qwen recommends for video frames.
+ */
+export const VLM_VIDEO_QUALITY_PIXELS: Record<VlmVideoQuality, number> = {
+  low: 280 * 320,
+  standard: 360 * 420,
+  high: 560 * 640,
+};
 
 export type TaggerOptions = {
   generalThreshold: number;
@@ -126,6 +173,8 @@ export type VlmOptions = {
    * - 'append':    model writes the caption first, then lists them at the end
    */
   triggerPhraseInsertMode: TriggerPhraseInsertMode;
+  /** Per-batch video sampling controls. Ignored when no videos are in scope. */
+  video: VlmVideoOptions;
 };
 
 export const DEFAULT_VLM_OPTIONS: VlmOptions = {
@@ -156,6 +205,11 @@ export const DEFAULT_VLM_OPTIONS: VlmOptions = {
   temperature: 0.6,
   injectTriggerPhrases: true,
   triggerPhraseInsertMode: 'append',
+  video: {
+    frameBudget: 32,
+    maxFps: 2.0,
+    quality: 'standard',
+  },
 };
 
 /**

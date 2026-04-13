@@ -18,7 +18,10 @@ exactly what's missing than to pretend and surface garbage.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Callable, Literal, Optional
+from typing import TYPE_CHECKING, Callable, Literal, Optional
+
+if TYPE_CHECKING:
+    from models import VideoSamplingOptions
 
 VlmRuntime = Literal["llama-cpp", "transformers"]
 
@@ -70,8 +73,17 @@ class CaptioningProvider(ABC):
         temperature: float = 0.7,
         cancel_check: Optional[CancelCheck] = None,
         on_load_progress: Optional[LoadProgressCallback] = None,
+        video_options: Optional["VideoSamplingOptions"] = None,
     ) -> str:
-        """Return a natural-language caption for the image."""
+        """
+        Return a natural-language caption for an image or video file.
+
+        Providers that support video should branch on the file extension and
+        consume `video_options` to control frame sampling. Providers that do
+        not support video should reject video paths with a clear error
+        rather than silently ignoring them — the upstream batch route is
+        responsible for substituting a poster frame in that case.
+        """
 
     @abstractmethod
     async def unload(self) -> None:

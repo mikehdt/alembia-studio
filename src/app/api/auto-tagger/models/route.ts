@@ -33,6 +33,8 @@ export async function GET() {
       // picks the label via `runtime`.
       memoryEstimate: model.vramEstimate,
       runtime: model.runtime,
+      supportsVideo: model.supportsVideo,
+      videoDefaults: model.videoDefaults,
       status: checkModelStatus(model),
     }));
 

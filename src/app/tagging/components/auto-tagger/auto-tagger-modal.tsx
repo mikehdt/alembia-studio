@@ -43,9 +43,12 @@ export function AutoTaggerModal({
     insertModeOptions,
     triggerPhraseInsertModeOptions,
     triggerPhrases,
+    selectedVideoCount,
+    selectedModelSupportsVideo,
     handleModelChange,
     handleOptionChange,
     handleVlmOptionChange,
+    handleVideoOptionChange,
     setUnselectOnComplete,
     handleClose,
     handleCancel,
@@ -122,10 +125,13 @@ export function AutoTaggerModal({
             modelItems={modelItems}
             triggerPhraseInsertModeOptions={triggerPhraseInsertModeOptions}
             selectedAssetsCount={selectedAssets.length}
+            selectedVideoCount={selectedVideoCount}
+            selectedModelSupportsVideo={selectedModelSupportsVideo}
             error={error}
             triggerPhrases={triggerPhrases}
             onModelChange={handleModelChange}
             onVlmOptionChange={handleVlmOptionChange}
+            onVideoOptionChange={handleVideoOptionChange}
             onUnselectOnCompleteChange={() =>
               setUnselectOnComplete((prev) => !prev)
             }

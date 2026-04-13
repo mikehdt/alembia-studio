@@ -195,15 +195,22 @@ export async function POST(request: NextRequest) {
               'Begin the caption with the phrases above (each on its own line, in the order given), then write the rest of the caption normally on the lines that follow.';
             break;
           case 'integrate':
-            // The per-phrase framing is critical: an earlier version asked
-            // the model to "weave phrases in where they fit, otherwise
-            // append" and the model would evaluate the *list* as a unit
-            // and dump everything at the end the moment one phrase looked
-            // out of place. The "Treat the phrases independently" line
-            // gives explicit permission to mix strategies across the list,
-            // which is what users actually want from this option.
+            // The per-phrase framing is necessary but not sufficient: an
+            // earlier version still saw the model dump well-fitting phrases
+            // at the end because the base prompt's "max 3 paragraphs" rule
+            // was creating budget pressure — by paragraph 3 the model was
+            // treating phrase placement as "which paragraph do they live
+            // in" rather than "where in the prose do they fit." Two
+            // additions resolve that:
+            //   (1) "As you write... watch for natural points" reframes
+            //       integration as a streaming concern, not a post-hoc
+            //       planning one.
+            //   (2) The explicit "do not count toward the paragraph or
+            //       word budget" line disarms the constraint conflict so
+            //       the model can integrate freely without feeling it has
+            //       to spend a paragraph on the phrases.
             positionInstruction =
-              'Evaluate each phrase on its own. If a phrase describes something visible in the image, weave it into the prose at the natural point in the description. If a phrase is unrelated to what is shown, place it at the end of the caption on its own line. Treat the phrases independently — different phrases may end up in different places.';
+              'Evaluate each phrase on its own. As you write the caption, watch for natural points where a phrase fits into the description — weave it into the prose at that point rather than saving it for later. The trigger phrases above do not count toward the caption\'s paragraph or word budget. Phrases that genuinely have no natural home in the prose go on their own lines at the very end, after the caption itself is complete. Treat the phrases independently — different phrases may end up in different places.';
             break;
           case 'append':
           default:
@@ -347,12 +354,17 @@ export async function POST(request: NextRequest) {
       // their sequence index rather than by path string — this avoids subtle
       // path-normalisation mismatches between Node and Python.
       //
-      // Video assets are substituted with their extracted poster frame so the
-      // VLM captions a still — true video understanding is a future phase.
-      // Assets whose poster extraction fails are dropped from the sidecar
-      // batch and reported back as per-asset errors. We track the surviving
-      // sidecar→asset index mapping so result events still match the right
-      // asset after any drops.
+      // Video handling depends on whether the selected model can natively
+      // process video frames:
+      //  - supportsVideo: pass the raw .mp4 path straight through to the
+      //    sidecar; the transformers provider samples frames internally
+      //    via qwen-vl-utils.
+      //  - !supportsVideo: substitute an extracted poster frame so the
+      //    image-only provider can still produce a (less accurate) caption.
+      // Per-asset poster extraction failures drop that asset from the
+      // sidecar batch and surface as a per-asset error. The
+      // sidecar→asset mapping preserves result alignment after drops.
+      const modelSupportsVideo = resolvedModel.supportsVideo === true;
       const imagePaths: string[] = [];
       const sidecarIndexToAsset: typeof assets = [];
       for (const asset of assets) {
@@ -362,7 +374,12 @@ export async function POST(request: NextRequest) {
         );
         let resolved: string | null = sourcePath;
         if (isSupportedVideoExtension(`.${asset.fileExtension}`)) {
-          resolved = await ensureVideoPoster(sourcePath);
+          if (modelSupportsVideo) {
+            // Pass the raw video path through; the sidecar handles sampling.
+            resolved = sourcePath;
+          } else {
+            resolved = await ensureVideoPoster(sourcePath);
+          }
         }
         if (!resolved) {
           sendEvent({

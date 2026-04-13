@@ -9,8 +9,15 @@ import { RadioGroup } from '@/app/components/shared/radio-group';
 import type {
   TriggerPhraseInsertMode,
   VlmOptions,
+  VlmVideoQuality,
 } from '@/app/services/auto-tagger';
 import { DEFAULT_VLM_OPTIONS } from '@/app/services/auto-tagger';
+
+const VIDEO_QUALITY_OPTIONS: { value: VlmVideoQuality; label: string }[] = [
+  { value: 'low', label: 'Low' },
+  { value: 'standard', label: 'Standard' },
+  { value: 'high', label: 'High' },
+];
 
 type AutoTaggerVlmSettingsProps = {
   vlmOptions: VlmOptions;
@@ -22,12 +29,20 @@ type AutoTaggerVlmSettingsProps = {
     label: string;
   }[];
   selectedAssetsCount: number;
+  /** Number of mp4/video assets in the selection — drives video controls visibility. */
+  selectedVideoCount: number;
+  /** Whether the chosen model can natively process video frames (not just stills). */
+  selectedModelSupportsVideo: boolean;
   error: string | null;
   triggerPhrases: string[];
   onModelChange: (modelId: string) => void;
   onVlmOptionChange: <K extends keyof VlmOptions>(
     key: K,
     value: VlmOptions[K],
+  ) => void;
+  onVideoOptionChange: <K extends keyof VlmOptions['video']>(
+    key: K,
+    value: VlmOptions['video'][K],
   ) => void;
   onUnselectOnCompleteChange: () => void;
   onClose: () => void;
@@ -41,15 +56,29 @@ export function AutoTaggerVlmSettings({
   modelItems,
   triggerPhraseInsertModeOptions,
   selectedAssetsCount,
+  selectedVideoCount,
+  selectedModelSupportsVideo,
   error,
   triggerPhrases,
   onModelChange,
   onVlmOptionChange,
+  onVideoOptionChange,
   onUnselectOnCompleteChange,
   onClose,
   onStartTagging,
 }: AutoTaggerVlmSettingsProps) {
   const hasTriggerPhrases = triggerPhrases.length > 0;
+  // Show the video controls when both conditions hold: the user has at
+  // least one video in scope AND the chosen model can actually use them.
+  // Showing only on (a) would suggest video sampling matters when it'll
+  // be discarded for poster-frame substitution; showing only on (b) would
+  // surface controls a user who's only tagging stills will never use.
+  const showVideoControls = selectedVideoCount > 0 && selectedModelSupportsVideo;
+  // Surface a small note when there are videos but the model can't handle
+  // them, so the user understands why the controls are hidden and what
+  // will happen to those videos instead.
+  const showPosterFallbackNote =
+    selectedVideoCount > 0 && !selectedModelSupportsVideo;
   return (
     <>
       <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -148,6 +177,92 @@ export function AutoTaggerVlmSettings({
           />
         </div>
       </div>
+
+      {/* Video sampling controls — only shown when the user has at least
+          one video in scope AND the chosen model can natively process
+          video frames. Image-only models silently fall back to a poster
+          frame upstream of this panel. */}
+      {showVideoControls && (
+        <div className="flex flex-col gap-2 rounded-md border border-slate-200 p-3 dark:border-slate-700">
+          <div className="flex items-center justify-between">
+            <FormTitle as="span">
+              Video sampling ({selectedVideoCount}{' '}
+              {selectedVideoCount === 1 ? 'video' : 'videos'})
+            </FormTitle>
+          </div>
+          <p className="text-xs text-slate-500">
+            Sampled frames are spread evenly across each video&apos;s full
+            duration. Higher budget and quality use more VRAM.
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-400">
+                Frame budget
+              </label>
+              <Input
+                type="number"
+                min={4}
+                max={128}
+                step={4}
+                value={vlmOptions.video.frameBudget}
+                onChange={(e) =>
+                  onVideoOptionChange(
+                    'frameBudget',
+                    Math.max(
+                      4,
+                      Math.min(128, parseInt(e.target.value, 10) || 4),
+                    ),
+                  )
+                }
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-400">
+                Max FPS
+              </label>
+              <Input
+                type="number"
+                min={0.1}
+                max={8}
+                step={0.5}
+                value={vlmOptions.video.maxFps}
+                onChange={(e) =>
+                  onVideoOptionChange(
+                    'maxFps',
+                    Math.max(
+                      0.1,
+                      Math.min(8, parseFloat(e.target.value) || 0.1),
+                    ),
+                  )
+                }
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-400">
+                Quality
+              </label>
+              <Dropdown
+                items={VIDEO_QUALITY_OPTIONS}
+                selectedValue={vlmOptions.video.quality}
+                onChange={(quality) =>
+                  onVideoOptionChange('quality', quality)
+                }
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPosterFallbackNote && (
+        <p className="text-xs text-slate-500">
+          {selectedVideoCount === 1
+            ? 'The selected video will'
+            : `The ${selectedVideoCount} selected videos will`}{' '}
+          be captioned from a single poster frame — the chosen model
+          can&apos;t read video natively. Pick a video-capable model (e.g.
+          Qwen3-VL GPU) for true frame-by-frame captioning.
+        </p>
+      )}
 
       {/* Trigger phrase injection — only offered when the project actually
           defines trigger phrases, otherwise the toggle does nothing. */}

@@ -85,6 +85,24 @@ class ErrorResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class VideoSamplingOptions(BaseModel):
+    """
+    Per-batch video sampling controls. The provider derives the actual fps
+    per video as `min(max_fps, frame_budget / duration_seconds)` so a long
+    clip gets uniform coverage and a short clip doesn't oversample.
+
+    Only meaningful for providers that natively process video frames
+    (currently transformers / Qwen-VL). Image-only providers ignore these.
+    """
+
+    frame_budget: int = 32
+    max_fps: float = 2.0
+    # Pixel budget per sampled frame. Larger = more detail per frame but
+    # more VRAM and slower inference. The Node side maps a quality preset
+    # (low/standard/high) to a concrete number before sending.
+    max_pixels: int = 360 * 420
+
+
 class CaptionRequest(BaseModel):
     """Single image caption request."""
 
@@ -94,6 +112,7 @@ class CaptionRequest(BaseModel):
     prompt: str = "Describe this image in detail for AI training purposes."
     max_tokens: int = 512
     temperature: float = 0.7
+    video: Optional[VideoSamplingOptions] = None
 
 
 class CaptionResponse(BaseModel):
@@ -113,6 +132,7 @@ class CaptionBatchRequest(BaseModel):
     prompt: str = "Describe this image in detail for AI training purposes."
     max_tokens: int = 512
     temperature: float = 0.7
+    video: Optional[VideoSamplingOptions] = None
 
 
 class CaptionBatchProgress(BaseModel):

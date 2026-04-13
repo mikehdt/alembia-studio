@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import type { DropdownItem } from '@/app/components/shared/dropdown';
+import { isSupportedVideoExtension } from '@/app/constants';
 import type {
   AutoTaggerSettings,
   TaggerOptions,
@@ -217,6 +218,20 @@ export function useAutoTagger({
                 savedSettings.triggerPhraseInsertMode === 'append'
                   ? savedSettings.triggerPhraseInsertMode
                   : prev.triggerPhraseInsertMode,
+              video: savedSettings.video
+                ? {
+                    frameBudget:
+                      savedSettings.video.frameBudget ?? prev.video.frameBudget,
+                    maxFps:
+                      savedSettings.video.maxFps ?? prev.video.maxFps,
+                    quality:
+                      savedSettings.video.quality === 'low' ||
+                      savedSettings.video.quality === 'standard' ||
+                      savedSettings.video.quality === 'high'
+                        ? savedSettings.video.quality
+                        : prev.video.quality,
+                  }
+                : prev.video,
             }));
 
             if (
@@ -253,6 +268,24 @@ export function useAutoTagger({
   // Drives the "No models installed" warning in the modal.
   const hasModelForMode = modeFilteredReadyModels.length > 0;
 
+  // How many of the selected assets are videos. Used by the VLM panel to
+  // decide whether to surface the video sampling controls.
+  const selectedVideoCount = useMemo(
+    () =>
+      selectedAssets.filter((a) =>
+        isSupportedVideoExtension(`.${a.fileExtension}`),
+      ).length,
+    [selectedAssets],
+  );
+
+  // Whether the currently-selected model can natively process video frames.
+  // False for GGUF/llama-cpp models and for any VLM entry without the flag.
+  const selectedModelSupportsVideo = useMemo(() => {
+    if (!selectedModelId) return false;
+    const model = models.find((m) => m.id === selectedModelId);
+    return model?.supportsVideo === true;
+  }, [models, selectedModelId]);
+
   // If the persisted default model doesn't match the current mode (e.g. user
   // was in tag mode and picked Qwen3-VL, then switched to caption mode), fall
   // back to the first compatible model so the dropdown isn't empty-selected.
@@ -283,6 +316,19 @@ export function useAutoTagger({
   const handleVlmOptionChange = useCallback(
     <K extends keyof VlmOptions>(key: K, value: VlmOptions[K]) => {
       setVlmOptions((prev) => ({ ...prev, [key]: value }));
+    },
+    [],
+  );
+
+  const handleVideoOptionChange = useCallback(
+    <K extends keyof VlmOptions['video']>(
+      key: K,
+      value: VlmOptions['video'][K],
+    ) => {
+      setVlmOptions((prev) => ({
+        ...prev,
+        video: { ...prev.video, [key]: value },
+      }));
     },
     [],
   );
@@ -615,6 +661,7 @@ export function useAutoTagger({
                   temperature: vlmOptions.temperature,
                   injectTriggerPhrases: vlmOptions.injectTriggerPhrases,
                   triggerPhraseInsertMode: vlmOptions.triggerPhraseInsertMode,
+                  video: vlmOptions.video,
                 };
                 saveAutoTaggerSettings(projectFolderName, settingsToSave).catch(
                   console.error,
@@ -718,10 +765,13 @@ export function useAutoTagger({
     insertModeOptions: INSERT_MODE_OPTIONS,
     triggerPhraseInsertModeOptions: TRIGGER_PHRASE_INSERT_MODE_OPTIONS,
     triggerPhrases,
+    selectedVideoCount,
+    selectedModelSupportsVideo,
     // Actions
     handleModelChange,
     handleOptionChange,
     handleVlmOptionChange,
+    handleVideoOptionChange,
     setUnselectOnComplete,
     handleClose,
     handleCancel,

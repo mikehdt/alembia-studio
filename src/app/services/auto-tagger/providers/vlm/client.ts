@@ -9,6 +9,19 @@ import { ensureSidecar } from '@/app/services/training/sidecar-manager';
 
 import { getModelDir, getModelFilePath } from '../../model-manager';
 import type { TaggerModel, VlmOptions, VlmRuntime } from '../../types';
+import { VLM_VIDEO_QUALITY_PIXELS } from '../../types';
+
+/**
+ * Build the `video` block for a sidecar caption request from the user's
+ * VlmOptions. Always sent — the sidecar ignores it on image paths.
+ * The Node side maps the `quality` preset to a concrete `max_pixels`
+ * value here so the sidecar doesn't need to know about preset names.
+ */
+const buildVideoBlock = (options: VlmOptions) => ({
+  frame_budget: options.video.frameBudget,
+  max_fps: options.video.maxFps,
+  max_pixels: VLM_VIDEO_QUALITY_PIXELS[options.video.quality],
+});
 
 type CaptionResult = {
   imagePath: string;
@@ -124,6 +137,7 @@ async function captionImageViaSidecar(
       prompt: options.prompt,
       max_tokens: options.maxTokens,
       temperature: options.temperature,
+      video: buildVideoBlock(options),
     }),
   });
 
@@ -250,6 +264,7 @@ export async function* captionBatchViaSidecar(
         prompt: options.prompt,
         max_tokens: options.maxTokens,
         temperature: options.temperature,
+        video: buildVideoBlock(options),
       }),
     },
   );

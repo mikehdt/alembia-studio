@@ -31,12 +31,13 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
 import re
 import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import TYPE_CHECKING, Any, Iterator, Optional
 
 from captioning.provider import (
     CancelCheck,
@@ -44,6 +45,12 @@ from captioning.provider import (
     CaptioningProvider,
     LoadProgressCallback,
 )
+
+if TYPE_CHECKING:
+    from models import VideoSamplingOptions
+
+# File extensions that route through the video branch instead of PIL.
+_VIDEO_EXTENSIONS = {".mp4", ".webm", ".mov", ".mkv", ".avi"}
 
 
 # Match tqdm's rendered progress line, e.g.
@@ -327,6 +334,158 @@ class TransformersCaptioningProvider(CaptioningProvider):
 
         return "".join(pieces).strip()
 
+    def _generate_video_caption_blocking(
+        self,
+        video_path: str,
+        prompt: str,
+        max_tokens: int,
+        temperature: float,
+        cancel_check: Optional[CancelCheck],
+        video_options: Optional["VideoSamplingOptions"],
+    ) -> str:
+        """
+        Run streamed inference on a video file. Mirrors the image path but
+        constructs a `video` content message and uses qwen-vl-utils to
+        sample frames before tokenization.
+
+        Frame sampling strategy: qwen-vl-utils' `smart_nframes` takes
+        `fps` (max sampling rate) and `max_frames` (hard cap). It computes
+        `duration * fps` and then clamps that to `max_frames` and to the
+        clip's real frame count. This naturally gives:
+
+        - Long clips (where duration*fps > budget): sampled uniformly at
+          `budget` frames spread across the full duration.
+        - Short clips (where duration*fps < budget): sampled at `fps`,
+          with no wasted oversampling.
+        - Ultra-short clips: clamped to `total_frames` so we never try to
+          read more frames than exist.
+
+        We deliberately do NOT pass `nframes` (which would force exactly
+        that count and crash on clips shorter than the budget) — the
+        fps + max_frames combo does the right thing in all three regimes.
+        """
+        import torch
+        from qwen_vl_utils import process_vision_info
+        from transformers import TextIteratorStreamer
+
+        assert self._model is not None and self._processor is not None
+
+        # Defaults match the Pydantic model — used when the request didn't
+        # include a video block at all (single-image API callers).
+        frame_budget = video_options.frame_budget if video_options else 32
+        max_fps = video_options.max_fps if video_options else 2.0
+        max_pixels = video_options.max_pixels if video_options else 360 * 420
+
+        video_content: dict[str, Any] = {
+            "type": "video",
+            "video": video_path,
+            "max_pixels": max_pixels,
+            # `fps` here is the sampling rate ceiling — smart_nframes reads
+            # it as "at most this many frames per second of video."
+            "fps": max_fps,
+            # `max_frames` is the hard cap on total sampled frames. When
+            # `duration * fps` would exceed the budget, this clamps it.
+            "max_frames": frame_budget,
+        }
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    video_content,
+                    {"type": "text", "text": prompt},
+                ],
+            }
+        ]
+
+        # Render the chat template to text. We use tokenize=False here
+        # because the processor needs the rendered text *and* the video
+        # tensor in the same call, which is a different shape than the
+        # image path — the image path lets apply_chat_template do the
+        # whole thing in one step, but video needs the explicit
+        # process_vision_info call.
+        text = self._processor.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            tokenize=False,
+        )
+
+        # Sample frames + assemble the video tensor. process_vision_info
+        # returns (image_inputs, video_inputs, video_kwargs). With
+        # return_video_kwargs=True we also get the per-frame fps so the
+        # processor can build the correct temporal embeddings.
+        image_inputs, video_inputs, video_kwargs = process_vision_info(
+            messages, return_video_kwargs=True
+        )
+
+        inputs = self._processor(
+            text=[text],
+            images=image_inputs,
+            videos=video_inputs,
+            return_tensors="pt",
+            **(video_kwargs or {}),
+        ).to(self._model.device)
+
+        # Log what we actually sampled so VRAM/quality issues are debuggable.
+        try:
+            n_frames = (
+                video_inputs[0].shape[0] if video_inputs else 0
+            )  # T dim of the (T, C, H, W) tensor
+            print(
+                f"[transformers_provider] video: {os.path.basename(video_path)} "
+                f"frames={n_frames} max_pixels={max_pixels} "
+                f"budget={frame_budget} max_fps={max_fps}",
+                file=sys.stderr,
+            )
+        except Exception:
+            pass
+
+        streamer = TextIteratorStreamer(
+            self._processor.tokenizer,
+            skip_prompt=True,
+            skip_special_tokens=True,
+        )
+
+        generation_kwargs: dict[str, Any] = {
+            **inputs,
+            "streamer": streamer,
+            "max_new_tokens": max_tokens,
+            "do_sample": temperature > 0,
+            "temperature": max(temperature, 1e-5),
+            "pad_token_id": self._processor.tokenizer.eos_token_id,
+        }
+
+        gen_thread = threading.Thread(
+            target=self._model.generate,
+            kwargs=generation_kwargs,
+            daemon=True,
+        )
+        gen_thread.start()
+
+        pieces: list[str] = []
+        cancelled = False
+        try:
+            for chunk in streamer:
+                if cancel_check is not None and cancel_check():
+                    cancelled = True
+                    break
+                if chunk:
+                    pieces.append(chunk)
+        finally:
+            if cancelled:
+                for _ in streamer:
+                    pass
+            gen_thread.join(timeout=120)
+            try:
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
+
+        if cancelled:
+            raise CaptionCancelled("cancelled mid-inference")
+
+        return "".join(pieces).strip()
+
     async def prepare(
         self,
         model_path: str,
@@ -348,6 +507,7 @@ class TransformersCaptioningProvider(CaptioningProvider):
         temperature: float = 0.7,
         cancel_check: Optional[CancelCheck] = None,
         on_load_progress: Optional[LoadProgressCallback] = None,
+        video_options: Optional["VideoSamplingOptions"] = None,
     ) -> str:
         async with self._lock:
             # Normally the batch manager calls `prepare` first, but we also
@@ -357,8 +517,22 @@ class TransformersCaptioningProvider(CaptioningProvider):
                     None, self._load_model, model_path, on_load_progress
                 )
 
+            ext = os.path.splitext(image_path)[1].lower()
+            is_video = ext in _VIDEO_EXTENSIONS
+
             # Run inference in a thread so the event loop stays free to push
             # WebSocket progress updates to connected clients.
+            if is_video:
+                return await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    self._generate_video_caption_blocking,
+                    image_path,
+                    prompt,
+                    max_tokens,
+                    temperature,
+                    cancel_check,
+                    video_options,
+                )
             return await asyncio.get_event_loop().run_in_executor(
                 None,
                 self._generate_caption_blocking,

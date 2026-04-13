@@ -142,6 +142,7 @@ class CaptionBatchManager:
                         temperature=request.temperature,
                         cancel_check=cancel_check,
                         on_load_progress=on_load_progress,
+                        video_options=request.video,
                     )
                     state.current = i + 1
                     state.results.append(

@@ -17,6 +17,28 @@ export type ModelInfo = {
   memoryEstimate?: number;
   /** VLM runtime; undefined for ONNX providers. */
   runtime?: 'llama-cpp' | 'transformers';
+  /**
+   * Whether this VLM model can natively process video frames. True for
+   * Qwen-VL family models loaded via transformers (they have dedicated
+   * video tokens and temporal embeddings). False/undefined for GGUF
+   * (llama-cpp) models, which only see still images. Videos sent to a
+   * non-video model fall back to poster-frame substitution upstream.
+   */
+  supportsVideo?: boolean;
+  /**
+   * Default video sampling parameters for models that support video.
+   * The UI hydrates the per-batch controls from these so a freshly-picked
+   * model has sensible starting values without the user having to know
+   * what its VRAM headroom looks like.
+   */
+  videoDefaults?: {
+    /** Total frames sampled across the whole clip. */
+    frameBudget: number;
+    /** Hard cap on sample rate so short clips don't oversample. */
+    maxFps: number;
+    /** Quality preset name — see VlmVideoQuality in types.ts */
+    quality: 'low' | 'standard' | 'high';
+  };
   status:
     | 'not_installed'
     | 'downloading'

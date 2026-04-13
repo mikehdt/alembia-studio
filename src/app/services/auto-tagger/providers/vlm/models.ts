@@ -26,6 +26,15 @@ export const VLM_MODELS: TaggerModel[] = [
     description: 'Fast GPU captioning, fp16, ~9GB VRAM',
     isDefault: true,
     vramEstimate: 9,
+    supportsVideo: true,
+    // 4B leaves plenty of VRAM headroom on a 16GB card; 32 frames at
+    // standard quality lands well under peak. A 7B/8B entry would want
+    // a smaller budget.
+    videoDefaults: {
+      frameBudget: 32,
+      maxFps: 2.0,
+      quality: 'standard',
+    },
     files: [
       // Config and tokenizer files — small, needed by transformers.from_pretrained
       { name: 'config.json', size: 1_548 },

@@ -27,7 +27,10 @@ import asyncio
 import base64
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from models import VideoSamplingOptions
 
 from captioning.provider import (
     CancelCheck,
@@ -209,7 +212,20 @@ class LlamaCppCaptioningProvider(CaptioningProvider):
         temperature: float = 0.7,
         cancel_check: Optional[CancelCheck] = None,
         on_load_progress: Optional[LoadProgressCallback] = None,
+        video_options: Optional["VideoSamplingOptions"] = None,
     ) -> str:
+        del video_options  # llama-cpp path is image-only
+        # Reject video paths up front. The Node side normally substitutes
+        # a poster frame for non-video-capable models, so a .mp4 reaching
+        # this provider is an upstream wiring bug — surface it loudly
+        # rather than crashing later inside PIL.
+        ext = os.path.splitext(image_path)[1].lower()
+        if ext in {".mp4", ".webm", ".mov", ".mkv", ".avi"}:
+            raise RuntimeError(
+                f"llama-cpp provider received a video file ({ext}); "
+                "this runtime cannot read video frames. Choose a "
+                "transformers (GPU) model for native video captioning."
+            )
         async with self._lock:
             # Normally the batch manager calls `prepare` first, but we also
             # keep a lazy-load path so single-image callers still work.

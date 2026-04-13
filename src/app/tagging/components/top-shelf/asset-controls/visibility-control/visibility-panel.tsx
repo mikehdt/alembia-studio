@@ -67,7 +67,7 @@ export const VisibilityPanel = () => {
             label={taglessLabel}
           />
           {taglessBlockedByTags ? (
-            <span title="Clear tag filters to enable Tagless scope — the two can't be combined.">
+            <span title="Tagless selection is not available when tags are selected. Clear the tags first.">
               <TriangleAlertIcon className="h-5 w-5 shrink-0 text-amber-500" />
             </span>
           ) : null}
