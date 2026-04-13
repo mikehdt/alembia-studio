@@ -16,7 +16,8 @@ Package manager: pnpm (specified in packageManager field)
 
 1. `pnpm install` — JS/TS dependencies
 2. Install [`uv`](https://docs.astral.sh/uv/) — used to manage the Python sidecar environment
-3. That's it. The Python sidecar auto-provisions its venv via `uv run` on first invocation, reading dependencies from `training-sidecar/pyproject.toml`.
+3. Install `ffmpeg` (provides both `ffmpeg` and `ffprobe` on PATH) — required for video asset support. Used for reading video dimensions, generating poster frames for ONNX tagging, and sampling frames for VLM video captioning. Windows: `winget install Gyan.FFmpeg` or equivalent. Skip this step if you don't need video support.
+4. That's it. The Python sidecar auto-provisions its venv via `uv run` on first invocation, reading dependencies from `training-sidecar/pyproject.toml`.
 
 ### Python sidecar
 

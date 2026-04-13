@@ -31,8 +31,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
+import math
 import os
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -51,6 +54,163 @@ if TYPE_CHECKING:
 
 # File extensions that route through the video branch instead of PIL.
 _VIDEO_EXTENSIONS = {".mp4", ".webm", ".mov", ".mkv", ".avi"}
+
+# qwen-vl-utils' FRAME_FACTOR — sampled frame counts must be a multiple of
+# this (it's the temporal merge stride the model uses). Hardcoded here
+# because importing it crosses into the vision_process private surface.
+_FRAME_FACTOR = 2
+
+# Hard minimum frames: we must at least ceil to FRAME_FACTOR so a very
+# short clip doesn't under-sample past what the model can process.
+_MIN_FRAMES = 2
+
+
+def _ffprobe_duration(video_path: str) -> Optional[float]:
+    """
+    Return the duration of a video in seconds via ffprobe, or None if the
+    probe fails. Intentionally never raises — video handling already has a
+    deeper fallback path, and a missing duration isn't worth aborting the
+    whole batch over.
+    """
+    try:
+        proc = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "json",
+                video_path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        if proc.returncode != 0:
+            print(
+                f"[transformers_provider] ffprobe failed for {video_path}: "
+                f"{proc.stderr.strip()}",
+                file=sys.stderr,
+            )
+            return None
+        parsed = json.loads(proc.stdout)
+        duration_raw = parsed.get("format", {}).get("duration")
+        if duration_raw is None:
+            return None
+        return float(duration_raw)
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, ValueError, OSError) as e:
+        print(
+            f"[transformers_provider] ffprobe probe failed for {video_path}: {e}",
+            file=sys.stderr,
+        )
+        return None
+
+
+def _extract_frames_ffmpeg(
+    video_path: str,
+    timestamps: list[float],
+) -> list[Any]:
+    """
+    Extract frames at exact timestamps (seconds) via ffmpeg and decode them
+    to PIL.Image. One ffmpeg invocation per timestamp — less efficient than
+    a single filter_complex pipe but far simpler and the dominant cost is
+    the model inference, not the frame extraction.
+
+    We deliberately use ffmpeg (which is already a system dependency for
+    poster-frame extraction) instead of a Python video reader library so
+    the video path has zero Python-side video-decoding deps. This makes
+    `uv sync --extra gpu` unchanged from the image-only path — the only
+    system requirement is the already-documented ffmpeg install.
+
+    Returns frames in the same order as timestamps. Raises RuntimeError
+    on any extraction failure (the caller reports it as a per-asset error).
+    """
+    from PIL import Image
+    import io as _io
+
+    frames: list[Any] = []
+    for ts in timestamps:
+        # -ss before -i = fast seek on the container, accurate enough at
+        # 1s granularity for sampling. -frames:v 1 grabs exactly one frame.
+        # mjpeg stdout pipe: simple bytes→PIL path with no temp files.
+        proc = subprocess.run(
+            [
+                "ffmpeg",
+                "-v",
+                "error",
+                "-ss",
+                f"{ts:.3f}",
+                "-i",
+                video_path,
+                "-frames:v",
+                "1",
+                "-f",
+                "image2",
+                "-vcodec",
+                "mjpeg",
+                "-",
+            ],
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+        if proc.returncode != 0 or not proc.stdout:
+            raise RuntimeError(
+                f"ffmpeg frame extraction failed at t={ts:.3f}s: "
+                f"{proc.stderr.decode('utf-8', errors='replace')[-300:]}"
+            )
+        frames.append(Image.open(_io.BytesIO(proc.stdout)).convert("RGB"))
+    return frames
+
+
+def _plan_video_sampling(
+    duration_sec: Optional[float],
+    frame_budget: int,
+    max_fps: float,
+) -> tuple[int, list[float]]:
+    """
+    Given a clip duration, a frame budget, and a max fps ceiling, decide
+    how many frames to sample and at which timestamps (seconds from start).
+
+    Logic mirrors qwen-vl-utils' smart_nframes:
+    - n_frames = floor(min(duration * max_fps, frame_budget))
+    - Rounded down to a multiple of FRAME_FACTOR (model stride)
+    - Clamped to at least _MIN_FRAMES
+    - If duration is unknown (probe failed), sample exactly frame_budget
+      frames at uniform t=0..inf assuming 1-second steps as a fallback —
+      this won't match reality but at least keeps the batch moving.
+
+    Timestamps are uniformly spread; the first frame lands slightly after
+    t=0 and the last slightly before t=duration so we don't try to read
+    past the end.
+    """
+    if duration_sec is None or duration_sec <= 0:
+        n = max(_MIN_FRAMES, (frame_budget // _FRAME_FACTOR) * _FRAME_FACTOR)
+        return n, [float(i) for i in range(n)]
+
+    # Raw upper bound from fps ceiling, then clamp to budget.
+    raw_n = math.floor(duration_sec * max_fps)
+    n = min(raw_n, frame_budget)
+    n = max(n, _MIN_FRAMES)
+    # Round down to FRAME_FACTOR multiple.
+    n = max(_MIN_FRAMES, (n // _FRAME_FACTOR) * _FRAME_FACTOR)
+
+    if n == 1:
+        return 1, [duration_sec * 0.1]
+
+    # Uniform spacing: leave a 5% margin at each end so a rounding error
+    # doesn't land the last frame past the real clip end.
+    margin = 0.05 * duration_sec
+    usable = max(0.0, duration_sec - 2 * margin)
+    if usable <= 0 or n <= 1:
+        timestamps = [margin for _ in range(n)]
+    else:
+        step = usable / (n - 1)
+        timestamps = [margin + i * step for i in range(n)]
+    return n, timestamps
 
 
 # Match tqdm's rendered progress line, e.g.
@@ -344,25 +504,29 @@ class TransformersCaptioningProvider(CaptioningProvider):
         video_options: Optional["VideoSamplingOptions"],
     ) -> str:
         """
-        Run streamed inference on a video file. Mirrors the image path but
-        constructs a `video` content message and uses qwen-vl-utils to
-        sample frames before tokenization.
+        Run streamed inference on a video file.
 
-        Frame sampling strategy: qwen-vl-utils' `smart_nframes` takes
-        `fps` (max sampling rate) and `max_frames` (hard cap). It computes
-        `duration * fps` and then clamps that to `max_frames` and to the
-        clip's real frame count. This naturally gives:
+        Frame sampling is done entirely via ffmpeg + PIL, bypassing
+        qwen-vl-utils' built-in video backends. This is a deliberate
+        choice:
 
-        - Long clips (where duration*fps > budget): sampled uniformly at
-          `budget` frames spread across the full duration.
-        - Short clips (where duration*fps < budget): sampled at `fps`,
-          with no wasted oversampling.
-        - Ultra-short clips: clamped to `total_frames` so we never try to
-          read more frames than exist.
+        - torchvision 0.26+ removed `torchvision.io.read_video`, which is
+          what qwen-vl-utils tries first. Newer qwen-vl-utils releases
+          expect `torchcodec`, older ones expect `decord`. Both are extra
+          Python deps with their own compatibility pitfalls.
+        - We already require ffmpeg on PATH for poster-frame extraction,
+          so reusing it for video sampling adds zero new deps and
+          guarantees the code path is insulated from upstream churn in
+          the torchvision/torchcodec/decord ecosystem.
+        - We get exact control over which timestamps to sample, which
+          makes the "uniform coverage across clip duration" goal easy
+          to express and debug.
 
-        We deliberately do NOT pass `nframes` (which would force exactly
-        that count and crash on clips shorter than the budget) — the
-        fps + max_frames combo does the right thing in all three regimes.
+        Once frames are in hand as PIL images, we hand them to
+        qwen-vl-utils' frame-list branch (fetch_video's isinstance
+        list/tuple path) by passing `"video": [frame, frame, ...]` in
+        the message. That path skips all video IO and goes straight to
+        per-frame preprocessing.
         """
         import torch
         from qwen_vl_utils import process_vision_info
@@ -376,16 +540,40 @@ class TransformersCaptioningProvider(CaptioningProvider):
         max_fps = video_options.max_fps if video_options else 2.0
         max_pixels = video_options.max_pixels if video_options else 360 * 420
 
+        # Duration → sampling plan → actual frames. Each step is defensive
+        # about failure: probe failure falls back to a fixed-step plan,
+        # extraction failure bubbles up as a per-asset error.
+        duration_sec = _ffprobe_duration(video_path)
+        n_frames, timestamps = _plan_video_sampling(
+            duration_sec, frame_budget, max_fps
+        )
+        print(
+            f"[transformers_provider] video: {os.path.basename(video_path)} "
+            f"duration={duration_sec} budget={frame_budget} max_fps={max_fps} "
+            f"planned_frames={n_frames}",
+            file=sys.stderr,
+        )
+
+        if cancel_check is not None and cancel_check():
+            raise CaptionCancelled("cancelled before frame extraction")
+
+        frames = _extract_frames_ffmpeg(video_path, timestamps)
+
+        if cancel_check is not None and cancel_check():
+            raise CaptionCancelled("cancelled after frame extraction")
+
+        # Hand frames to qwen-vl-utils as a list. The `sample_fps` hint
+        # tells the processor the effective sampling rate so temporal
+        # embeddings are right. `raw_fps` is also picked up for metadata.
+        effective_fps = (
+            len(frames) / duration_sec if duration_sec and duration_sec > 0 else max_fps
+        )
         video_content: dict[str, Any] = {
             "type": "video",
-            "video": video_path,
+            "video": frames,
             "max_pixels": max_pixels,
-            # `fps` here is the sampling rate ceiling — smart_nframes reads
-            # it as "at most this many frames per second of video."
-            "fps": max_fps,
-            # `max_frames` is the hard cap on total sampled frames. When
-            # `duration * fps` would exceed the budget, this clamps it.
-            "max_frames": frame_budget,
+            "sample_fps": effective_fps,
+            "raw_fps": effective_fps,
         }
 
         messages = [
@@ -398,47 +586,82 @@ class TransformersCaptioningProvider(CaptioningProvider):
             }
         ]
 
-        # Render the chat template to text. We use tokenize=False here
-        # because the processor needs the rendered text *and* the video
-        # tensor in the same call, which is a different shape than the
-        # image path — the image path lets apply_chat_template do the
-        # whole thing in one step, but video needs the explicit
-        # process_vision_info call.
+        # Render the chat template to text. We use tokenize=False because
+        # the processor needs the rendered text *and* the video tensor in
+        # the same call, which is a different shape than the image path.
         text = self._processor.apply_chat_template(
             messages,
             add_generation_prompt=True,
             tokenize=False,
         )
 
-        # Sample frames + assemble the video tensor. process_vision_info
-        # returns (image_inputs, video_inputs, video_kwargs). With
-        # return_video_kwargs=True we also get the per-frame fps so the
-        # processor can build the correct temporal embeddings.
+        # process_vision_info returns (image_inputs, video_inputs, video_kwargs).
+        # We opt into return_video_metadata=True so the per-video metadata
+        # (fps, frame indices, total frame count) rides through to the
+        # processor. Without it, Qwen3VLProcessor can't infer frame
+        # timestamps and falls back to a hardcoded fps=24, which produces
+        # correct-looking captions but with slightly wrong temporal
+        # embeddings (the model thinks it's seeing 24fps footage when we
+        # actually sampled at a much lower rate).
+        #
+        # With return_video_metadata=True, `video_inputs` is a list of
+        # (tensor, metadata_dict) tuples. Qwen3VLProcessor expects these
+        # split apart: `videos` as a plain list of tensors, and
+        # `video_metadata` as a parallel list passed through `videos_kwargs`.
+        # We unpack here to match that contract — otherwise the upstream
+        # make_batched_videos() doesn't recognise the tuple shape and
+        # drops the entries, leading to an empty-list IndexError.
         image_inputs, video_inputs, video_kwargs = process_vision_info(
-            messages, return_video_kwargs=True
+            messages,
+            return_video_kwargs=True,
+            return_video_metadata=True,
         )
+
+        video_tensors: Optional[list[Any]] = None
+        video_metadata: Optional[list[Any]] = None
+        if video_inputs:
+            video_tensors = []
+            video_metadata = []
+            for entry in video_inputs:
+                if isinstance(entry, tuple) and len(entry) == 2:
+                    tensor, meta = entry
+                else:
+                    # Shouldn't happen with return_video_metadata=True, but
+                    # handle it gracefully so an unexpected shape surfaces
+                    # a clearer error than "list index out of range".
+                    tensor, meta = entry, None
+                video_tensors.append(tensor)
+                video_metadata.append(meta)
+
+        processor_kwargs: dict[str, Any] = {**(video_kwargs or {})}
+        if video_metadata is not None:
+            processor_kwargs["video_metadata"] = video_metadata
 
         inputs = self._processor(
             text=[text],
             images=image_inputs,
-            videos=video_inputs,
+            videos=video_tensors,
             return_tensors="pt",
-            **(video_kwargs or {}),
+            **processor_kwargs,
         ).to(self._model.device)
 
-        # Log what we actually sampled so VRAM/quality issues are debuggable.
+        # Log what actually landed in the model tensor so VRAM/quality
+        # issues are debuggable from sidecar output alone.
         try:
-            n_frames = (
-                video_inputs[0].shape[0] if video_inputs else 0
-            )  # T dim of the (T, C, H, W) tensor
+            actual_frames = (
+                video_tensors[0].shape[0] if video_tensors else 0
+            )  # T dim of (T, C, H, W)
             print(
-                f"[transformers_provider] video: {os.path.basename(video_path)} "
-                f"frames={n_frames} max_pixels={max_pixels} "
-                f"budget={frame_budget} max_fps={max_fps}",
+                f"[transformers_provider] video tensor: "
+                f"actual_frames={actual_frames} max_pixels={max_pixels} "
+                f"effective_fps={effective_fps:.2f}",
                 file=sys.stderr,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print(
+                f"[transformers_provider] video tensor log failed: {e}",
+                file=sys.stderr,
+            )
 
         streamer = TextIteratorStreamer(
             self._processor.tokenizer,
