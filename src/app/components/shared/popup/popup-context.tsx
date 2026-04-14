@@ -45,8 +45,11 @@ export const PopupProvider: React.FC<PopupProviderProps> = ({ children }) => {
   );
   const popupConfigsRef = useRef<Map<string, PopupConfig>>(new Map());
 
-  // Track popups currently in closing animation to prevent re-opening
-  const closingPopupsRef = useRef<Set<string>>(new Set());
+  // Track pending close-animation timeouts per popup so a reopen can cancel them
+  // and prevent the stale teardown from clobbering the freshly-opened state.
+  const closingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  );
 
   // The active popup is the top of the stack
   const activePopupId =
@@ -88,9 +91,6 @@ export const PopupProvider: React.FC<PopupProviderProps> = ({ children }) => {
       const state = getPopupState(id);
       if (!state.isOpen && !state.isPositioning) return;
 
-      // Mark as closing to prevent re-open during animation
-      closingPopupsRef.current.add(id);
-
       // Start closing animation
       updatePopupState(id, {
         isOpen: false,
@@ -101,14 +101,17 @@ export const PopupProvider: React.FC<PopupProviderProps> = ({ children }) => {
       // Remove from stack immediately
       setPopupStack((prev) => prev.filter((popupId) => popupId !== id));
 
-      // After animation completes, stop rendering
-      setTimeout(() => {
+      // After animation completes, stop rendering. Track the timeout so a
+      // reopen during the animation can cancel it and prevent this teardown
+      // from clobbering the freshly-opened state.
+      const timeoutId = setTimeout(() => {
+        closingTimeoutsRef.current.delete(id);
         updatePopupState(id, {
           isAnimating: false,
           shouldRender: false,
         });
-        closingPopupsRef.current.delete(id);
       }, ANIMATION_DURATION);
+      closingTimeoutsRef.current.set(id, timeoutId);
     },
     [getPopupState, updatePopupState],
   );
@@ -166,8 +169,19 @@ export const PopupProvider: React.FC<PopupProviderProps> = ({ children }) => {
 
   const openPopup = useCallback(
     (id: string, config?: PopupConfig) => {
-      // Don't reopen a popup that's currently closing
-      if (closingPopupsRef.current.has(id)) return;
+      // If this popup is already open (or mid-open), clicking the trigger
+      // again is a no-op rather than a tear-down-and-rebuild. Without this,
+      // closeAllPopups() below would close the popup we're trying to open.
+      const currentState = getPopupState(id);
+      if (currentState.isOpen || currentState.isPositioning) return;
+
+      // If a close animation is in flight for this popup, cancel its pending
+      // teardown so it doesn't fire later and clobber the reopened state.
+      const pendingClose = closingTimeoutsRef.current.get(id);
+      if (pendingClose !== undefined) {
+        clearTimeout(pendingClose);
+        closingTimeoutsRef.current.delete(id);
+      }
 
       // Update config if provided
       if (config) {
@@ -208,7 +222,13 @@ export const PopupProvider: React.FC<PopupProviderProps> = ({ children }) => {
 
       // The Popup component will call finishPositioning when ready
     },
-    [findContainingPopup, closePopupsAbove, closeAllPopups, updatePopupState],
+    [
+      getPopupState,
+      findContainingPopup,
+      closePopupsAbove,
+      closeAllPopups,
+      updatePopupState,
+    ],
   );
 
   const finishPositioning = useCallback(
