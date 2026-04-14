@@ -105,21 +105,21 @@ export function ModelDefaultsModal({
         <div className="flex flex-col gap-5 pr-1">
           {MODEL_GROUPS.map(({ architecture, label, models }) => (
             <div key={architecture}>
-              <h3 className="mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+              <h3 className="text-md mb-3 border-b border-slate-200 pb-2 font-medium text-slate-700 dark:border-slate-700 dark:text-slate-300">
                 {label}
               </h3>
               <div className="space-y-4">
                 {models.map((model) => (
                   <div key={model.id}>
                     {models.length > 1 && (
-                      <p className="mb-1 text-xs text-slate-400">
+                      <p className="mb-2 text-sm text-slate-400 dark:text-slate-300">
                         {model.name}
                       </p>
                     )}
                     <div className="space-y-2">
                       {model.components.map((comp) => (
                         <div key={comp.type}>
-                          <label className="mb-2 flex items-baseline gap-1.5 text-xs font-medium text-(--foreground)/70">
+                          <label className="mt-3 mb-1.5 flex items-baseline gap-1.5 text-xs text-(--foreground)/70">
                             {comp.label}
                             {!comp.required && (
                               <span className="font-normal text-slate-400">

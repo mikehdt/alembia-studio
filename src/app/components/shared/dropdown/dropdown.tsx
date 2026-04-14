@@ -107,8 +107,8 @@ interface DropdownProps<T> {
 const sizeStyles: Record<DropdownSize, string> = {
   sm: 'px-2 py-1',
   toolbar: 'px-2 py-1',
-  md: 'px-2 py-1.5',
-  lg: 'px-4 py-2.5',
+  md: 'px-2.5 py-1.5',
+  lg: 'px-4 py-2',
 };
 
 /** Minimum width for the popup menu (matches Tailwind min-w-40 = 10rem) */

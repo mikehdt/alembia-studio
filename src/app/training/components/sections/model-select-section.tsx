@@ -247,7 +247,7 @@ const ModelSelectSectionComponent = ({
                                 {item.value.toUpperCase()}
                               </span>
                             )}
-                            size="sm"
+                            size="md"
                             aria-label={`${component.label} precision`}
                           />
                         )}
