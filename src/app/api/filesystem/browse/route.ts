@@ -90,7 +90,7 @@ function openMacOS(title: string, filter: string): Promise<BrowseResult> {
         .join(', ')}}`
     : '';
 
-  const script = `choose file with prompt "${escapeAS(title)}"${typeClause}`;
+  const script = `POSIX path of (choose file with prompt "${escapeAS(title)}"${typeClause})`;
 
   return new Promise((resolve, reject) => {
     execFile(
@@ -103,12 +103,7 @@ function openMacOS(title: string, filter: string): Promise<BrowseResult> {
           return resolve({ cancelled: true });
         }
         if (error) return reject(error);
-        // osascript returns "alias Macintosh HD:Users:..." — convert to POSIX
-        const aliasPath = stdout.trim();
-        const posix = aliasPath
-          .replace(/^alias /, '')
-          .replace(/:/g, '/')
-          .replace(/^([^/])/, '/$1');
+        const posix = stdout.trim();
         resolve(posix ? { path: posix } : { cancelled: true });
       },
     );
@@ -273,7 +268,7 @@ function openFolderWindows(title: string): Promise<BrowseResult> {
 }
 
 function openFolderMacOS(title: string): Promise<BrowseResult> {
-  const script = `choose folder with prompt "${escapeAS(title)}"`;
+  const script = `POSIX path of (choose folder with prompt "${escapeAS(title)}")`;
 
   return new Promise((resolve, reject) => {
     execFile(
@@ -285,11 +280,7 @@ function openFolderMacOS(title: string): Promise<BrowseResult> {
           return resolve({ cancelled: true });
         }
         if (error) return reject(error);
-        const aliasPath = stdout.trim();
-        const posix = aliasPath
-          .replace(/^alias /, '')
-          .replace(/:/g, '/')
-          .replace(/^([^/])/, '/$1');
+        const posix = stdout.trim();
         resolve(posix ? { path: posix } : { cancelled: true });
       },
     );

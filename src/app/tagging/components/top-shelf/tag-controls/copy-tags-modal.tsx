@@ -1,12 +1,13 @@
 'use client';
 
-import { CopyIcon } from 'lucide-react';
+import { CopyIcon, FilmIcon } from 'lucide-react';
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Button } from '@/app/components/shared/button';
 import { Modal } from '@/app/components/shared/modal';
 import { RadioGroup } from '@/app/components/shared/radio-group';
+import { isSupportedVideoExtension } from '@/app/constants';
 import { copyTagsToAssets, selectTagCounts } from '@/app/store/assets';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import { selectProjectFolderName } from '@/app/store/project';
@@ -16,6 +17,55 @@ import { getImageUrl } from '@/app/utils/image-utils';
 import { CopyableTagPill } from './copyable-tag-pill';
 
 type TagSortOption = 'order' | 'alphabetical' | 'frequency';
+
+/**
+ * Thumbnail that handles videos by loading the poster sidecar
+ * (`<id>.poster.jpg`) and falling back to a film icon if it isn't
+ * present yet (posters are generated lazily by the auto-tagger).
+ */
+const VideoOrImageThumb = ({
+  src,
+  alt,
+  isVideo,
+}: {
+  src: string;
+  alt: string;
+  isVideo: boolean;
+}) => {
+  const [errored, setErrored] = useState(false);
+
+  if (isVideo && errored) {
+    return (
+      <div className="flex h-20 w-20 items-center justify-center bg-slate-800 text-slate-400">
+        <FilmIcon className="h-8 w-8" />
+      </div>
+    );
+  }
+
+  if (isVideo) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- poster sidecar may not exist; need onError fallback that next/image makes awkward
+      <img
+        src={src}
+        alt={alt}
+        width={80}
+        height={80}
+        className="h-20 w-20 object-contain"
+        onError={() => setErrored(true)}
+      />
+    );
+  }
+
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      width={80}
+      height={80}
+      className="h-20 w-20 object-contain"
+    />
+  );
+};
 
 type CopyTagsModalProps = {
   isOpen: boolean;
@@ -189,8 +239,14 @@ export const CopyTagsModal = ({ isOpen, onClose }: CopyTagsModalProps) => {
           <div className="flex flex-wrap gap-2">
             {selectedAssetsData.map((asset) => {
               const isSelected = asset.fileId === donorAssetId;
+              const isVideo = isSupportedVideoExtension(
+                `.${asset.fileExtension}`,
+              );
+              const thumbFileName = isVideo
+                ? `${asset.fileId}.poster.jpg`
+                : `${asset.fileId}.${asset.fileExtension}`;
               const imageUrl = getImageUrl(
-                `${asset.fileId}.${asset.fileExtension}`,
+                thumbFileName,
                 projectName || undefined,
               );
 
@@ -206,12 +262,10 @@ export const CopyTagsModal = ({ isOpen, onClose }: CopyTagsModalProps) => {
                   }`}
                   title={asset.fileId}
                 >
-                  <Image
+                  <VideoOrImageThumb
                     src={imageUrl}
                     alt={asset.fileId}
-                    width={80}
-                    height={80}
-                    className="h-20 w-20 object-contain"
+                    isVideo={isVideo}
                   />
                   {isSelected && (
                     <div className="absolute inset-0 bg-teal-500/20" />

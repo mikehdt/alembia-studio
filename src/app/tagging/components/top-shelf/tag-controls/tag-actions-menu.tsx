@@ -135,12 +135,16 @@ export const TagActionsMenu = () => {
     [],
   );
 
+  const noSelectedAssetHasTags = selectedAssetsData.every(
+    (a) => a.tagList.length === 0,
+  );
+
   const overflowMenuItems: MenuItem[] = [
     {
       label: 'Copy Tags',
       icon: <CopyIcon />,
       onClick: openCopyTagsModal,
-      disabled: selectedAssetsCount < 2,
+      disabled: selectedAssetsCount < 2 || noSelectedAssetHasTags,
     },
     {
       label: 'Gather Tags',
