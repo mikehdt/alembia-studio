@@ -28,7 +28,7 @@ export const ClearFiltersButton = () => {
       onClick={handleClearFilters}
       disabled={!canClear}
       ghostDisabled={!canClear}
-      size="md"
+      size="toolbar"
       title="Clear all filters"
     >
       <FunnelXIcon />

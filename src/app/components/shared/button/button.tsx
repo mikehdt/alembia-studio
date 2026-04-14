@@ -21,8 +21,8 @@ type ButtonColor =
   | 'sky'
   | 'indigo'
   | 'stone';
-type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
-type ButtonWidth = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+type ButtonSize = 'xs' | 'sm' | 'toolbar' | 'md' | 'lg';
+type ButtonWidth = 'xs' | 'sm' | 'toolbar' | 'md' | 'lg' | 'xl';
 type ButtonVariant = 'default' | 'toggle' | 'deep-toggle' | 'ghost';
 
 interface ButtonProps {
@@ -57,8 +57,9 @@ interface ButtonProps {
 const sizeStyles: Record<ButtonSize, string> = {
   xs: 'py-0.5 [&_svg]:h-4 text-xs',
   sm: 'py-1 [&_svg]:h-4 text-sm',
-  md: 'py-1 [&_svg]:h-4 [&_svg]:my-0.5',
-  lg: 'py-2 [&_svg]:h-4',
+  md: 'py-2 [&_svg]:h-4',
+  lg: 'py-2.5 [&_svg]:h-4',
+  toolbar: 'py-1 [&_svg]:h-4 [&_svg]:my-0.5',
 };
 
 const widthStyles: Record<ButtonWidth, string> = {
@@ -67,6 +68,7 @@ const widthStyles: Record<ButtonWidth, string> = {
   md: 'px-2 [&_svg]:w-4',
   lg: 'px-3 [&_svg]:w-4',
   xl: 'px-4 [&_svg]:w-5',
+  toolbar: 'px-2 [&_svg]:w-4',
 };
 
 const colorStyles: Record<

@@ -37,7 +37,7 @@ export const ClearSelectionButton = () => {
       disabled={selectedAssetsCount === 0}
       variant="ghost"
       color="slate"
-      size="md"
+      size="toolbar"
       title="Clear selection"
     >
       <SquareXIcon />

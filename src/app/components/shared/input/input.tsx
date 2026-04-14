@@ -1,6 +1,6 @@
 import { forwardRef } from 'react';
 
-type InputSize = 'sm' | 'md';
+type InputSize = 'sm' | 'toolbar' | 'md' | 'lg';
 
 type InputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> & {
   size?: InputSize;
@@ -8,7 +8,9 @@ type InputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> & {
 
 const sizeClasses: Record<InputSize, string> = {
   sm: 'px-2 py-0.5 text-sm',
+  toolbar: 'px-2 py-1 text-sm',
   md: 'px-3 py-1.5 text-sm',
+  lg: 'px-4 py-2.5 text-sm',
 };
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(

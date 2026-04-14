@@ -43,7 +43,7 @@ export const MoveToFolderButton = () => {
         disabled={!canMove || isIoBlocked}
         variant="ghost"
         color="slate"
-        size="md"
+        size="toolbar"
         title={
           isIoBlocked
             ? 'Cannot move assets while loading or saving'

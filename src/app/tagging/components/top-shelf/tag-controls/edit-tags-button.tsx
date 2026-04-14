@@ -25,6 +25,7 @@ export const EditTagsButton = () => {
       <Button
         type="button"
         variant="ghost"
+        size="toolbar"
         onClick={openModal}
         disabled={!filterTags.length}
         title="Edit selected tags"

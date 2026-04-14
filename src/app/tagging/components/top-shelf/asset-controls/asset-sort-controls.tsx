@@ -158,7 +158,7 @@ export const AssetSortControls = () => {
         type="button"
         onClick={handleToggleSortDirection}
         variant="ghost"
-        size="md"
+        size="toolbar"
         title={`Sort ${sortDirection === SortDirection.ASC ? 'ascending' : 'descending'}`}
       >
         {sortDirection === SortDirection.ASC ? (

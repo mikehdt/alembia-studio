@@ -89,6 +89,7 @@ const AutoTaggerButton = () => {
     <>
       <Button
         variant="ghost"
+        size="toolbar"
         onClick={openTaggerModal}
         disabled={!hasReadyModel || !hasAssetsForTagger}
         title={

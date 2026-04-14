@@ -197,6 +197,7 @@ const TriggerPhrasesButtonComponent = () => {
     <>
       <Button
         variant="ghost"
+        size="toolbar"
         onClick={() => setIsModalOpen(true)}
         title="Edit trigger phrases"
       >

@@ -46,11 +46,12 @@ const FilterListButtonComponent = () => {
         ref={buttonRef}
         variant="toggle"
         size="lg"
+        width="lg"
         isPressed={isOpen}
         onClick={handleToggle}
         title="Show filters"
       >
-        <ListTodoIcon className="my-0.5" />
+        <ListTodoIcon />
       </Button>
 
       <Popup

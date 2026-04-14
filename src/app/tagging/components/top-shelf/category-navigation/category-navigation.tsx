@@ -102,11 +102,12 @@ const CategoryNavigationComponent = ({
         onClick={handleToggle}
         variant="toggle"
         size="lg"
+        width="lg"
         title="Jump to category"
         isPressed={isOpen}
         disabled={categoriesWithPageInfo.length <= 1}
       >
-        <ListOrderedIcon className="my-0.5" />
+        <ListOrderedIcon />
       </Button>
 
       <Popup

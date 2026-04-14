@@ -42,7 +42,7 @@ export const SelectAllButton = () => {
       disabled={allFilteredAssetsSelected || filteredAssets.length === 0}
       variant="ghost"
       color="slate"
-      size="md"
+      size="toolbar"
       title={
         allFilteredAssetsSelected
           ? 'All filtered assets already selected'

@@ -88,7 +88,7 @@ export const TagSortControls = () => {
           type="button"
           onClick={handleToggleSortDirection}
           variant="ghost"
-          size="md"
+          size="toolbar"
           title={`Sort ${tagSortDirection === TagSortDirection.ASC ? 'ascending' : 'descending'}`}
         >
           {tagSortDirection === TagSortDirection.ASC ? (
