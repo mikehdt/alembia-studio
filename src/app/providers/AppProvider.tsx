@@ -54,6 +54,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   // If accessed directly via URL (refresh/bookmark), we fetch the metadata from the server.
   const urlProject = isTagging ? extractProjectFromPath(pathname) : null;
 
+  // /tagging with no project slug has nothing to load — bounce to the project list
+  // before the InitialLoad gate below can strand the user on a forever spinner.
+  useEffect(() => {
+    if (isTagging && !urlProject) {
+      router.replace('/');
+    }
+  }, [isTagging, urlProject, router]);
+
   useEffect(() => {
     if (!urlProject || urlProject === projectFolderName) return;
 
@@ -163,6 +171,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   // On non-tagging routes (project list, training), just show children
   if (!isTagging) {
     return children;
+  }
+
+  // Tagging path with no project slug — render nothing while the redirect effect runs
+  if (!urlProject) {
+    return null;
   }
 
   // Show loading when INITIAL or loading with no assets yet

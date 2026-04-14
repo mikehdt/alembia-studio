@@ -117,6 +117,7 @@ const TrainingToolbarComponent = () => {
           options={VIEW_MODE_OPTIONS}
           value={viewMode}
           onChange={handleViewModeChange}
+          width="full"
         />
       </div>
     </>

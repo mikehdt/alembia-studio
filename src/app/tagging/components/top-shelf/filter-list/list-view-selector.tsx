@@ -47,6 +47,7 @@ export const ViewSelector = () => {
         value={activeView}
         onChange={handleViewChange}
         tone="surface"
+        width="full"
       />
 
       <button

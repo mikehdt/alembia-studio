@@ -44,6 +44,7 @@ export const SizeSubViewSelector = () => {
       options={subViewOptions}
       value={sizeSubView}
       onChange={handleSubViewChange}
+      width="full"
       tone="surface"
     />
   );

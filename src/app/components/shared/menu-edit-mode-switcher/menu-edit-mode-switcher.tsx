@@ -44,6 +44,7 @@ const MenuEditModeSwitcherComponent = ({
         value={editMode}
         onChange={setEditMode}
         size="sm"
+        width="full"
         className="ml-auto"
       />
     </div>

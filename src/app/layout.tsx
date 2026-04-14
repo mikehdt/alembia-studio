@@ -56,7 +56,15 @@ export default function Root({
       lang="en"
       data-scroll-behavior="smooth"
       className={geistSans.className}
+      suppressHydrationWarning
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var p=localStorage.getItem('preferences');var t='auto';if(p){var o=JSON.parse(p);if(o&&(o.theme==='light'||o.theme==='dark'||o.theme==='auto'))t=o.theme;}var d=t==='dark'||(t==='auto'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.add(d?'dark':'light');}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body>
         <StoreProvider>
           <AppProvider>

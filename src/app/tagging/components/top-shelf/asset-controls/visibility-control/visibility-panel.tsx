@@ -126,6 +126,7 @@ const ClassModeSection = ({
         <SegmentedControl
           options={CLASS_MODES}
           value={section.mode}
+          width="full"
           onChange={(mode) => onSetMode(section.key, mode)}
         />
       </div>

@@ -16,6 +16,7 @@ type SegmentedControlProps<T extends string> = {
   onChange: (value: T) => void;
   disabled?: boolean;
   size?: SegmentedControlSize;
+  width?: 'inline' | 'full';
   /** Shadow tone. 'default' is subtler for page backgrounds; 'surface' is brighter for menus/cards. */
   tone?: SegmentedControlTone;
   className?: string;
@@ -30,11 +31,11 @@ const sizeClasses: Record<
     button: 'px-2 [&_svg]:w-4',
   },
   md: {
-    container: 'w-full text-sm shadow-sm',
+    container: 'text-sm shadow-sm',
     button: 'px-2 py-1 [&_svg]:w-4',
   },
   xl: {
-    container: 'w-full text-sm font-medium shadow-md',
+    container: 'text-sm font-medium shadow-md',
     button: 'px-3 py-1.5 [&_svg]:w-4',
   },
 };
@@ -52,6 +53,7 @@ export function SegmentedControl<T extends string>({
   onChange,
   disabled = false,
   size = 'md',
+  width = 'inline',
   tone = 'default',
   className = '',
 }: SegmentedControlProps<T>) {
@@ -59,7 +61,7 @@ export function SegmentedControl<T extends string>({
 
   return (
     <div
-      className={`flex items-center rounded-sm bg-slate-100 dark:border dark:border-slate-600 dark:bg-slate-700 ${toneClasses[tone]} ${sizes.container} ${disabled ? 'pointer-events-none opacity-40' : ''} ${className}`}
+      className={`flex items-center rounded-sm bg-slate-100 dark:border dark:border-slate-600 dark:bg-slate-700 ${width === 'full' ? 'w-full' : ''} ${toneClasses[tone]} ${sizes.container} ${disabled ? 'pointer-events-none opacity-40' : ''} ${className}`}
     >
       {options.map((option, index) => {
         const isSelected = value === option.value;
