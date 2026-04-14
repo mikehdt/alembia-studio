@@ -134,18 +134,15 @@ const DatasetSectionComponent = ({
                 onSelect={onAddDataset}
                 excludeFolders={excludeFolders}
               >
-                <PlusIcon className="mr-1 h-3.5 w-3.5" />
+                <PlusIcon />
                 Add Project
               </ProjectPicker>
+
               {visibleFields.has('extraFolders' satisfies keyof FormState) && (
-                <button
-                  type="button"
-                  onClick={handleBrowseFolder}
-                  className="flex cursor-pointer items-center gap-1 rounded border border-(--border-subtle) bg-(--surface) px-3 py-1.5 text-sm text-(--foreground)/70 transition-colors hover:bg-(--surface-hover) hover:text-(--foreground)"
-                >
-                  <FolderOpenIcon className="mr-1 h-3.5 w-3.5" />
+                <Button variant="ghost" onClick={handleBrowseFolder}>
+                  <FolderOpenIcon />
                   Add Folder
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -227,7 +224,7 @@ const DatasetSectionComponent = ({
                         </div>
 
                         {!isDisabled && (
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-2">
                             <span className="text-slate-400 tabular-nums">
                               {folder.imageCount === 1
                                 ? `${folder.imageCount} image`
@@ -252,7 +249,7 @@ const DatasetSectionComponent = ({
                               size="sm"
                               className="w-14 text-center"
                             />
-                            <span className="text-slate-400">repeat</span>
+                            <span className="text-slate-400">repeats</span>
                           </div>
                         )}
                       </div>

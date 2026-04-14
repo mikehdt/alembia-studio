@@ -230,6 +230,7 @@ const ModelSelectSectionComponent = ({
                       <>
                         {variants && variants.length > 1 && (
                           <Dropdown
+                            variant="ghost"
                             items={variants.map((v) => ({
                               value: v.id,
                               label: v.label,
