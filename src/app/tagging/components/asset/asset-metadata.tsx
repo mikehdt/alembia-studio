@@ -1,6 +1,7 @@
 import {
   ArchiveIcon,
-  BookmarkIcon,
+  BookmarkCheckIcon,
+  BookmarkXIcon,
   FolderOpenIcon,
   ImageIcon,
 } from 'lucide-react';
@@ -238,27 +239,28 @@ const AssetMetadataComponent = ({
       </span>
 
       {hasModifiedTags ? (
-        <span className="flex shrink-0 gap-2 pl-2">
+        <span className="-my-0.5 flex shrink-0 gap-2 pl-2">
           <Button
             color="stone"
-            size="xs"
+            size="sm"
             width="lg"
             onClick={handleCancelAction}
             disabled={isTagEditing || isSaving}
             title={isTagEditing ? 'Finish tag operation first' : ''}
           >
+            <BookmarkXIcon />
             Cancel
           </Button>
 
           <Button
             color="teal"
-            size="xs"
+            size="sm"
             width="lg"
             onClick={handleSaveAction}
             disabled={isTagEditing || isSaving}
             title={isTagEditing ? 'Finish tag operation first' : ''}
           >
-            <BookmarkIcon />
+            <BookmarkCheckIcon />
             Save
           </Button>
         </span>

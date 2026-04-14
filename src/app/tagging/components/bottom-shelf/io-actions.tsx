@@ -1,4 +1,4 @@
-import { BookmarkCheckIcon, BookmarkMinusIcon } from 'lucide-react';
+import { BookmarkCheckIcon, BookmarkXIcon } from 'lucide-react';
 
 import { Button } from '@/app/components/shared/button';
 import {
@@ -32,7 +32,7 @@ export const IoActions = ({ ioInProgress }: { ioInProgress: boolean }) => {
           hasModifiedAssets ? 'Cancel all tag changes' : 'No changes to cancel'
         }
       >
-        <BookmarkMinusIcon />
+        <BookmarkXIcon />
         <span className="max-lg:hidden">Cancel All</span>
       </Button>
 
