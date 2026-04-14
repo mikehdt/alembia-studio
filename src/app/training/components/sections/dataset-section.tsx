@@ -218,7 +218,7 @@ const DatasetSectionComponent = ({
                             )}
                           </Button>
                           <span className="flex items-center">
-                            <FolderOpenIcon className="text-slate-400 dark:text-slate-600" />{' '}
+                            <FolderOpenIcon className="mr-2 h-4 w-4 text-slate-400 dark:text-slate-600" />{' '}
                             {folder.name}
                           </span>
                         </div>

@@ -155,7 +155,7 @@ const TrainingConfigFormComponent = ({
     <>
       <div className="mx-auto flex max-w-400 flex-col gap-4 lg:flex-row lg:items-start">
         {/* Settings column */}
-        <div className="mr-auto max-w-300 min-w-0 flex-1 space-y-3">
+        <div className="mr-auto w-full min-w-0 flex-1 space-y-3 lg:max-w-300">
           <ModelSelectSection
             modelId={state.modelId}
             modelPaths={state.modelPaths}
@@ -279,7 +279,7 @@ const TrainingConfigFormComponent = ({
         </div>
 
         {/* Summary column */}
-        <div className="w-100 lg:sticky lg:top-24">
+        <div className="lg:sticky lg:top-24 lg:w-100">
           <TrainingSummary
             outputName={state.outputName}
             currentModel={currentModel}

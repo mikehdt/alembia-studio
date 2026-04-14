@@ -214,22 +214,6 @@ const TrainingSummaryComponent = ({
       {/* Readiness */}
       <div className="rounded-lg border border-slate-200 bg-(--surface)/30 p-3 dark:border-slate-700">
         <div className="space-y-1">
-          <ReadinessItem
-            label="Output name"
-            isReady={hasOutputName}
-            detail={hasOutputName ? outputName : undefined}
-          />
-
-          <ReadinessItem
-            label="Dataset"
-            isReady={hasDataset}
-            detail={
-              hasDataset
-                ? `${totalImages} image${totalImages !== 1 ? 's' : ''}`
-                : undefined
-            }
-          />
-
           {requiredComponents.length > 1 && (
             <ReadinessItem
               label="Model components"
@@ -241,6 +225,22 @@ const TrainingSummaryComponent = ({
               }
             />
           )}
+
+          <ReadinessItem
+            label="Dataset"
+            isReady={hasDataset}
+            detail={
+              hasDataset
+                ? `${totalImages} image${totalImages !== 1 ? 's' : ''}`
+                : undefined
+            }
+          />
+
+          <ReadinessItem
+            label="Output name"
+            isReady={hasOutputName}
+            detail={hasOutputName ? outputName : undefined}
+          />
 
           <hr className="my-3 text-slate-300 dark:text-slate-600" />
 

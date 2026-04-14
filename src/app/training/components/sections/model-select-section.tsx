@@ -214,10 +214,6 @@ const ModelSelectSectionComponent = ({
                   <FolderOpenIcon />
                 </Button>
 
-                <div className="mx-1">
-                  <ToolbarDivider />
-                </div>
-
                 {component.downloadId &&
                   !modelPaths[component.type]?.trim() &&
                   (() => {
@@ -228,6 +224,10 @@ const ModelSelectSectionComponent = ({
                       variants?.[0]?.id;
                     return (
                       <>
+                        <div className="mx-1">
+                          <ToolbarDivider />
+                        </div>
+
                         {variants && variants.length > 1 && (
                           <Dropdown
                             variant="ghost"
