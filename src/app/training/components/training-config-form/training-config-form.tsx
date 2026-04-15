@@ -279,7 +279,7 @@ const TrainingConfigFormComponent = ({
         </div>
 
         {/* Summary column */}
-        <div className="lg:sticky lg:top-24 lg:w-100">
+        <div className="lg:sticky lg:top-24 lg:w-full lg:max-w-80">
           <TrainingSummary
             outputName={state.outputName}
             currentModel={currentModel}

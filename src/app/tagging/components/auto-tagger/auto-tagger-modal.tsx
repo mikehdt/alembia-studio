@@ -76,7 +76,7 @@ export function AutoTaggerModal({
       className="max-w-xl"
     >
       <div className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-300">
+        <h2 className="w-full text-2xl font-semibold text-slate-700 dark:text-slate-200">
           {title}
         </h2>
 

@@ -149,7 +149,7 @@ const ProjectPickerComponent = ({
                 <Checkbox
                   isSelected={showHidden}
                   onChange={() => setShowHidden(!showHidden)}
-                  label="Show hidden"
+                  label="Show hidden projects"
                   size="sm"
                 />
               </div>
@@ -161,7 +161,7 @@ const ProjectPickerComponent = ({
                 <div className="flex items-center gap-1.5 px-3 pt-2 pb-1">
                   <StarIcon className="h-3 w-3 fill-current text-amber-500" />
                   <span className="text-xs font-semibold tracking-wide text-slate-400 uppercase">
-                    Favourite
+                    Favourite Projects
                   </span>
                 </div>
                 {featured.map(renderProject)}
@@ -175,7 +175,7 @@ const ProjectPickerComponent = ({
                   <div className="flex items-center gap-1.5 px-3 pt-2 pb-1">
                     <FolderIcon className="h-3 w-3 text-slate-400" />
                     <span className="text-xs font-semibold tracking-wide text-slate-400 uppercase">
-                      Projects
+                      All Projects
                     </span>
                   </div>
                 )}

@@ -171,6 +171,7 @@ export function SettingsTab() {
 
             <div className="flex items-center gap-2">
               <Input
+                size="md"
                 type="password"
                 autoComplete="off"
                 placeholder={hasToken ? 'Replace token…' : 'hf_…'}
@@ -182,11 +183,12 @@ export function SettingsTab() {
                 className="flex-1 font-mono"
                 disabled={saving}
               />
+
               <Button
                 onClick={handleSave}
                 color="indigo"
                 size="md"
-                width="md"
+                width="lg"
                 disabled={saving || draft.trim() === ''}
               >
                 {saving ? 'Saving…' : hasToken ? 'Replace' : 'Save'}
@@ -229,7 +231,7 @@ export function SettingsTab() {
           <Button
             onClick={handleUnload}
             color="slate"
-            size="md"
+            size="sm"
             width="md"
             disabled={unloading}
           >

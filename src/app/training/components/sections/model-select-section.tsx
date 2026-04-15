@@ -208,7 +208,8 @@ const ModelSelectSectionComponent = ({
                 <Button
                   onClick={() => handleBrowse(component.type, component.label)}
                   variant="ghost"
-                  size="md"
+                  size="lg"
+                  width="md"
                   title="Browse…"
                 >
                   <FolderOpenIcon />

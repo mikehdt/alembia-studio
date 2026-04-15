@@ -119,10 +119,9 @@ const TrainingSummaryComponent = ({
   const hasDataset = totalImages > 0;
 
   const requiredComponents = currentModel.components.filter((c) => c.required);
-  const missingComponents = requiredComponents.filter(
-    (c) => !modelPaths[c.type]?.trim(),
+  const hasAllComponents = requiredComponents.every((c) =>
+    modelPaths[c.type]?.trim(),
   );
-  const hasAllComponents = missingComponents.length === 0;
 
   const effectiveSteps = durationMode === 'epochs' ? calculatedSteps : steps;
   const effectiveEpochs = durationMode === 'steps' ? calculatedEpochs : epochs;
@@ -213,16 +212,31 @@ const TrainingSummaryComponent = ({
 
       {/* Readiness */}
       <div className="rounded-lg border border-slate-200 bg-(--surface)/30 p-3 dark:border-slate-700">
+        <span className="mb-2 block text-xs font-medium text-(--foreground)/70">
+          Training Readiness
+        </span>
+
         <div className="space-y-1">
           {requiredComponents.length > 1 && (
+            <>
+              <span className="mb-1 block text-xs font-medium text-(--foreground)/70">
+                Model files
+              </span>
+              {requiredComponents.map((component) => (
+                <ReadinessItem
+                  key={component.type}
+                  label={component.label}
+                  isReady={!!modelPaths[component.type]?.trim()}
+                />
+              ))}
+              <hr className="my-3 text-slate-300 dark:text-slate-600" />
+            </>
+          )}
+
+          {requiredComponents.length === 1 && (
             <ReadinessItem
-              label="Model components"
-              isReady={hasAllComponents}
-              detail={
-                hasAllComponents
-                  ? undefined
-                  : missingComponents.map((c) => c.label).join(', ')
-              }
+              label={requiredComponents[0].label}
+              isReady={!!modelPaths[requiredComponents[0].type]?.trim()}
             />
           )}
 

@@ -233,9 +233,10 @@ export const CopyTagsModal = ({ isOpen, onClose }: CopyTagsModalProps) => {
 
         {/* Donor selection with thumbnails */}
         <div className="w-full">
-          <h3 className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-400">
-            Copy from:
+          <h3 className="mb-2 text-sm font-medium text-slate-600 uppercase dark:text-slate-400">
+            Copy from
           </h3>
+
           <div className="flex flex-wrap gap-2">
             {selectedAssetsData.map((asset) => {
               const isSelected = asset.fileId === donorAssetId;
@@ -278,10 +279,11 @@ export const CopyTagsModal = ({ isOpen, onClose }: CopyTagsModalProps) => {
 
         {/* Tags to copy */}
         <div className="w-full">
-          <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
-              Tags to copy:
-            </h3>
+          <h3 className="text-sm font-medium text-slate-600 uppercase dark:text-slate-400">
+            Tags to copy
+          </h3>
+
+          <div className="mt-2 mb-4">
             <RadioGroup
               name="tagSort"
               options={[
@@ -291,9 +293,9 @@ export const CopyTagsModal = ({ isOpen, onClose }: CopyTagsModalProps) => {
               ]}
               value={tagSortOption}
               onChange={setTagSortOption}
-              size="sm"
             />
           </div>
+
           {hasNoCopyableTags ? (
             <p className="text-sm text-slate-400 italic">
               All tags from this asset already exist on the other assets.
@@ -329,8 +331,8 @@ export const CopyTagsModal = ({ isOpen, onClose }: CopyTagsModalProps) => {
         {/* Common tags (informational) */}
         {commonTags.length > 0 && (
           <div className="w-full">
-            <h3 className="mb-1 text-xs font-medium text-slate-400 dark:text-slate-500">
-              Common to all:
+            <h3 className="mb-1 text-xs font-medium text-slate-400 uppercase dark:text-slate-500">
+              Common to all
             </h3>
             <p className="text-xs text-slate-400 dark:text-slate-500">
               {commonTags.join(', ')}

@@ -28,7 +28,7 @@ import {
 import { AutoTaggerModal } from '@/app/tagging/components/auto-tagger';
 
 import { CopyTagsModal } from './copy-tags-modal';
-import { TriggerPhrasesModal } from './trigger-phrases-button';
+import { TriggerPhrasesModal } from './trigger-phrases-modal';
 
 export const TagActionsMenu = () => {
   const dispatch = useAppDispatch();

@@ -7,10 +7,10 @@ type InputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> & {
 };
 
 const sizeClasses: Record<InputSize, string> = {
-  sm: 'px-2 py-0.5 text-sm',
+  sm: 'px-2 py-1 text-sm',
+  md: 'px-3 py-2 text-sm',
+  lg: 'px-4 py-3 text-sm',
   toolbar: 'px-2 py-1 text-sm',
-  md: 'px-3 py-1.5 text-sm',
-  lg: 'px-4 py-2.5 text-sm',
 };
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(

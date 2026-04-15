@@ -27,24 +27,24 @@ const sizeClasses: Record<
   { container: string; button: string }
 > = {
   sm: {
-    container: 'text-xs shadow-xs',
+    container: 'text-xs shadow-xs  inset-shadow-xs',
     button: 'px-2 [&_svg]:w-4',
   },
   md: {
-    container: 'text-sm shadow-sm',
+    container: 'text-sm shadow-sm  inset-shadow-sm',
     button: 'px-2 py-1 [&_svg]:w-4',
   },
   xl: {
-    container: 'text-sm font-medium shadow-md',
-    button: 'px-3 py-1.5 [&_svg]:w-4',
+    container: 'text-sm font-medium shadow-md  inset-shadow-sm',
+    button: 'px-4 py-2 [&_svg]:w-4',
   },
 };
 
 const toneClasses: Record<SegmentedControlTone, string> = {
   default:
-    'shadow-white inset-shadow-xs inset-shadow-slate-300 dark:shadow-slate-900 dark:inset-shadow-slate-800',
+    'shadow-white inset-shadow-slate-300 dark:shadow-slate-900 dark:inset-shadow-slate-800',
   surface:
-    'shadow-white inset-shadow-xs inset-shadow-slate-300 dark:shadow-slate-600 dark:inset-shadow-slate-800',
+    'shadow-white  inset-shadow-slate-300 dark:shadow-slate-600 dark:inset-shadow-slate-800',
 };
 
 export function SegmentedControl<T extends string>({

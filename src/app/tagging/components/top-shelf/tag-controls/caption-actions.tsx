@@ -20,7 +20,7 @@ import {
 } from '@/app/store/selection/combinedSelectors';
 import { AutoTaggerModal } from '@/app/tagging/components/auto-tagger';
 
-import { TriggerPhrasesButton } from './trigger-phrases-button';
+import { TriggerPhrasesButton } from './trigger-phrases-modal';
 
 /** Auto Tagger button — first-class in caption mode */
 const AutoTaggerButton = () => {

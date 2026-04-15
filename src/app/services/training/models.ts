@@ -80,7 +80,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     components: [
       {
         type: 'checkpoint',
-        label: 'Transformer',
+        label: 'Model File',
         required: true,
         downloadId: 'dl-flux2-klein-9b',
       },
@@ -144,7 +144,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     components: [
       {
         type: 'checkpoint',
-        label: 'Transformer',
+        label: 'Model File',
         required: true,
         downloadId: 'dl-flux-dev',
       },
@@ -212,7 +212,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     components: [
       {
         type: 'checkpoint',
-        label: 'Transformer',
+        label: 'Model File',
         required: true,
         downloadId: 'dl-flux-schnell',
       },
@@ -280,7 +280,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     components: [
       {
         type: 'checkpoint',
-        label: 'Checkpoint',
+        label: 'Model File',
         required: true,
         downloadId: 'dl-sdxl-base',
       },
@@ -336,7 +336,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     components: [
       {
         type: 'checkpoint',
-        label: 'Checkpoint',
+        label: 'Model File',
         required: true,
         downloadId: 'dl-illustrious-xl',
       },
@@ -393,7 +393,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     components: [
       {
         type: 'checkpoint',
-        label: 'Checkpoint',
+        label: 'Model File',
         required: true,
         downloadId: 'dl-noob-xl',
       },
@@ -450,7 +450,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     components: [
       {
         type: 'checkpoint',
-        label: 'Pipeline (transformer + Qwen3-4B + VAE)',
+        label: 'Model File',
         required: true,
         downloadId: 'dl-zimage-turbo',
         hint: 'Diffusers pipeline directory — everything bundled in one download',
@@ -499,7 +499,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     description: 'Video/image generation, last open-weights release',
     provider: 'ai-toolkit',
     components: [
-      { type: 'checkpoint', label: 'Model Weights', required: true },
+      { type: 'checkpoint', label: 'Model File', required: true },
     ],
     tips: [
       'Higher rank (32) and learning rate (2e-4) suit this larger model',
@@ -544,7 +544,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     description: 'Actively evolving open video model',
     provider: 'ai-toolkit',
     components: [
-      { type: 'checkpoint', label: 'Model Weights', required: true },
+      { type: 'checkpoint', label: 'Model File', required: true },
     ],
     tips: [
       'Higher rank (32) recommended for video model capacity',
@@ -589,7 +589,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     description: 'Latest LTX with improved motion and quality',
     provider: 'ai-toolkit',
     components: [
-      { type: 'checkpoint', label: 'Model Weights', required: true },
+      { type: 'checkpoint', label: 'Model File', required: true },
     ],
     tips: [
       'Higher rank (32) recommended for video model capacity',

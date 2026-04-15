@@ -131,6 +131,7 @@ export function ModelDefaultsModal({
                           <InputTray size="md" className="dark:bg-slate-900">
                             <Input
                               type="text"
+                              size="sm"
                               value={draft[model.id]?.[comp.type] ?? ''}
                               onChange={(e) =>
                                 setPath(model.id, comp.type, e.target.value)
@@ -166,13 +167,14 @@ export function ModelDefaultsModal({
         </div>
 
         <div className="flex justify-end gap-2 border-t border-(--border-subtle) pt-3">
-          <Button onClick={onClose} color="slate" size="md">
+          <Button onClick={onClose} color="slate" size="md" width="lg">
             Cancel
           </Button>
           <Button
             onClick={handleSave}
             color="indigo"
             size="md"
+            width="lg"
             disabled={saving}
           >
             {saving ? 'Saving…' : 'Save Defaults'}

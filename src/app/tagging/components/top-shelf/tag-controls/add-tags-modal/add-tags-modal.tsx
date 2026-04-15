@@ -68,8 +68,8 @@ export const AddTagsModal = ({
   });
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} className="max-w-md min-w-[24rem]">
-      <div className="flex flex-wrap gap-4">
+    <Modal isOpen={isOpen} onClose={onClose} className="max-w-lg min-w-[24rem]">
+      <div className="flex flex-col gap-4">
         {/* Title */}
         <h2 className="w-full text-2xl font-semibold text-slate-700 dark:text-slate-200">
           Add Tags
@@ -168,7 +168,7 @@ export const AddTagsModal = ({
               onClick={onClose}
               color="slate"
               size="md"
-              width="xl"
+              width="lg"
             >
               Cancel
             </Button>
@@ -179,7 +179,7 @@ export const AddTagsModal = ({
               neutralDisabled
               color="amber"
               size="md"
-              width="xl"
+              width="lg"
             >
               <BookmarkIcon />
               Add New Tags

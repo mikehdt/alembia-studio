@@ -1,4 +1,4 @@
-import { CheckIcon, XIcon } from 'lucide-react';
+import { CheckIcon, CircleOffIcon } from 'lucide-react';
 import { memo, useCallback } from 'react';
 
 type CopyableTagPillProps = {
@@ -73,7 +73,7 @@ const CopyableTagPillComponent = ({
         {isSelected ? (
           <CheckIcon className="h-4 w-4" />
         ) : (
-          <XIcon className="h-4 w-4" />
+          <CircleOffIcon className="h-4 w-4" />
         )}
       </span>
     </div>

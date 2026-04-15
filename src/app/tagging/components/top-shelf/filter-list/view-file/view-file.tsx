@@ -58,7 +58,7 @@ export const FileView = () => {
           }`}
           title="Add pattern"
         >
-          <PlusIcon />
+          <PlusIcon className="h-4 w-4" />
         </button>
       </div>
 

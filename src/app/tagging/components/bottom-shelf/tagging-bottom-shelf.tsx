@@ -1,8 +1,8 @@
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
-import { BottomShelfFrame } from '@/app/shared/shelf';
 import { Button } from '@/app/shared/button';
+import { BottomShelfFrame } from '@/app/shared/shelf';
 import { useToast } from '@/app/shared/toast';
 import {
   IoState,

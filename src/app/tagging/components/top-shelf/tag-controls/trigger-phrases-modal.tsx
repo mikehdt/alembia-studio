@@ -12,10 +12,7 @@ import {
 import { updateProject } from '@/app/utils/project-actions';
 
 const inputStyles =
-  'w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm outline-none transition-colors focus:border-amber-400 focus:ring-1 focus:ring-amber-300 dark:border-slate-600 dark:bg-slate-700 dark:focus:border-amber-500';
-
-const iconButtonStyles =
-  'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors';
+  'w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm outline-none transition-colors focus:border-amber-400 focus:ring-1 focus:ring-amber-300 dark:border-slate-600 dark:bg-slate-700 dark:focus:border-amber-500';
 
 export const TriggerPhrasesModal = ({
   isOpen,
@@ -106,8 +103,10 @@ export const TriggerPhrasesModal = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-md">
-      <h2 className="mb-1 text-lg font-semibold">Trigger Phrases</h2>
-      <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+      <h2 className="w-full text-2xl font-semibold text-slate-700 dark:text-slate-200">
+        Trigger Phrases
+      </h2>
+      <p className="my-3 text-xs text-slate-500 dark:text-slate-400">
         Add trigger words or phrases to highlight in your captions and tags.
       </p>
 
@@ -122,14 +121,15 @@ export const TriggerPhrasesModal = ({
               onKeyDown={(e) => handleEditKeyDown(e, index)}
               className={inputStyles}
             />
-            <button
-              type="button"
+            <Button
               onClick={() => handleRemovePhrase(index)}
-              className={`${iconButtonStyles} text-slate-400 hover:bg-pink-100 hover:text-pink-600 dark:hover:bg-pink-900 dark:hover:text-pink-400`}
-              title="Remove phrase"
+              color="rose"
+              variant="ghost"
+              size="md"
+              title="Remove trigger phrase"
             >
               <XIcon className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
         ))}
 
@@ -150,28 +150,25 @@ export const TriggerPhrasesModal = ({
             className={inputStyles}
             autoFocus
           />
-          <button
-            type="button"
+          <Button
             onClick={handleAddPhrase}
             disabled={!addValue.trim()}
-            className={`${iconButtonStyles} ${
-              addValue.trim()
-                ? 'text-amber-600 hover:bg-amber-100 hover:text-amber-700 dark:text-amber-400 dark:hover:bg-amber-900'
-                : 'pointer-events-none text-slate-300 dark:text-slate-600'
-            }`}
-            title="Add phrase"
+            title="Add trigger phrase"
+            variant="ghost"
           >
             <PlusIcon />
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className="mt-4 flex justify-end gap-2">
-        <Button size="md" onClick={onClose}>
+        <Button size="md" width="lg" onClick={onClose}>
           Cancel
         </Button>
+
         <Button
           size="md"
+          width="lg"
           color="teal"
           onClick={handleSave}
           disabled={!hasChanges}

@@ -332,21 +332,27 @@ const ProjectsFolderInline = ({
   }, [onSave]);
 
   return (
-    <div className="mt-4 w-full">
-      <button
-        type="button"
+    <div className="mt-4 flex flex-col justify-center">
+      <h2 className="mb-2 font-medium">Projects Folder</h2>
+
+      <Button
         onClick={handleBrowse}
         disabled={saving}
-        className="mx-auto flex cursor-pointer items-center gap-1.5 text-sm text-slate-500 transition-colors hover:text-slate-700 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-200"
+        variant="ghost"
+        size="md"
+        width="lg"
       >
         <FolderOpenIcon />
+
         <span className="max-w-64 truncate">
           {saving ? 'Saving\u2026' : folder || 'No folder configured'}
         </span>
-        <PencilIcon className="h-3 w-3" />
-      </button>
+
+        <PencilIcon className="ml-2" />
+      </Button>
+
       {error && (
-        <p className="mt-1 text-xs text-rose-500 dark:text-rose-400">{error}</p>
+        <p className="mt-2 text-xs text-rose-500 dark:text-rose-400">{error}</p>
       )}
     </div>
   );

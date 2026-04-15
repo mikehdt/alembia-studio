@@ -345,9 +345,7 @@ export const MoveToFolderModal = ({
         )}
 
         {/* Progress bar */}
-        {isMoving && (
-          <ProgressBar value={0} max={1} size="sm" color="sky" indeterminate />
-        )}
+        {isMoving && <ProgressBar size="sm" indeterminate />}
 
         {/* Action buttons */}
         <div className="flex w-full justify-end gap-2 pt-2">
@@ -356,7 +354,7 @@ export const MoveToFolderModal = ({
             onClick={onClose}
             color="slate"
             size="md"
-            width="xl"
+            width="lg"
             disabled={isMoving}
           >
             Cancel
@@ -369,7 +367,7 @@ export const MoveToFolderModal = ({
             neutralDisabled
             color="sky"
             size="md"
-            width="xl"
+            width="lg"
           >
             <FolderInputIcon className="mr-1 h-4 w-4" />
             {isMoving ? 'Moving...' : 'Move'}
