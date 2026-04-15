@@ -283,7 +283,7 @@ function DownloadableModelRow({
             </p>
           )}
         </div>
-        <div className="flex items-start gap-2">
+        <div className="flex items-center gap-2">
           {!hasLiveJob && (
             <span className="text-right text-xs text-slate-400 tabular-nums">
               {formatBytes(totalSize)}
@@ -319,11 +319,16 @@ function DownloadableModelRow({
               sizeBytes={totalSize}
               onConfirm={handleUninstall}
             />
+          ) : isPartial ? (
+            <div className="flex items-center gap-2">
+              <DownloadRowButton onClick={handleDownload} label="Resume" />
+              <DeleteInstalledButton
+                sizeBytes={totalSize}
+                onConfirm={handleUninstall}
+              />
+            </div>
           ) : (
-            <DownloadRowButton
-              onClick={handleDownload}
-              label={isPartial ? 'Resume' : 'Download'}
-            />
+            <DownloadRowButton onClick={handleDownload} label="Download" />
           )}
         </div>
       </div>

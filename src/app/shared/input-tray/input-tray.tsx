@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-type InputTraySize = 'sm' | 'md';
+type InputTraySize = 'sm' | 'md' | 'lg';
 
 type InputTrayProps = {
   children: ReactNode;
@@ -11,6 +11,7 @@ type InputTrayProps = {
 const sizeClasses: Record<InputTraySize, string> = {
   sm: 'rounded-sm',
   md: 'p-0.5 rounded-md',
+  lg: 'p-1 rounded-lg',
 };
 
 export function InputTray({

@@ -93,7 +93,7 @@ export function DownloadJobCard({
       )}
 
       {/* Actions */}
-      <div className="mt-1.5 flex items-center gap-1">
+      <div className="mt-1.5 flex items-center justify-end gap-1">
         {isRunning && onCancel && (
           <ActionButton
             onClick={() => onCancel(job)}

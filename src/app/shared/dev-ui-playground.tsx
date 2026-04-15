@@ -24,7 +24,7 @@ export const DevUIPlayground = () => {
           xs sizes (22px high)
         </p>
 
-        <div className="flex items-center gap-2 bg-slate-200">
+        <div className="flex items-center gap-2 bg-slate-200 dark:bg-slate-700">
           <Button width="xs" size="xs">
             Button
           </Button>
@@ -38,11 +38,11 @@ export const DevUIPlayground = () => {
           </Button>
         </div>
 
-        <div className="flex items-center bg-slate-200">
+        <div className="flex items-center bg-slate-200 dark:bg-slate-700">
           <Input size="xs" />
         </div>
 
-        <div className="flex items-center bg-slate-200">
+        <div className="flex items-center bg-slate-200 dark:bg-slate-700">
           <Input size="xs" />
           <Button width="xs" size="xs">
             Button
@@ -58,7 +58,7 @@ export const DevUIPlayground = () => {
           sm sizes (30px high)
         </p>
 
-        <div className="flex items-center gap-2 bg-slate-200">
+        <div className="flex items-center gap-2 bg-slate-200 dark:bg-slate-700">
           <Button width="sm" size="sm">
             Button
           </Button>
@@ -72,11 +72,11 @@ export const DevUIPlayground = () => {
           </Button>
         </div>
 
-        <div className="flex items-center bg-slate-200">
+        <div className="flex items-center bg-slate-200 dark:bg-slate-700">
           <Input size="sm" />
         </div>
 
-        <div className="flex items-center bg-slate-200">
+        <div className="flex items-center bg-slate-200 dark:bg-slate-700">
           <Dropdown
             size="sm"
             items={[
@@ -88,7 +88,7 @@ export const DevUIPlayground = () => {
           />
         </div>
 
-        <div className="flex items-center gap-2 bg-slate-200">
+        <div className="flex items-center gap-2 bg-slate-200 dark:bg-slate-700">
           <Input size="sm" />
 
           <Button width="sm" size="sm">
@@ -116,7 +116,7 @@ export const DevUIPlayground = () => {
           toolbar sizes (30px high)
         </p>
 
-        <div className="flex items-center gap-2 bg-slate-200">
+        <div className="flex items-center gap-2 bg-slate-200 dark:bg-slate-700">
           <Button width="toolbar" size="toolbar">
             Button
           </Button>
@@ -130,11 +130,11 @@ export const DevUIPlayground = () => {
           </Button>
         </div>
 
-        <div className="flex items-center bg-slate-200">
+        <div className="flex items-center bg-slate-200 dark:bg-slate-700">
           <Input size="toolbar" />
         </div>
 
-        <div className="flex items-center bg-slate-200">
+        <div className="flex items-center bg-slate-200 dark:bg-slate-700">
           <Dropdown
             size="toolbar"
             items={[
@@ -146,7 +146,7 @@ export const DevUIPlayground = () => {
           />
         </div>
 
-        <div className="flex items-center gap-2 bg-slate-200">
+        <div className="flex items-center gap-2 bg-slate-200 dark:bg-slate-700">
           <Input size="toolbar" />
 
           <Button width="toolbar" size="toolbar">
@@ -166,9 +166,18 @@ export const DevUIPlayground = () => {
             selectedValue="test-a"
             onChange={() => {}}
           />
+
+          <SegmentedControl
+            options={[
+              { value: 'simple', label: 'Simple' },
+              { value: 'intermediate', label: 'Intermediate' },
+            ]}
+            value="simple"
+            onChange={() => {}}
+          />
         </div>
 
-        <div className="flex items-center bg-slate-200">
+        <div className="flex items-center bg-slate-200 dark:bg-slate-700">
           <InputTray size="md">
             <Input size="toolbar" />
 
@@ -198,7 +207,7 @@ export const DevUIPlayground = () => {
           md sizes (34px high)
         </p>
 
-        <div className="flex items-center gap-2 bg-slate-200">
+        <div className="flex items-center gap-2 bg-slate-200 dark:bg-slate-700">
           <Button width="md" size="md">
             Button
           </Button>
@@ -212,7 +221,7 @@ export const DevUIPlayground = () => {
           </Button>
         </div>
 
-        <div className="flex items-center bg-slate-200">
+        <div className="flex items-center bg-slate-200 dark:bg-slate-700">
           <Dropdown
             size="md"
             items={[
@@ -224,7 +233,7 @@ export const DevUIPlayground = () => {
           />
         </div>
 
-        <div className="flex items-center gap-2 bg-slate-200">
+        <div className="flex items-center gap-2 bg-slate-200 dark:bg-slate-700">
           <Input size="md" />
 
           <Button width="md" size="md">
@@ -244,18 +253,9 @@ export const DevUIPlayground = () => {
             selectedValue="test-a"
             onChange={() => {}}
           />
-
-          <SegmentedControl
-            options={[
-              { value: 'simple', label: 'Simple' },
-              { value: 'intermediate', label: 'Intermediate' },
-            ]}
-            value="simple"
-            onChange={() => {}}
-          />
         </div>
 
-        <div className="flex items-center bg-slate-200">
+        <div className="flex items-center bg-slate-200 dark:bg-slate-700">
           <InputTray size="md">
             <Input size="md" />
 
@@ -285,7 +285,7 @@ export const DevUIPlayground = () => {
           lg sizes (42px high)
         </p>
 
-        <div className="flex items-center gap-2 bg-slate-200">
+        <div className="flex items-center gap-2 bg-slate-200 dark:bg-slate-700">
           <Button width="lg" size="lg">
             Button
           </Button>
@@ -299,7 +299,7 @@ export const DevUIPlayground = () => {
           </Button>
         </div>
 
-        <div className="flex items-center bg-slate-200">
+        <div className="flex items-center bg-slate-200 dark:bg-slate-700">
           <Dropdown
             size="lg"
             items={[
@@ -311,7 +311,7 @@ export const DevUIPlayground = () => {
           />
         </div>
 
-        <div className="flex items-center gap-2 bg-slate-200">
+        <div className="flex items-center gap-2 bg-slate-200 dark:bg-slate-700">
           <Input size="lg" />
 
           <Button width="lg" size="lg">
@@ -335,7 +335,7 @@ export const DevUIPlayground = () => {
           <MultiTagInput tags={[]} onTagsChange={() => {}} />
         </div>
 
-        <div className="flex items-center bg-slate-200">
+        <div className="flex items-center bg-slate-200 dark:bg-slate-700">
           <InputTray size="md">
             <Input size="lg" />
 

@@ -1,6 +1,5 @@
 'use client';
 
-import { FolderOpenIcon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import {
@@ -8,13 +7,11 @@ import {
   type ModelComponentType,
 } from '@/app/services/training/models';
 import { Button } from '@/app/shared/button';
-import { Input } from '@/app/shared/input/input';
-import { InputTray } from '@/app/shared/input-tray/input-tray';
 import { Modal } from '@/app/shared/modal';
 
+import { ModelPathField } from '../model-path-field/model-path-field';
+import { useEnsureModelStatuses } from '../model-path-field/use-ensure-model-statuses';
 import type { AppModelDefaults } from '../training-config-form/use-training-config-form';
-
-const MODEL_FILE_FILTER = 'safetensors,ckpt,bin,pt,pth';
 
 type ModelDefaultsModalProps = {
   isOpen: boolean;
@@ -31,14 +28,22 @@ export function ModelDefaultsModal({
   onSaved,
 }: ModelDefaultsModalProps) {
   const [draft, setDraft] = useState<AppModelDefaults>({});
+  // Snapshot of what was loaded — used as the reset target so the user
+  // can undo in-modal edits back to the last saved value.
+  const [savedDefaults, setSavedDefaults] = useState<AppModelDefaults>({});
   const [saving, setSaving] = useState(false);
+
+  useEnsureModelStatuses(isOpen);
 
   // Load current defaults when modal opens
   useEffect(() => {
     if (!isOpen) return;
     fetch('/api/config/model-defaults')
       .then((r) => r.json())
-      .then(setDraft)
+      .then((data: AppModelDefaults) => {
+        setDraft(data);
+        setSavedDefaults(data);
+      })
       .catch(() => {});
   }, [isOpen]);
 
@@ -50,25 +55,6 @@ export function ModelDefaultsModal({
       }));
     },
     [],
-  );
-
-  const handleBrowse = useCallback(
-    async (modelId: string, comp: ModelComponentType, label: string) => {
-      try {
-        const params = new URLSearchParams({
-          title: `Select ${label}`,
-          filter: MODEL_FILE_FILTER,
-        });
-        const res = await fetch(`/api/filesystem/browse?${params}`);
-        const data = await res.json();
-        if (data.path) {
-          setPath(modelId, comp, data.path);
-        }
-      } catch {
-        // Dialog failed — user can type manually
-      }
-    },
-    [setPath],
   );
 
   const handleSave = useCallback(async () => {
@@ -119,7 +105,7 @@ export function ModelDefaultsModal({
                     <div className="space-y-2">
                       {model.components.map((comp) => (
                         <div key={comp.type}>
-                          <label className="mt-3 mb-1.5 flex items-baseline gap-1.5 text-xs text-(--foreground)/70">
+                          <label className="mt-4 mb-2 ml-2 flex items-baseline gap-1.5 text-xs text-(--foreground)/70">
                             {comp.label}
                             {!comp.required && (
                               <span className="font-normal text-slate-400">
@@ -128,31 +114,18 @@ export function ModelDefaultsModal({
                             )}
                           </label>
 
-                          <InputTray size="md" className="dark:bg-slate-900">
-                            <Input
-                              type="text"
-                              size="sm"
-                              value={draft[model.id]?.[comp.type] ?? ''}
-                              onChange={(e) =>
-                                setPath(model.id, comp.type, e.target.value)
-                              }
-                              placeholder={`Path to ${comp.label.toLowerCase()}…`}
-                              className="min-w-0 flex-1"
-                            />
-                            <Button
-                              onClick={() =>
-                                handleBrowse(model.id, comp.type, comp.label)
-                              }
-                              variant="ghost"
-                              size="md"
-                              width="md"
-                              title="Browse…"
-                            >
-                              <FolderOpenIcon />
-                            </Button>
-                          </InputTray>
+                          <ModelPathField
+                            value={draft[model.id]?.[comp.type] ?? ''}
+                            onChange={(path) =>
+                              setPath(model.id, comp.type, path)
+                            }
+                            browseTitle={comp.label}
+                            downloadId={comp.downloadId}
+                            resetTo={savedDefaults[model.id]?.[comp.type]}
+                            className="dark:bg-slate-900"
+                          />
                           {comp.hint && (
-                            <p className="mt-0.5 text-xs text-slate-400">
+                            <p className="mt-1 ml-4 text-xs text-slate-400 dark:text-slate-500">
                               {comp.hint}
                             </p>
                           )}

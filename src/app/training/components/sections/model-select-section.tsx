@@ -1,8 +1,5 @@
-import { DownloadIcon, FolderOpenIcon } from 'lucide-react';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 
-import { getTrainingDownloadable } from '@/app/services/model-manager/registries/training-models';
-import { startModelDownload } from '@/app/services/model-manager/start-download';
 import {
   type ExpertiseTier,
   isTierAtLeast,
@@ -12,22 +9,16 @@ import {
   type ModelComponentType,
   type ModelDefinition,
 } from '@/app/services/training/models';
-import { Button } from '@/app/shared/button';
 import { CollapsibleSection } from '@/app/shared/collapsible-section';
 import { Dropdown, type DropdownItem } from '@/app/shared/dropdown';
-import { Input } from '@/app/shared/input/input';
-import { InputTray } from '@/app/shared/input-tray/input-tray';
-import { ToolbarDivider } from '@/app/shared/toolbar-divider';
-import { useAppDispatch } from '@/app/store/hooks';
-import { openPanel } from '@/app/store/jobs';
 
+import { ModelPathField } from '../model-path-field/model-path-field';
+import { useEnsureModelStatuses } from '../model-path-field/use-ensure-model-statuses';
 import type {
   AppModelDefaults,
   FormState,
   ModelPaths,
 } from '../training-config-form/use-training-config-form';
-
-const MODEL_FILE_FILTER = 'safetensors,ckpt,bin,pt,pth';
 
 type ModelSelectSectionProps = {
   modelId: string;
@@ -52,27 +43,7 @@ const ModelSelectSectionComponent = ({
   viewMode,
   hiddenChangesCount,
 }: ModelSelectSectionProps) => {
-  const dispatch = useAppDispatch();
-  const [variantSelections, setVariantSelections] = useState<
-    Record<string, string>
-  >({});
-
-  const handleDownload = useCallback(
-    (downloadId: string) => {
-      const model = getTrainingDownloadable(downloadId);
-      if (!model) return;
-      dispatch(openPanel());
-      const variantId =
-        variantSelections[downloadId] ?? model.variants?.[0]?.id;
-      startModelDownload({
-        modelId: model.id,
-        modelName: model.name,
-        variantId,
-        dispatch,
-      });
-    },
-    [dispatch, variantSelections],
-  );
+  useEnsureModelStatuses();
 
   const modelGroups = useMemo(() => {
     return getModelsByArchitecture().map((group) => ({
@@ -112,28 +83,8 @@ const ModelSelectSectionComponent = ({
   );
 
   const handlePathChange = useCallback(
-    (component: ModelComponentType) =>
-      (e: React.ChangeEvent<HTMLInputElement>) => {
-        onModelPathChange(component, e.target.value);
-      },
-    [onModelPathChange],
-  );
-
-  const handleBrowse = useCallback(
-    async (component: ModelComponentType, label: string) => {
-      try {
-        const params = new URLSearchParams({
-          title: `Select ${label}`,
-          filter: MODEL_FILE_FILTER,
-        });
-        const res = await fetch(`/api/filesystem/browse?${params}`);
-        const data = await res.json();
-        if (data.path) {
-          onModelPathChange(component, data.path);
-        }
-      } catch {
-        // Dialog failed to open — user can still type the path manually
-      }
+    (component: ModelComponentType) => (path: string) => {
+      onModelPathChange(component, path);
     },
     [onModelPathChange],
   );
@@ -197,74 +148,13 @@ const ModelSelectSectionComponent = ({
                   <span className="font-normal text-slate-400">(optional)</span>
                 )}
               </label>
-              <InputTray size="md">
-                <Input
-                  type="text"
-                  value={modelPaths[component.type] ?? ''}
-                  onChange={handlePathChange(component.type)}
-                  placeholder={`Path to ${component.label.toLowerCase()}…`}
-                  className="min-w-0 flex-1"
-                />
-                <Button
-                  onClick={() => handleBrowse(component.type, component.label)}
-                  variant="ghost"
-                  size="md"
-                  width="md"
-                  title="Browse…"
-                >
-                  <FolderOpenIcon />
-                </Button>
-
-                {component.downloadId &&
-                  !modelPaths[component.type]?.trim() &&
-                  (() => {
-                    const dl = getTrainingDownloadable(component.downloadId!);
-                    const variants = dl?.variants;
-                    const selectedVariant =
-                      variantSelections[component.downloadId!] ??
-                      variants?.[0]?.id;
-                    return (
-                      <>
-                        <div className="mx-1">
-                          <ToolbarDivider />
-                        </div>
-
-                        {variants && variants.length > 1 && (
-                          <Dropdown
-                            variant="ghost"
-                            items={variants.map((v) => ({
-                              value: v.id,
-                              label: v.label,
-                            }))}
-                            selectedValue={selectedVariant ?? ''}
-                            onChange={(id) =>
-                              setVariantSelections((prev) => ({
-                                ...prev,
-                                [component.downloadId!]: id,
-                              }))
-                            }
-                            selectedValueRenderer={(item) => (
-                              <span className="text-xs">
-                                {item.value.toUpperCase()}
-                              </span>
-                            )}
-                            size="md"
-                            aria-label={`${component.label} precision`}
-                          />
-                        )}
-                        <Button
-                          onClick={() => handleDownload(component.downloadId!)}
-                          variant="ghost"
-                          size="md"
-                          color="indigo"
-                          title={`Download ${component.label}…`}
-                        >
-                          <DownloadIcon />
-                        </Button>
-                      </>
-                    );
-                  })()}
-              </InputTray>
+              <ModelPathField
+                value={modelPaths[component.type] ?? ''}
+                onChange={handlePathChange(component.type)}
+                browseTitle={component.label}
+                downloadId={component.downloadId}
+                resetTo={modelDefaults?.[component.type]}
+              />
 
               {component.hint && (
                 <p className="mt-0.5 text-xs text-slate-400">
