@@ -30,6 +30,7 @@ type DatasetSectionProps = {
   captionShuffling: boolean;
   flipAugment: boolean;
   flipVAugment: boolean;
+  keepTokens: number;
   hasChanges: boolean;
   visibleFields: Set<string>;
   hiddenChangesCount?: number;
@@ -63,6 +64,7 @@ const DatasetSectionComponent = ({
   captionShuffling,
   flipAugment,
   flipVAugment,
+  keepTokens,
   hasChanges,
   visibleFields,
   hiddenChangesCount,
@@ -326,6 +328,29 @@ const DatasetSectionComponent = ({
             <span className="text-xs text-slate-400">
               Randomise tag order during training
             </span>
+          </div>
+        )}
+
+        {/* Keep Tokens — protects the first N comma-separated tags from shuffle */}
+        {visibleFields.has('keepTokens' satisfies keyof FormState) && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
+              Keep Tokens
+            </label>
+            <Input
+              type="number"
+              min={0}
+              value={keepTokens}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val) && val >= 0) onFieldChange('keepTokens', val);
+              }}
+              className="w-20 tabular-nums"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Protects the first N comma-separated tags from shuffling — anchors a trigger word
+              {!captionShuffling && ' (no effect unless Caption Shuffling is enabled)'}
+            </p>
           </div>
         )}
 

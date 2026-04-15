@@ -201,6 +201,13 @@ class AiToolkitProvider(TrainingProvider):
                             "type": hp.get("network_type", "lora"),
                             "linear": hp.get("network_dim", 16),
                             "linear_alpha": hp.get("network_alpha", 16),
+                            # network_dropout defaults to 0 (disabled); only
+                            # emit when the user explicitly set it
+                            **(
+                                {"dropout": hp.get("network_dropout")}
+                                if hp.get("network_dropout", 0) > 0
+                                else {}
+                            ),
                         },
                         "save": {
                             "dtype": "float16",
@@ -209,7 +216,13 @@ class AiToolkitProvider(TrainingProvider):
                                 hp.get("epochs", 10),
                                 hp.get("steps", defaults.get("steps", 2000)),
                             ),
-                            "max_step_saves_to_keep": 4,
+                            # save_only_last → keep exactly 1 step checkpoint;
+                            # otherwise keep a rolling window of 4.
+                            "max_step_saves_to_keep": 1
+                            if hp.get("save_only_last", False)
+                            else 4,
+                            # Full training state snapshot so runs can resume.
+                            "save_state": hp.get("save_state", False),
                         },
                         "datasets": [
                             {
@@ -222,6 +235,7 @@ class AiToolkitProvider(TrainingProvider):
                                     "resolution", defaults.get("resolution", [1024])
                                 ),
                                 "num_repeats": ds.num_repeats,
+                                "keep_tokens": hp.get("keep_tokens", 0),
                             }
                             for ds in request.datasets
                         ],
@@ -243,6 +257,14 @@ class AiToolkitProvider(TrainingProvider):
                             "lr": hp.get("lr", defaults.get("lr", 1e-4)),
                             "dtype": hp.get(
                                 "mixed_precision", defaults.get("dtype", "bf16")
+                            ),
+                            "max_grad_norm": hp.get("max_grad_norm", 1.0),
+                            # Point at a previously saved training-state dir
+                            # to continue from where a prior run left off.
+                            **(
+                                {"resume_from_checkpoint": hp.get("resume_state")}
+                                if hp.get("resume_state")
+                                else {}
                             ),
                         },
                         "model": {

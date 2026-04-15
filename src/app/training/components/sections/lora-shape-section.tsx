@@ -14,6 +14,7 @@ type LoraShapeSectionProps = {
   networkType: 'lora' | 'lokr';
   networkDim: number;
   networkAlpha: number;
+  networkDropout: number;
   hasChanges: boolean;
   visibleFields: Set<string>;
   hiddenChangesCount?: number;
@@ -33,6 +34,7 @@ const LoraShapeSectionComponent = ({
   networkType,
   networkDim,
   networkAlpha,
+  networkDropout,
   hasChanges,
   visibleFields,
   hiddenChangesCount,
@@ -42,7 +44,8 @@ const LoraShapeSectionComponent = ({
   const hasVisibleFields =
     visibleFields.has('networkDim') ||
     visibleFields.has('networkAlpha') ||
-    visibleFields.has('networkType');
+    visibleFields.has('networkType') ||
+    visibleFields.has('networkDropout');
 
   if (!hasVisibleFields) return null;
 
@@ -155,6 +158,29 @@ const LoraShapeSectionComponent = ({
         <p className="text-xs text-slate-400">
           Higher rank = more expressive, but uses more VRAM and can overfit
         </p>
+
+        {visibleFields.has('networkDropout' satisfies keyof FormState) && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
+              Network Dropout
+            </label>
+            <Input
+              type="text"
+              value={networkDropout}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val) && val >= 0 && val <= 1) {
+                  onFieldChange('networkDropout', val);
+                }
+              }}
+              placeholder="0"
+              className="w-20 tabular-nums"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Randomly drop LoRA activations during training (0 = disabled, 0.1–0.3 typical)
+            </p>
+          </div>
+        )}
       </div>
     </CollapsibleSection>
   );

@@ -111,10 +111,12 @@ const TrainingConfigFormComponent = ({
       warmupSteps: state.warmupSteps,
       numRestarts: state.numRestarts,
       weightDecay: state.weightDecay,
+      maxGradNorm: state.maxGradNorm,
       batchSize: state.batchSize,
       networkType: state.networkType,
       networkDim: state.networkDim,
       networkAlpha: state.networkAlpha,
+      networkDropout: state.networkDropout,
       resolution: state.resolution,
       mixedPrecision: state.mixedPrecision,
       gradientAccumulationSteps: state.gradientAccumulationSteps,
@@ -124,6 +126,7 @@ const TrainingConfigFormComponent = ({
       captionShuffling: state.captionShuffling,
       flipAugment: state.flipAugment,
       flipVAugment: state.flipVAugment,
+      keepTokens: state.keepTokens,
       extraFolders: state.extraFolders,
       seed: state.seed,
       guidanceScale: state.guidanceScale,
@@ -134,6 +137,9 @@ const TrainingConfigFormComponent = ({
       saveEveryEpochs: state.saveEveryEpochs,
       saveEverySteps: state.saveEverySteps,
       saveFormat: state.saveFormat,
+      saveOnlyLast: state.saveOnlyLast,
+      saveState: state.saveState,
+      resumeState: state.resumeState,
       samplingEnabled: state.samplingEnabled,
       sampleMode: state.sampleMode,
       sampleEveryEpochs: state.sampleEveryEpochs,
@@ -175,6 +181,7 @@ const TrainingConfigFormComponent = ({
             captionShuffling={state.captionShuffling}
             flipAugment={state.flipAugment}
             flipVAugment={state.flipVAugment}
+            keepTokens={state.keepTokens}
             hasChanges={sectionHasChanges.dataset}
             visibleFields={visibleFields}
             hiddenChangesCount={hiddenChanges.dataset}
@@ -197,6 +204,7 @@ const TrainingConfigFormComponent = ({
             warmupSteps={state.warmupSteps}
             numRestarts={state.numRestarts}
             weightDecay={state.weightDecay}
+            maxGradNorm={state.maxGradNorm}
             calculatedSteps={calculatedSteps}
             calculatedEpochs={calculatedEpochs}
             totalEffective={datasetStats.totalEffective}
@@ -214,6 +222,7 @@ const TrainingConfigFormComponent = ({
             networkType={state.networkType}
             networkDim={state.networkDim}
             networkAlpha={state.networkAlpha}
+            networkDropout={state.networkDropout}
             hasChanges={sectionHasChanges.loraShape}
             visibleFields={visibleFields}
             hiddenChangesCount={hiddenChanges.loraShape}
@@ -264,6 +273,9 @@ const TrainingConfigFormComponent = ({
             saveEveryEpochs={state.saveEveryEpochs}
             saveEverySteps={state.saveEverySteps}
             saveFormat={state.saveFormat}
+            saveOnlyLast={state.saveOnlyLast}
+            saveState={state.saveState}
+            resumeState={state.resumeState}
             visibleFields={visibleFields}
             hiddenChangesCount={hiddenChanges.saving}
             onFieldChange={setField}

@@ -80,6 +80,11 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     group: 'learning',
     defaultKey: 'weightDecay',
   },
+  maxGradNorm: {
+    tier: 'advanced',
+    group: 'learning',
+    defaultKey: 'maxGradNorm',
+  },
 
   // LoRA Shape
   networkDim: {
@@ -96,6 +101,11 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     tier: 'intermediate',
     group: 'loraShape',
     defaultKey: null,
+  },
+  networkDropout: {
+    tier: 'advanced',
+    group: 'loraShape',
+    defaultKey: 'networkDropout',
   },
 
   // Performance
@@ -149,6 +159,11 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     group: 'dataset',
     defaultKey: 'flipVAugment',
   },
+  keepTokens: {
+    tier: 'advanced',
+    group: 'dataset',
+    defaultKey: 'keepTokens',
+  },
 
   // Sampling
   samplingEnabled: {
@@ -199,6 +214,13 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
   saveMode: { tier: 'simple', group: 'saving', defaultKey: null },
   saveEveryEpochs: { tier: 'simple', group: 'saving', defaultKey: null },
   saveEverySteps: { tier: 'simple', group: 'saving', defaultKey: null },
+  saveOnlyLast: {
+    tier: 'intermediate',
+    group: 'saving',
+    defaultKey: 'saveOnlyLast',
+  },
+  saveState: { tier: 'advanced', group: 'saving', defaultKey: null },
+  resumeState: { tier: 'advanced', group: 'saving', defaultKey: null },
 };
 
 const GROUP_META: Record<

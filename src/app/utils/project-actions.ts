@@ -547,7 +547,7 @@ export const getProjectFolders = async (
 
   if (rootImageCount > 0) {
     folders.push({
-      name: '(root)',
+      name: 'Root',
       imageCount: rootImageCount,
       detectedRepeats: 1,
     });

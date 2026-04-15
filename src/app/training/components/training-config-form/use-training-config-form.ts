@@ -60,11 +60,13 @@ export type FormState = {
   warmupSteps: number;
   numRestarts: number;
   weightDecay: number;
+  maxGradNorm: number;
 
   // LoRA Shape
   networkType: 'lora' | 'lokr';
   networkDim: number;
   networkAlpha: number;
+  networkDropout: number;
 
   // Performance
   batchSize: number;
@@ -77,6 +79,7 @@ export type FormState = {
   captionShuffling: boolean;
   flipAugment: boolean;
   flipVAugment: boolean;
+  keepTokens: number;
 
   // Sampling
   samplingEnabled: boolean;
@@ -95,6 +98,9 @@ export type FormState = {
   saveEveryEpochs: number;
   saveEverySteps: number;
   saveFormat: 'fp16' | 'bf16' | 'fp32';
+  saveOnlyLast: boolean;
+  saveState: boolean;
+  resumeState: string;
 };
 
 type FormAction =
@@ -160,9 +166,11 @@ function defaultsToFormState(
     warmupSteps: defaults.warmupSteps,
     numRestarts: defaults.numRestarts,
     weightDecay: defaults.weightDecay,
+    maxGradNorm: defaults.maxGradNorm,
     networkType: 'lora',
     networkDim: defaults.networkDim,
     networkAlpha: defaults.networkAlpha,
+    networkDropout: defaults.networkDropout,
     batchSize: defaults.batchSize,
     resolution: defaults.resolution,
     mixedPrecision: defaults.mixedPrecision,
@@ -173,6 +181,7 @@ function defaultsToFormState(
     captionShuffling: defaults.captionShuffling,
     flipAugment: defaults.flipAugment,
     flipVAugment: defaults.flipVAugment,
+    keepTokens: defaults.keepTokens,
     samplingEnabled: false,
     samplePrompts: [''],
     sampleMode: 'steps',
@@ -187,6 +196,9 @@ function defaultsToFormState(
     saveEveryEpochs: defaults.saveEvery,
     saveEverySteps: 250,
     saveFormat: defaults.saveFormat,
+    saveOnlyLast: defaults.saveOnlyLast,
+    saveState: false,
+    resumeState: '',
   };
 }
 
@@ -243,6 +255,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
             captionShuffling: defaults.captionShuffling,
             flipAugment: defaults.flipAugment,
             flipVAugment: defaults.flipVAugment,
+            keepTokens: defaults.keepTokens,
             extraFolders: [],
           };
         case 'learning':
@@ -258,6 +271,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
             warmupSteps: defaults.warmupSteps,
             numRestarts: defaults.numRestarts,
             weightDecay: defaults.weightDecay,
+            maxGradNorm: defaults.maxGradNorm,
           };
         case 'loraShape':
           return {
@@ -265,6 +279,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
             networkType: 'lora',
             networkDim: defaults.networkDim,
             networkAlpha: defaults.networkAlpha,
+            networkDropout: defaults.networkDropout,
           };
         case 'performance':
           return {
@@ -296,6 +311,9 @@ function formReducer(state: FormState, action: FormAction): FormState {
             saveEveryEpochs: defaults.saveEvery,
             saveEverySteps: 250,
             saveFormat: defaults.saveFormat,
+            saveOnlyLast: defaults.saveOnlyLast,
+            saveState: false,
+            resumeState: '',
           };
         default:
           return state;
@@ -474,6 +492,7 @@ export function useTrainingConfigForm() {
         state.captionShuffling !== defaults.captionShuffling ||
         state.flipAugment !== defaults.flipAugment ||
         state.flipVAugment !== defaults.flipVAugment ||
+        state.keepTokens !== defaults.keepTokens ||
         state.extraFolders.length > 0,
       learning:
         state.learningRate !== defaults.learningRate ||
@@ -483,11 +502,13 @@ export function useTrainingConfigForm() {
         state.batchSize !== defaults.batchSize ||
         state.warmupSteps !== defaults.warmupSteps ||
         state.numRestarts !== defaults.numRestarts ||
-        state.weightDecay !== defaults.weightDecay,
+        state.weightDecay !== defaults.weightDecay ||
+        state.maxGradNorm !== defaults.maxGradNorm,
       loraShape:
         state.networkDim !== defaults.networkDim ||
         state.networkAlpha !== defaults.networkAlpha ||
-        state.networkType !== 'lora',
+        state.networkType !== 'lora' ||
+        state.networkDropout !== defaults.networkDropout,
       performance:
         state.mixedPrecision !== defaults.mixedPrecision ||
         state.gradientAccumulationSteps !==

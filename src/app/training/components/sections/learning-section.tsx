@@ -91,6 +91,7 @@ type LearningSectionProps = {
   warmupSteps: number;
   numRestarts: number;
   weightDecay: number;
+  maxGradNorm: number;
   calculatedSteps: number;
   calculatedEpochs: number;
   totalEffective: number;
@@ -117,6 +118,7 @@ const LearningSectionComponent = ({
   warmupSteps,
   numRestarts,
   weightDecay,
+  maxGradNorm,
   calculatedSteps,
   calculatedEpochs,
   totalEffective,
@@ -490,6 +492,28 @@ const LearningSectionComponent = ({
             />
             <p className="mt-1 text-xs text-slate-400">
               L2 regularisation to prevent overfitting (0 = disabled)
+            </p>
+          </div>
+        )}
+
+        {/* Max Gradient Norm */}
+        {visibleFields.has('maxGradNorm' satisfies keyof FormState) && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
+              Max Gradient Norm
+            </label>
+            <Input
+              type="text"
+              value={maxGradNorm}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val) && val >= 0) onFieldChange('maxGradNorm', val);
+              }}
+              placeholder={String(defaults.maxGradNorm)}
+              className="w-32 tabular-nums"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Clip gradients to keep training stable (0 = disabled, 1.0 is standard)
             </p>
           </div>
         )}

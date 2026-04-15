@@ -1,9 +1,12 @@
-import { memo } from 'react';
+import { FolderOpenIcon } from 'lucide-react';
+import { memo, useCallback } from 'react';
 
+import { Button } from '@/app/shared/button';
 import { Checkbox } from '@/app/shared/checkbox';
 import { CollapsibleSection } from '@/app/shared/collapsible-section';
 import { Dropdown, type DropdownItem } from '@/app/shared/dropdown';
 import { Input } from '@/app/shared/input/input';
+import { InputTray } from '@/app/shared/input-tray/input-tray';
 import { SegmentedControl } from '@/app/shared/segmented-control/segmented-control';
 
 import type {
@@ -19,6 +22,9 @@ type SavingSectionProps = {
   saveEveryEpochs: number;
   saveEverySteps: number;
   saveFormat: 'fp16' | 'bf16' | 'fp32';
+  saveOnlyLast: boolean;
+  saveState: boolean;
+  resumeState: string;
   visibleFields: Set<string>;
   hiddenChangesCount?: number;
   onFieldChange: <K extends keyof FormState>(
@@ -42,6 +48,9 @@ const SavingSectionComponent = ({
   saveEveryEpochs,
   saveEverySteps,
   saveFormat,
+  saveOnlyLast,
+  saveState,
+  resumeState,
   visibleFields,
   hiddenChangesCount,
   onFieldChange,
@@ -59,6 +68,20 @@ const SavingSectionComponent = ({
   const activeField =
     saveMode === 'epochs' ? 'saveEveryEpochs' : 'saveEverySteps';
   const activeValue = saveMode === 'epochs' ? saveEveryEpochs : saveEverySteps;
+
+  const handleBrowseResumeState = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({
+        title: 'Select training state folder',
+        mode: 'folder',
+      });
+      const res = await fetch(`/api/filesystem/browse?${params}`);
+      const data = await res.json();
+      if (data.path) onFieldChange('resumeState', data.path);
+    } catch {
+      // Dialog failed — user can paste the path manually
+    }
+  }, [onFieldChange]);
 
   return (
     <CollapsibleSection
@@ -126,35 +149,100 @@ const SavingSectionComponent = ({
             />
 
             {saveEnabled && (
-              <div>
-                <div className="mb-1 flex items-center gap-2">
-                  <label className="text-xs font-medium text-(--foreground)/70">
-                    Save Every
-                  </label>
-                  <SegmentedControl
-                    options={[
-                      { value: 'epochs', label: 'Epochs' },
-                      { value: 'steps', label: 'Steps' },
-                    ]}
-                    value={saveMode}
-                    onChange={(val) => onFieldChange('saveMode', val)}
-                    size="sm"
+              <div className="space-y-2">
+                <div>
+                  <div className="mb-1 flex items-center gap-2">
+                    <label className="text-xs font-medium text-(--foreground)/70">
+                      Save Every
+                    </label>
+                    <SegmentedControl
+                      options={[
+                        { value: 'epochs', label: 'Epochs' },
+                        { value: 'steps', label: 'Steps' },
+                      ]}
+                      value={saveMode}
+                      onChange={(val) => onFieldChange('saveMode', val)}
+                      size="sm"
+                    />
+                  </div>
+
+                  <Input
+                    type="number"
+                    min={1}
+                    value={activeValue}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      if (val > 0) onFieldChange(activeField, val);
+                    }}
+                    className="w-20"
                   />
                 </div>
 
-                <Input
-                  type="number"
-                  min={1}
-                  value={activeValue}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    if (val > 0) onFieldChange(activeField, val);
-                  }}
-                  className="w-20"
-                />
+                {visibleFields.has(
+                  'saveOnlyLast' satisfies keyof FormState,
+                ) && (
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      isSelected={saveOnlyLast}
+                      onChange={() =>
+                        onFieldChange('saveOnlyLast', !saveOnlyLast)
+                      }
+                      label="Keep only the last checkpoint"
+                      size="sm"
+                    />
+                    <span className="text-xs text-slate-400">
+                      Delete older saves as new ones are written
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </>
+        )}
+
+        {/* Save Training State — advanced, enables resumable runs */}
+        {visibleFields.has('saveState' satisfies keyof FormState) && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              isSelected={saveState}
+              onChange={() => onFieldChange('saveState', !saveState)}
+              label="Save full training state"
+              size="sm"
+            />
+            <span className="text-xs text-slate-400">
+              Writes optimiser state alongside each checkpoint so training can be resumed
+            </span>
+          </div>
+        )}
+
+        {/* Resume From State */}
+        {visibleFields.has('resumeState' satisfies keyof FormState) && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
+              Resume From State
+            </label>
+            <InputTray size="md">
+              <Input
+                type="text"
+                value={resumeState}
+                onChange={(e) => onFieldChange('resumeState', e.target.value)}
+                placeholder="Path to a previously saved training-state folder…"
+                className="min-w-0 flex-1"
+              />
+              <Button
+                onClick={handleBrowseResumeState}
+                variant="ghost"
+                size="md"
+                width="md"
+                title="Browse…"
+              >
+                <FolderOpenIcon />
+              </Button>
+            </InputTray>
+            <p className="mt-1 text-xs text-slate-400">
+              Leave empty to start fresh
+            </p>
+          </div>
         )}
       </div>
     </CollapsibleSection>
