@@ -6,11 +6,11 @@ import { Button } from './button';
  * Temporary playground for testing button styles in light/dark mode.
  * Remove this component after testing is complete.
  */
-export const ButtonPlayground = () => {
+export const DevUIPlayground = () => {
   return (
     <div className="mb-4 rounded-lg border border-(--border) bg-(--surface) p-4">
       <h3 className="mb-4 text-sm font-bold text-(--foreground)">
-        Button Playground (temporary)
+        UI Playground (temporary)
       </h3>
 
       {/* Ghost buttons - the main issue */}
