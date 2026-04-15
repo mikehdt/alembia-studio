@@ -139,31 +139,9 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     group: 'performance',
     defaultKey: 'gradientCheckpointing',
   },
-  captionDropoutRate: {
-    tier: 'advanced',
-    group: 'dataset',
-    defaultKey: 'captionDropoutRate',
-  },
-  captionShuffling: {
-    tier: 'intermediate',
-    group: 'dataset',
-    defaultKey: 'captionShuffling',
-  },
-  flipAugment: {
-    tier: 'intermediate',
-    group: 'dataset',
-    defaultKey: 'flipAugment',
-  },
-  flipVAugment: {
-    tier: 'advanced',
-    group: 'dataset',
-    defaultKey: 'flipVAugment',
-  },
-  keepTokens: {
-    tier: 'advanced',
-    group: 'dataset',
-    defaultKey: 'keepTokens',
-  },
+  // Per-folder augmentation (captionShuffling, captionDropoutRate,
+  // keepTokens, flipAugment, flipVAugment) lives on DatasetFolder itself,
+  // not as top-level form state — see FolderAugmentation in the form hook.
 
   // Sampling
   samplingEnabled: {

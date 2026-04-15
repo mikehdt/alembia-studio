@@ -47,6 +47,7 @@ const TrainingConfigFormComponent = ({
     addDataset,
     removeDataset,
     setFolderRepeats,
+    updateFolderAugment,
     addExtraFolder,
     removeExtraFolder,
     addSamplePrompt,
@@ -122,11 +123,6 @@ const TrainingConfigFormComponent = ({
       gradientAccumulationSteps: state.gradientAccumulationSteps,
       gradientCheckpointing: state.gradientCheckpointing,
       cacheLatents: state.cacheLatents,
-      captionDropoutRate: state.captionDropoutRate,
-      captionShuffling: state.captionShuffling,
-      flipAugment: state.flipAugment,
-      flipVAugment: state.flipVAugment,
-      keepTokens: state.keepTokens,
       extraFolders: state.extraFolders,
       seed: state.seed,
       guidanceScale: state.guidanceScale,
@@ -177,20 +173,15 @@ const TrainingConfigFormComponent = ({
           <DatasetSection
             datasets={state.datasets}
             extraFolders={state.extraFolders}
-            captionDropoutRate={state.captionDropoutRate}
-            captionShuffling={state.captionShuffling}
-            flipAugment={state.flipAugment}
-            flipVAugment={state.flipVAugment}
-            keepTokens={state.keepTokens}
             hasChanges={sectionHasChanges.dataset}
             visibleFields={visibleFields}
             hiddenChangesCount={hiddenChanges.dataset}
             onAddDataset={addDataset}
             onRemoveDataset={removeDataset}
             onSetFolderRepeats={setFolderRepeats}
+            onUpdateFolderAugment={updateFolderAugment}
             onAddExtraFolder={addExtraFolder}
             onRemoveExtraFolder={removeExtraFolder}
-            onFieldChange={setField}
             onReset={resetSection}
           />
 

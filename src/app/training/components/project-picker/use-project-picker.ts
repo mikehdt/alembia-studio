@@ -8,7 +8,7 @@ import {
   type Project,
 } from '@/app/utils/project-actions';
 
-import type { DatasetFolder } from '../training-config-form/use-training-config-form';
+import type { PickedFolder } from './project-picker';
 
 export function useProjectPicker({
   excludeFolders,
@@ -18,7 +18,7 @@ export function useProjectPicker({
   onSelect: (
     folderName: string,
     displayName: string,
-    folders: DatasetFolder[],
+    folders: PickedFolder[],
     thumbnail?: string,
     thumbnailVersion?: number,
     dimensionHistogram?: Record<string, number>,
@@ -69,7 +69,7 @@ export function useProjectPicker({
           getProjectFolders(project.name),
           getProjectDimensionHistogram(project.name),
         ]);
-        const folders: DatasetFolder[] = details.map((f) => ({
+        const folders: PickedFolder[] = details.map((f) => ({
           ...f,
           overrideRepeats: null,
         }));

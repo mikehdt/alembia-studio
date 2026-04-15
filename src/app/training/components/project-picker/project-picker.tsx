@@ -8,14 +8,20 @@ import { Button } from '@/app/shared/button';
 import { Checkbox } from '@/app/shared/checkbox/checkbox';
 import { Popup } from '@/app/shared/popup';
 
-import type { DatasetFolder } from '../training-config-form/use-training-config-form';
+import type {
+  DatasetFolder,
+  FolderAugmentation,
+} from '../training-config-form/use-training-config-form';
 import { useProjectPicker } from './use-project-picker';
+
+/** Augmentation is filled in by the reducer — the picker only supplies identity/count/repeats. */
+export type PickedFolder = Omit<DatasetFolder, keyof FolderAugmentation>;
 
 type ProjectPickerProps = {
   onSelect: (
     folderName: string,
     displayName: string,
-    folders: DatasetFolder[],
+    folders: PickedFolder[],
     thumbnail?: string,
     thumbnailVersion?: number,
     dimensionHistogram?: Record<string, number>,

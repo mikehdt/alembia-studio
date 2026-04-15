@@ -23,12 +23,32 @@ export type DatasetSource = {
   folders: DatasetFolder[];
 };
 
+/** Per-folder augmentation settings — shared by project folders and extras. */
+export type FolderAugmentation = {
+  captionShuffling: boolean;
+  captionDropoutRate: number;
+  keepTokens: number;
+  flipAugment: boolean;
+  flipVAugment: boolean;
+};
+
 export type DatasetFolder = {
   name: string;
   imageCount: number;
   detectedRepeats: number;
   overrideRepeats: number | null; // null = use detected
-};
+} & FolderAugmentation;
+
+/** Loose folder added by path — no project/parent, no detected repeats. */
+export type ExtraFolder = {
+  path: string;
+  imageCount?: number;
+  /** null = disabled elsewhere isn't meaningful here; this is the effective repeat count (default 1). */
+  overrideRepeats: number | null;
+} & FolderAugmentation;
+
+/** Augmentation keys callers can update per folder. */
+export type FolderAugmentKey = keyof FolderAugmentation;
 
 export type DurationMode = 'epochs' | 'steps';
 
@@ -48,7 +68,7 @@ export type FormState = {
 
   // Dataset
   datasets: DatasetSource[];
-  extraFolders: string[];
+  extraFolders: ExtraFolder[];
 
   // Learning
   durationMode: DurationMode;
@@ -75,11 +95,6 @@ export type FormState = {
   gradientAccumulationSteps: number;
   gradientCheckpointing: boolean;
   cacheLatents: boolean;
-  captionDropoutRate: number;
-  captionShuffling: boolean;
-  flipAugment: boolean;
-  flipVAugment: boolean;
-  keepTokens: number;
 
   // Sampling
   samplingEnabled: boolean;
@@ -124,14 +139,25 @@ type FormAction =
       thumbnail?: string;
       thumbnailVersion?: number;
       dimensionHistogram?: Record<string, number>;
-      folders: DatasetFolder[];
+      /**
+       * Raw folder metadata from the project scan. Augmentation fields
+       * are not supplied here — the reducer injects them from the
+       * current model's defaults.
+       */
+      folders: Omit<DatasetFolder, keyof FolderAugmentation>[];
     }
   | { type: 'REMOVE_DATASET'; index: number }
   | {
       type: 'SET_FOLDER_REPEATS';
-      datasetIndex: number;
+      datasetIndex: number | null; // null = extra folder
       folderName: string;
       repeats: number | null;
+    }
+  | {
+      type: 'UPDATE_FOLDER_AUGMENT';
+      datasetIndex: number | null; // null = extra folder
+      folderName: string;
+      updates: Partial<FolderAugmentation>;
     }
   | { type: 'ADD_EXTRA_FOLDER'; path: string }
   | { type: 'REMOVE_EXTRA_FOLDER'; index: number };
@@ -146,6 +172,19 @@ export type SectionName =
   | 'saving';
 
 // --- Helpers ---
+
+/** Build the per-folder augmentation defaults for a model. */
+export function defaultFolderAugmentation(
+  defaults: TrainingDefaults,
+): FolderAugmentation {
+  return {
+    captionShuffling: defaults.captionShuffling,
+    captionDropoutRate: defaults.captionDropoutRate,
+    keepTokens: defaults.keepTokens,
+    flipAugment: defaults.flipAugment,
+    flipVAugment: defaults.flipVAugment,
+  };
+}
 
 function defaultsToFormState(
   defaults: TrainingDefaults,
@@ -177,11 +216,6 @@ function defaultsToFormState(
     gradientAccumulationSteps: defaults.gradientAccumulationSteps,
     gradientCheckpointing: defaults.gradientCheckpointing,
     cacheLatents: defaults.cacheLatents,
-    captionDropoutRate: defaults.captionDropoutRate,
-    captionShuffling: defaults.captionShuffling,
-    flipAugment: defaults.flipAugment,
-    flipVAugment: defaults.flipVAugment,
-    keepTokens: defaults.keepTokens,
     samplingEnabled: false,
     samplePrompts: [''],
     sampleMode: 'steps',
@@ -248,16 +282,22 @@ function formReducer(state: FormState, action: FormAction): FormState {
       switch (action.section) {
         case 'whatToTrain':
           return { ...state, modelPaths: {} };
-        case 'dataset':
+        case 'dataset': {
+          // Reset each folder's per-folder augmentation to the model
+          // defaults while preserving folder identity (name, images, repeats).
+          const baseAugment = defaultFolderAugmentation(defaults);
           return {
             ...state,
-            captionDropoutRate: defaults.captionDropoutRate,
-            captionShuffling: defaults.captionShuffling,
-            flipAugment: defaults.flipAugment,
-            flipVAugment: defaults.flipVAugment,
-            keepTokens: defaults.keepTokens,
-            extraFolders: [],
+            datasets: state.datasets.map((ds) => ({
+              ...ds,
+              folders: ds.folders.map((f) => ({ ...f, ...baseAugment })),
+            })),
+            extraFolders: state.extraFolders.map((ef) => ({
+              ...ef,
+              ...baseAugment,
+            })),
           };
+        }
         case 'learning':
           return {
             ...state,
@@ -345,7 +385,10 @@ function formReducer(state: FormState, action: FormAction): FormState {
       return { ...state, samplePrompts: prompts };
     }
 
-    case 'ADD_DATASET':
+    case 'ADD_DATASET': {
+      const baseAugment = defaultFolderAugmentation(
+        getDefaults(state.modelId),
+      );
       return {
         ...state,
         datasets: [
@@ -356,10 +399,11 @@ function formReducer(state: FormState, action: FormAction): FormState {
             thumbnail: action.thumbnail,
             thumbnailVersion: action.thumbnailVersion,
             dimensionHistogram: action.dimensionHistogram,
-            folders: action.folders,
+            folders: action.folders.map((f) => ({ ...f, ...baseAugment })),
           },
         ],
       };
+    }
 
     case 'REMOVE_DATASET':
       return {
@@ -368,6 +412,16 @@ function formReducer(state: FormState, action: FormAction): FormState {
       };
 
     case 'SET_FOLDER_REPEATS': {
+      if (action.datasetIndex === null) {
+        return {
+          ...state,
+          extraFolders: state.extraFolders.map((ef) =>
+            ef.path === action.folderName
+              ? { ...ef, overrideRepeats: action.repeats }
+              : ef,
+          ),
+        };
+      }
       const newDatasets = [...state.datasets];
       const ds = newDatasets[action.datasetIndex];
       if (ds) {
@@ -383,9 +437,43 @@ function formReducer(state: FormState, action: FormAction): FormState {
       return { ...state, datasets: newDatasets };
     }
 
-    case 'ADD_EXTRA_FOLDER':
-      if (state.extraFolders.includes(action.path)) return state;
-      return { ...state, extraFolders: [...state.extraFolders, action.path] };
+    case 'UPDATE_FOLDER_AUGMENT': {
+      if (action.datasetIndex === null) {
+        return {
+          ...state,
+          extraFolders: state.extraFolders.map((ef) =>
+            ef.path === action.folderName ? { ...ef, ...action.updates } : ef,
+          ),
+        };
+      }
+      const newDatasets = [...state.datasets];
+      const ds = newDatasets[action.datasetIndex];
+      if (ds) {
+        newDatasets[action.datasetIndex] = {
+          ...ds,
+          folders: ds.folders.map((f) =>
+            f.name === action.folderName ? { ...f, ...action.updates } : f,
+          ),
+        };
+      }
+      return { ...state, datasets: newDatasets };
+    }
+
+    case 'ADD_EXTRA_FOLDER': {
+      if (state.extraFolders.some((ef) => ef.path === action.path)) {
+        return state;
+      }
+      const baseAugment = defaultFolderAugmentation(
+        getDefaults(state.modelId),
+      );
+      return {
+        ...state,
+        extraFolders: [
+          ...state.extraFolders,
+          { path: action.path, overrideRepeats: null, ...baseAugment },
+        ],
+      };
+    }
 
     case 'REMOVE_EXTRA_FOLDER':
       return {
@@ -484,16 +572,23 @@ export function useTrainingConfigForm() {
   ]);
 
   // Check which sections have been modified from defaults
-  const sectionHasChanges = useMemo(
-    () => ({
+  const sectionHasChanges = useMemo(() => {
+    // A folder counts as customised when any augmentation field drifts
+    // from the current model's defaults.
+    const baseAugment = defaultFolderAugmentation(defaults);
+    const folderCustomised = (f: FolderAugmentation): boolean =>
+      f.captionShuffling !== baseAugment.captionShuffling ||
+      f.captionDropoutRate !== baseAugment.captionDropoutRate ||
+      f.keepTokens !== baseAugment.keepTokens ||
+      f.flipAugment !== baseAugment.flipAugment ||
+      f.flipVAugment !== baseAugment.flipVAugment;
+    const anyFolderCustomised =
+      state.datasets.some((ds) => ds.folders.some(folderCustomised)) ||
+      state.extraFolders.some(folderCustomised);
+
+    return {
       whatToTrain: false, // Model/dataset selection is always intentional
-      dataset:
-        state.captionDropoutRate !== defaults.captionDropoutRate ||
-        state.captionShuffling !== defaults.captionShuffling ||
-        state.flipAugment !== defaults.flipAugment ||
-        state.flipVAugment !== defaults.flipVAugment ||
-        state.keepTokens !== defaults.keepTokens ||
-        state.extraFolders.length > 0,
+      dataset: anyFolderCustomised,
       learning:
         state.learningRate !== defaults.learningRate ||
         state.optimizer !== defaults.optimizer ||
@@ -517,9 +612,8 @@ export function useTrainingConfigForm() {
         state.cacheLatents !== defaults.cacheLatents,
       sampling: false, // Sampling is opt-in, not compared to defaults
       saving: false, // Saving is opt-in, not compared to defaults
-    }),
-    [state, defaults],
-  );
+    };
+  }, [state, defaults]);
 
   // Actions
   const setField = useCallback(
@@ -552,7 +646,7 @@ export function useTrainingConfigForm() {
     (
       folderName: string,
       displayName: string,
-      folders: DatasetFolder[],
+      folders: Omit<DatasetFolder, keyof FolderAugmentation>[],
       thumbnail?: string,
       thumbnailVersion?: number,
       dimensionHistogram?: Record<string, number>,
@@ -575,7 +669,11 @@ export function useTrainingConfigForm() {
   }, []);
 
   const setFolderRepeats = useCallback(
-    (datasetIndex: number, folderName: string, repeats: number | null) => {
+    (
+      datasetIndex: number | null,
+      folderName: string,
+      repeats: number | null,
+    ) => {
       dispatch({
         type: 'SET_FOLDER_REPEATS',
         datasetIndex,
@@ -593,6 +691,22 @@ export function useTrainingConfigForm() {
   const removeExtraFolder = useCallback((index: number) => {
     dispatch({ type: 'REMOVE_EXTRA_FOLDER', index });
   }, []);
+
+  const updateFolderAugment = useCallback(
+    (
+      datasetIndex: number | null,
+      folderName: string,
+      updates: Partial<FolderAugmentation>,
+    ) => {
+      dispatch({
+        type: 'UPDATE_FOLDER_AUGMENT',
+        datasetIndex,
+        folderName,
+        updates,
+      });
+    },
+    [],
+  );
 
   const addSamplePrompt = useCallback(() => {
     dispatch({ type: 'ADD_SAMPLE_PROMPT' });
@@ -623,6 +737,7 @@ export function useTrainingConfigForm() {
     addDataset,
     removeDataset,
     setFolderRepeats,
+    updateFolderAugment,
     addExtraFolder,
     removeExtraFolder,
     addSamplePrompt,

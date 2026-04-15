@@ -1,4 +1,6 @@
 import {
+  ChevronDownIcon,
+  ChevronRightIcon,
   EyeIcon,
   EyeOffIcon,
   FolderIcon,
@@ -7,7 +9,7 @@ import {
   XIcon,
 } from 'lucide-react';
 import Image from 'next/image';
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 
 import { Button } from '@/app/shared/button';
 import { Checkbox } from '@/app/shared/checkbox';
@@ -18,6 +20,8 @@ import { ProjectPicker } from '../project-picker/project-picker';
 import type {
   DatasetFolder,
   DatasetSource,
+  ExtraFolder,
+  FolderAugmentation,
   FormState,
   SectionName,
 } from '../training-config-form/use-training-config-form';
@@ -25,61 +29,75 @@ import { SectionResetButton } from './section-reset-button';
 
 type DatasetSectionProps = {
   datasets: DatasetSource[];
-  extraFolders: string[];
-  captionDropoutRate: number;
-  captionShuffling: boolean;
-  flipAugment: boolean;
-  flipVAugment: boolean;
-  keepTokens: number;
+  extraFolders: ExtraFolder[];
   hasChanges: boolean;
   visibleFields: Set<string>;
   hiddenChangesCount?: number;
   onAddDataset: (
     folderName: string,
     displayName: string,
-    folders: DatasetFolder[],
+    folders: Omit<DatasetFolder, keyof FolderAugmentation>[],
     thumbnail?: string,
     thumbnailVersion?: number,
     dimensionHistogram?: Record<string, number>,
   ) => void;
   onRemoveDataset: (index: number) => void;
   onSetFolderRepeats: (
-    datasetIndex: number,
+    datasetIndex: number | null,
     folderName: string,
     repeats: number | null,
   ) => void;
+  onUpdateFolderAugment: (
+    datasetIndex: number | null,
+    folderName: string,
+    updates: Partial<FolderAugmentation>,
+  ) => void;
   onAddExtraFolder: (path: string) => void;
   onRemoveExtraFolder: (index: number) => void;
-  onFieldChange: <K extends keyof FormState>(
-    field: K,
-    value: FormState[K],
-  ) => void;
   onReset: (section: SectionName) => void;
 };
 
 const DatasetSectionComponent = ({
   datasets,
   extraFolders,
-  captionDropoutRate,
-  captionShuffling,
-  flipAugment,
-  flipVAugment,
-  keepTokens,
   hasChanges,
   visibleFields,
   hiddenChangesCount,
   onAddDataset,
   onRemoveDataset,
   onSetFolderRepeats,
+  onUpdateFolderAugment,
   onAddExtraFolder,
   onRemoveExtraFolder,
-  onFieldChange,
   onReset,
 }: DatasetSectionProps) => {
   const excludeFolders = useMemo(
     () => datasets.map((ds) => ds.folderName),
     [datasets],
   );
+
+  // Total folder count across projects + extras — drives whether the
+  // repeats column is worth showing. A single folder has nothing to weight
+  // against, so repeats is just a gussied-up "train N× as many steps".
+  const totalFolderCount = useMemo(
+    () =>
+      datasets.reduce((sum, ds) => sum + ds.folders.length, 0) +
+      extraFolders.length,
+    [datasets, extraFolders],
+  );
+  const showRepeats = totalFolderCount > 1;
+
+  // Track which folders have their augmentation panel expanded.
+  // Keyed by "datasetIndex|folderName" (datasetIndex=-1 for extras).
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpanded = useCallback((key: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   const handleBrowseFolder = useCallback(async () => {
     try {
@@ -187,76 +205,26 @@ const DatasetSectionComponent = ({
                 </div>
 
                 <div className="divide-y divide-slate-400 dark:divide-slate-600">
-                  {ds.folders.map((folder) => {
-                    const effectiveRepeats =
-                      folder.overrideRepeats ?? folder.detectedRepeats;
-                    const isDisabled = effectiveRepeats === 0;
-                    return (
-                      <div
-                        key={folder.name}
-                        className={`flex items-center justify-between border-dotted py-1.5 text-sm ${isDisabled ? 'opacity-40' : ''}`}
-                      >
-                        <div className="flex items-center gap-2 text-slate-500">
-                          <Button
-                            onClick={() =>
-                              onSetFolderRepeats(
-                                dsIndex,
-                                folder.name,
-                                isDisabled ? null : 0,
-                              )
-                            }
-                            variant="toggle"
-                            size="sm"
-                            title={
-                              isDisabled
-                                ? 'Include in training'
-                                : 'Exclude from training'
-                            }
-                          >
-                            {isDisabled ? (
-                              <EyeOffIcon className="h-3 w-3" />
-                            ) : (
-                              <EyeIcon className="h-3 w-3" />
-                            )}
-                          </Button>
-                          <span className="flex items-center">
-                            <FolderOpenIcon className="mr-2 h-4 w-4 text-slate-400 dark:text-slate-600" />{' '}
-                            {folder.name}
-                          </span>
-                        </div>
-
-                        {!isDisabled && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-slate-400 tabular-nums">
-                              {folder.imageCount === 1
-                                ? `${folder.imageCount} image`
-                                : `${folder.imageCount} images`}
-                            </span>
-                            <span className="text-slate-400">&times;</span>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={100}
-                              value={effectiveRepeats}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value, 10);
-                                if (val > 0) {
-                                  onSetFolderRepeats(
-                                    dsIndex,
-                                    folder.name,
-                                    val === folder.detectedRepeats ? null : val,
-                                  );
-                                }
-                              }}
-                              size="sm"
-                              className="w-14 text-center"
-                            />
-                            <span className="text-slate-400">repeats</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {ds.folders.map((folder) => (
+                    <FolderRow
+                      key={folder.name}
+                      datasetIndex={dsIndex}
+                      folderName={folder.name}
+                      detectedRepeats={folder.detectedRepeats}
+                      effectiveRepeats={
+                        folder.overrideRepeats ?? folder.detectedRepeats
+                      }
+                      imageCount={folder.imageCount}
+                      augmentation={folder}
+                      showRepeats={showRepeats}
+                      isExpanded={expanded.has(`${dsIndex}|${folder.name}`)}
+                      onToggleExpanded={() =>
+                        toggleExpanded(`${dsIndex}|${folder.name}`)
+                      }
+                      onSetRepeats={onSetFolderRepeats}
+                      onUpdateAugment={onUpdateFolderAugment}
+                    />
+                  ))}
                 </div>
               </div>
             ))}
@@ -287,52 +255,197 @@ const DatasetSectionComponent = ({
           </>
         )}
 
-        {/* Extra folders (intermediate+) */}
-        {visibleFields.has('extraFolders' satisfies keyof FormState) &&
-          extraFolders.length > 0 && (
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-(--foreground)/70">
+        {/* Extra folders (intermediate+) — rendered with same per-folder
+            treatment as dataset folders. */}
+        {extraFolders.length > 0 && (
+          <div className="rounded border border-(--border-subtle) bg-(--surface)/30 p-3">
+            <div className="mb-2 flex items-center gap-2">
+              <FolderIcon className="h-3.5 w-3.5 text-slate-400" />
+              <span className="text-sm font-medium text-(--foreground)">
                 Extra Folders
-              </label>
-              {extraFolders.map((folder, i) => (
-                <div key={folder} className="flex items-center gap-1.5 text-xs">
-                  <FolderIcon className="h-3 w-3 shrink-0 text-slate-400" />
-                  <span
-                    className="min-w-0 flex-1 truncate text-slate-500"
-                    title={folder}
-                  >
-                    {folder}
-                  </span>
-                  <Button
-                    onClick={() => onRemoveExtraFolder(i)}
-                    title="Remove folder"
-                  >
-                    <XIcon />
-                  </Button>
-                </div>
+              </span>
+            </div>
+            <div className="divide-y divide-slate-400 dark:divide-slate-600">
+              {extraFolders.map((ef, i) => (
+                <FolderRow
+                  key={ef.path}
+                  datasetIndex={null}
+                  folderName={ef.path}
+                  detectedRepeats={1}
+                  effectiveRepeats={ef.overrideRepeats ?? 1}
+                  imageCount={ef.imageCount}
+                  augmentation={ef}
+                  showRepeats={showRepeats}
+                  isExpanded={expanded.has(`extra|${ef.path}`)}
+                  onToggleExpanded={() => toggleExpanded(`extra|${ef.path}`)}
+                  onSetRepeats={onSetFolderRepeats}
+                  onUpdateAugment={onUpdateFolderAugment}
+                  onRemove={() => onRemoveExtraFolder(i)}
+                  displayName={ef.path.split(/[\\/]/).pop() ?? ef.path}
+                />
               ))}
             </div>
-          )}
+          </div>
+        )}
+      </div>
+    </CollapsibleSection>
+  );
+};
 
-        {/* Caption Shuffling */}
-        {visibleFields.has('captionShuffling' satisfies keyof FormState) && (
+type FolderRowProps = {
+  datasetIndex: number | null; // null = extra folder
+  folderName: string;
+  detectedRepeats: number;
+  effectiveRepeats: number;
+  imageCount?: number;
+  augmentation: FolderAugmentation;
+  showRepeats: boolean;
+  isExpanded: boolean;
+  onToggleExpanded: () => void;
+  onSetRepeats: (
+    datasetIndex: number | null,
+    folderName: string,
+    repeats: number | null,
+  ) => void;
+  onUpdateAugment: (
+    datasetIndex: number | null,
+    folderName: string,
+    updates: Partial<FolderAugmentation>,
+  ) => void;
+  /** Extra folders get a remove button; dataset folders don't (remove the parent project instead). */
+  onRemove?: () => void;
+  /** Display label override (e.g. basename of an extras path). */
+  displayName?: string;
+};
+
+function FolderRow({
+  datasetIndex,
+  folderName,
+  detectedRepeats,
+  effectiveRepeats,
+  imageCount,
+  augmentation,
+  showRepeats,
+  isExpanded,
+  onToggleExpanded,
+  onSetRepeats,
+  onUpdateAugment,
+  onRemove,
+  displayName,
+}: FolderRowProps) {
+  const isDisabled = effectiveRepeats === 0;
+  const label = displayName ?? folderName;
+
+  return (
+    <div className={isDisabled ? 'opacity-40' : undefined}>
+      <div className="flex items-center justify-between py-1.5 text-sm">
+        <div className="flex items-center gap-2 text-slate-500">
+          <Button
+            onClick={onToggleExpanded}
+            variant="ghost"
+            size="sm"
+            width="xs"
+            title={isExpanded ? 'Hide folder settings' : 'Folder settings'}
+          >
+            {isExpanded ? (
+              <ChevronDownIcon className="h-3 w-3" />
+            ) : (
+              <ChevronRightIcon className="h-3 w-3" />
+            )}
+          </Button>
+          <Button
+            onClick={() =>
+              onSetRepeats(
+                datasetIndex,
+                folderName,
+                isDisabled ? null : 0,
+              )
+            }
+            variant="toggle"
+            size="sm"
+            title={isDisabled ? 'Include in training' : 'Exclude from training'}
+          >
+            {isDisabled ? (
+              <EyeOffIcon className="h-3 w-3" />
+            ) : (
+              <EyeIcon className="h-3 w-3" />
+            )}
+          </Button>
+          <span
+            className="flex min-w-0 items-center truncate"
+            title={label}
+          >
+            <FolderOpenIcon className="mr-2 h-4 w-4 shrink-0 text-slate-400 dark:text-slate-600" />
+            <span className="truncate">{label}</span>
+          </span>
+        </div>
+
+        {!isDisabled && (
           <div className="flex items-center gap-2">
+            {imageCount !== undefined && (
+              <span className="text-slate-400 tabular-nums">
+                {imageCount === 1
+                  ? `${imageCount} image`
+                  : `${imageCount} images`}
+              </span>
+            )}
+            {showRepeats && (
+              <>
+                <span className="text-slate-400">&times;</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={effectiveRepeats}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (val > 0) {
+                      onSetRepeats(
+                        datasetIndex,
+                        folderName,
+                        val === detectedRepeats ? null : val,
+                      );
+                    }
+                  }}
+                  size="sm"
+                  className="w-14 text-center"
+                />
+                <span className="text-slate-400">repeats</span>
+              </>
+            )}
+            {onRemove && (
+              <Button
+                onClick={onRemove}
+                variant="ghost"
+                size="sm"
+                width="xs"
+                title="Remove folder"
+              >
+                <XIcon className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {isExpanded && (
+        <div className="mb-2 ml-8 grid grid-cols-1 gap-3 rounded border border-(--border-subtle) bg-(--surface)/30 p-3 md:grid-cols-2">
+          <div className="flex items-center gap-2 md:col-span-2">
             <Checkbox
-              isSelected={captionShuffling}
+              isSelected={augmentation.captionShuffling}
               onChange={() =>
-                onFieldChange('captionShuffling', !captionShuffling)
+                onUpdateAugment(datasetIndex, folderName, {
+                  captionShuffling: !augmentation.captionShuffling,
+                })
               }
-              label="Caption Shuffling"
+              label="Shuffle captions"
               size="sm"
             />
             <span className="text-xs text-slate-400">
               Randomise tag order during training
             </span>
           </div>
-        )}
 
-        {/* Keep Tokens — protects the first N comma-separated tags from shuffle */}
-        {visibleFields.has('keepTokens' satisfies keyof FormState) && (
           <div>
             <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
               Keep Tokens
@@ -340,75 +453,77 @@ const DatasetSectionComponent = ({
             <Input
               type="number"
               min={0}
-              value={keepTokens}
+              value={augmentation.keepTokens}
               onChange={(e) => {
                 const val = parseInt(e.target.value, 10);
-                if (!isNaN(val) && val >= 0) onFieldChange('keepTokens', val);
-              }}
-              className="w-20 tabular-nums"
-            />
-            <p className="mt-1 text-xs text-slate-400">
-              Protects the first N comma-separated tags from shuffling — anchors a trigger word
-              {!captionShuffling && ' (no effect unless Caption Shuffling is enabled)'}
-            </p>
-          </div>
-        )}
-
-        {/* Flip H Augment */}
-        {visibleFields.has('flipAugment' satisfies keyof FormState) && (
-          <div className="flex items-center gap-2">
-            <Checkbox
-              isSelected={flipAugment}
-              onChange={() => onFieldChange('flipAugment', !flipAugment)}
-              label="Flip Horizontal"
-              size="sm"
-            />
-            <span className="text-xs text-slate-400">
-              Randomly flip images horizontally
-            </span>
-          </div>
-        )}
-
-        {/* Flip V Augment */}
-        {visibleFields.has('flipVAugment' satisfies keyof FormState) && (
-          <div className="flex items-center gap-2">
-            <Checkbox
-              isSelected={flipVAugment}
-              onChange={() => onFieldChange('flipVAugment', !flipVAugment)}
-              label="Flip Vertical"
-              size="sm"
-            />
-            <span className="text-xs text-slate-400">
-              Randomly flip images vertically (unusual)
-            </span>
-          </div>
-        )}
-
-        {/* Caption Dropout Rate */}
-        {visibleFields.has('captionDropoutRate' satisfies keyof FormState) && (
-          <div>
-            <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
-              Caption Dropout Rate
-            </label>
-            <Input
-              type="text"
-              value={captionDropoutRate}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value);
-                if (!isNaN(val) && val >= 0 && val <= 1) {
-                  onFieldChange('captionDropoutRate', val);
+                if (!isNaN(val) && val >= 0) {
+                  onUpdateAugment(datasetIndex, folderName, {
+                    keepTokens: val,
+                  });
                 }
               }}
               className="w-20 tabular-nums"
+              size="sm"
             />
-            <p className="mt-1 text-xs text-slate-400">
-              Probability of dropping captions during training (0 = disabled)
+            <p className="mt-0.5 text-xs text-slate-400">
+              Protects first N tags from shuffling
+              {!augmentation.captionShuffling &&
+                ' (requires Shuffle Captions)'}
             </p>
           </div>
-        )}
-      </div>
-    </CollapsibleSection>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
+              Caption Dropout
+            </label>
+            <Input
+              type="text"
+              value={augmentation.captionDropoutRate}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val) && val >= 0 && val <= 1) {
+                  onUpdateAugment(datasetIndex, folderName, {
+                    captionDropoutRate: val,
+                  });
+                }
+              }}
+              className="w-20 tabular-nums"
+              size="sm"
+            />
+            <p className="mt-0.5 text-xs text-slate-400">
+              Probability of dropping captions (0 = disabled)
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              isSelected={augmentation.flipAugment}
+              onChange={() =>
+                onUpdateAugment(datasetIndex, folderName, {
+                  flipAugment: !augmentation.flipAugment,
+                })
+              }
+              label="Flip horizontally"
+              size="sm"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              isSelected={augmentation.flipVAugment}
+              onChange={() =>
+                onUpdateAugment(datasetIndex, folderName, {
+                  flipVAugment: !augmentation.flipVAugment,
+                })
+              }
+              label="Flip vertically"
+              size="sm"
+            />
+          </div>
+        </div>
+      )}
+    </div>
   );
-};
+}
 
 export const DatasetSection = memo(DatasetSectionComponent);
