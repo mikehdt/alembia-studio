@@ -1,7 +1,7 @@
 import { TagIcon } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
-import { Button } from '@/app/components/shared/button';
+import { Button } from '@/app/shared/button';
 import { selectAllAssetsTagless } from '@/app/store/assets';
 import {
   selectHasActiveFilters,

@@ -1,9 +1,9 @@
 import { SparklesIcon, SwatchBookIcon } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
-import { Button } from '@/app/components/shared/button';
-import { ResponsiveToolbarGroup } from '@/app/components/shared/responsive-toolbar-group';
-import { ToolbarDivider } from '@/app/components/shared/toolbar-divider';
+import { Button } from '@/app/shared/button';
+import { ResponsiveToolbarGroup } from '@/app/shared/responsive-toolbar-group';
+import { ToolbarDivider } from '@/app/shared/toolbar-divider';
 import { selectFilteredAssets } from '@/app/store/assets';
 import {
   selectHasReadyModel,

@@ -5,8 +5,8 @@ import { SCHEDULER_OPTIONS } from '@/app/services/training/models';
 import { useAppDispatch } from '@/app/store/hooks';
 import { removeJob, type TrainingJob } from '@/app/store/jobs';
 import { cancelMockTraining } from '@/app/store/training/mock-training';
+import { SchedulerSparkline } from '@/app/training/components/scheduler-sparkline';
 
-import { SchedulerSparkline } from '../../../training/components/scheduler-sparkline';
 import { ProgressBar } from '../progress-bar/progress-bar';
 import { ActionButton } from './action-button';
 import { formatDuration } from './helpers';

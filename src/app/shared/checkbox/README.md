@@ -13,7 +13,7 @@ A reusable checkbox component with custom styling that matches the application's
 ## Usage
 
 ```tsx
-import { Checkbox } from '../path/to/components/shared/checkbox';
+import { Checkbox } from '../path/to/shared/checkbox';
 
 // Basic usage
 <Checkbox

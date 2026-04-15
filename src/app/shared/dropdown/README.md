@@ -13,7 +13,7 @@ A flexible, accessible dropdown component with keyboard navigation support.
 ## Usage
 
 ```tsx
-import { Dropdown, DropdownItem } from '../path/to/components/shared/dropdown';
+import { Dropdown, DropdownItem } from '../path/to/shared/dropdown';
 
 // Define your dropdown items
 const items: DropdownItem<string>[] = [

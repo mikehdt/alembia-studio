@@ -11,9 +11,12 @@ const eslintConfig = defineConfig([
     // Default ignores of eslint-config-next:
     '.next/**',
     '.cache/**',
+    '.auto-tagger/**',
     'out/**',
     'build/**',
+    '**/.venv/**',
     'next-env.d.ts',
+    'node_modules/**',
     // Plain Node.js worker scripts (not bundled, use require())
     'workers/**',
   ]),

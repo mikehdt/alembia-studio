@@ -1,7 +1,7 @@
 import { FolderOutputIcon } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
-import { Button } from '@/app/components/shared/button';
+import { Button } from '@/app/shared/button';
 import { selectIoState } from '@/app/store/assets';
 import { IoState } from '@/app/store/assets/types';
 import {

@@ -7,9 +7,9 @@ import {
 } from 'lucide-react';
 import { memo, useCallback } from 'react';
 
-import { Button } from '@/app/components/shared/button';
-import { useToast } from '@/app/components/shared/toast';
 import { isSupportedVideoExtension } from '@/app/constants';
+import { Button } from '@/app/shared/button';
+import { useToast } from '@/app/shared/toast';
 import type { RootState } from '@/app/store';
 import {
   IoState,

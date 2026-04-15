@@ -1,6 +1,6 @@
 import { BookmarkCheckIcon, BookmarkXIcon } from 'lucide-react';
 
-import { Button } from '@/app/components/shared/button';
+import { Button } from '@/app/shared/button';
 import {
   resetAllModifiedTags,
   saveAllAssets,

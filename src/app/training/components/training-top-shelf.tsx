@@ -9,13 +9,13 @@ import {
 import { useRouter } from 'next/navigation';
 import { memo, useCallback, useId, useRef } from 'react';
 
-import { MenuThemeSwitcher } from '@/app/components/shared/menu-theme-switcher';
-import { Popup, usePopup } from '@/app/components/shared/popup';
 import {
   ShelfInfoRow,
   ShelfToolbarRow,
   TopShelfFrame,
-} from '@/app/components/shelf';
+} from '@/app/shared/shelf';
+import { MenuThemeSwitcher } from '@/app/shared/menu-theme-switcher';
+import { Popup, usePopup } from '@/app/shared/popup';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import { selectTheme, setTheme } from '@/app/store/preferences';
 import { type ThemeMode } from '@/app/utils/use-theme';

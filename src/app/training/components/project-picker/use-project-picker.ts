@@ -1,6 +1,6 @@
 import { useCallback, useId, useRef, useState } from 'react';
 
-import { usePopup } from '@/app/components/shared/popup';
+import { usePopup } from '@/app/shared/popup';
 import {
   getProjectDimensionHistogram,
   getProjectFolders,

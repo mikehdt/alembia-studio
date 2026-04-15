@@ -1,7 +1,7 @@
 import { Grid2x2PlusIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
-import { Button } from '@/app/components/shared/button';
+import { Button } from '@/app/shared/button';
 import { selectFilteredAssets, selectImageCount } from '@/app/store/assets';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import {

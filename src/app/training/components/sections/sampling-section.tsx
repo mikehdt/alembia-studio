@@ -1,10 +1,10 @@
 import { PlusIcon, XIcon } from 'lucide-react';
 import { memo } from 'react';
 
-import { Checkbox } from '@/app/components/shared/checkbox';
-import { CollapsibleSection } from '@/app/components/shared/collapsible-section';
-import { Input } from '@/app/components/shared/input/input';
-import { SegmentedControl } from '@/app/components/shared/segmented-control/segmented-control';
+import { Checkbox } from '@/app/shared/checkbox';
+import { CollapsibleSection } from '@/app/shared/collapsible-section';
+import { Input } from '@/app/shared/input/input';
+import { SegmentedControl } from '@/app/shared/segmented-control/segmented-control';
 
 import type {
   FormState,

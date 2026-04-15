@@ -31,7 +31,6 @@ export {
   getAllProviders,
   getModel,
   getModelTotalSize,
-  
   getProviderTypeForModel,
 } from './model-registry';
 

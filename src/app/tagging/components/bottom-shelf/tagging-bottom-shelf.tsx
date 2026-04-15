@@ -1,9 +1,9 @@
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
-import { Button } from '@/app/components/shared/button';
-import { useToast } from '@/app/components/shared/toast';
-import { BottomShelfFrame } from '@/app/components/shelf';
+import { BottomShelfFrame } from '@/app/shared/shelf';
+import { Button } from '@/app/shared/button';
+import { useToast } from '@/app/shared/toast';
 import {
   IoState,
   selectFilteredAssetsCount,

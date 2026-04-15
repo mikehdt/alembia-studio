@@ -3,14 +3,14 @@
 import { FolderOpenIcon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
-import { Button } from '@/app/components/shared/button';
-import { Input } from '@/app/components/shared/input/input';
-import { InputTray } from '@/app/components/shared/input-tray/input-tray';
-import { Modal } from '@/app/components/shared/modal';
 import {
   getModelsByArchitecture,
   type ModelComponentType,
 } from '@/app/services/training/models';
+import { Button } from '@/app/shared/button';
+import { Input } from '@/app/shared/input/input';
+import { InputTray } from '@/app/shared/input-tray/input-tray';
+import { Modal } from '@/app/shared/modal';
 
 import type { AppModelDefaults } from '../training-config-form/use-training-config-form';
 

@@ -3,14 +3,14 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Geist } from 'next/font/google';
 
-import { ActivityPanel } from './components/shared/activity-panel/activity-panel';
-import { ModalProvider } from './components/shared/modal';
-import { ModelManagerModal } from './components/shared/model-manager-modal/model-manager-modal';
-import { PopupProvider } from './components/shared/popup';
-import { ToastContainer } from './components/shared/toast';
-import { StableLayout } from './components/stable-layout';
 import { AppProvider } from './providers/AppProvider';
 import { StoreProvider } from './providers/StoreProvider';
+import { ActivityPanel } from './shared/activity-panel/activity-panel';
+import { ModalProvider } from './shared/modal';
+import { ModelManagerModal } from './shared/model-manager-modal/model-manager-modal';
+import { PopupProvider } from './shared/popup';
+import { StableLayout } from './shared/stable-layout';
+import { ToastContainer } from './shared/toast';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',

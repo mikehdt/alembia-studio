@@ -1,10 +1,10 @@
 import { InfoIcon, TriangleAlertIcon } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { Checkbox } from '@/app/components/shared/checkbox';
-import { FormTitle } from '@/app/components/shared/form-title/form-title';
-import { SectionDivider } from '@/app/components/shared/section-divider/section-divider';
-import { SegmentedControl } from '@/app/components/shared/segmented-control/segmented-control';
+import { Checkbox } from '@/app/shared/checkbox';
+import { FormTitle } from '@/app/shared/form-title/form-title';
+import { SectionDivider } from '@/app/shared/section-divider/section-divider';
+import { SegmentedControl } from '@/app/shared/segmented-control/segmented-control';
 import { ClassFilterMode } from '@/app/store/filters';
 import { useAppSelector } from '@/app/store/hooks';
 import { selectCaptionMode } from '@/app/store/project';

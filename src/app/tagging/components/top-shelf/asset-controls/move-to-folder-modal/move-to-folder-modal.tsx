@@ -7,11 +7,11 @@ import {
   HomeIcon,
 } from 'lucide-react';
 
-import { Button } from '@/app/components/shared/button';
-import { Checkbox } from '@/app/components/shared/checkbox';
-import { Modal } from '@/app/components/shared/modal';
-import { ProgressBar } from '@/app/components/shared/progress-bar/progress-bar';
-import { ScopingCheckboxes } from '@/app/components/shared/scoping-checkboxes';
+import { Button } from '@/app/shared/button';
+import { Checkbox } from '@/app/shared/checkbox';
+import { Modal } from '@/app/shared/modal';
+import { ProgressBar } from '@/app/shared/progress-bar/progress-bar';
+import { ScopingCheckboxes } from '@/app/shared/scoping-checkboxes';
 
 import { useMoveToFolderModal } from './use-move-to-folder-modal';
 

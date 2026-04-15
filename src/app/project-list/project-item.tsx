@@ -1,8 +1,8 @@
 import { CheckIcon, PencilIcon, XIcon } from 'lucide-react';
 import { memo, useEffect, useRef } from 'react';
 
-import { Button } from '@/app/components/shared/button';
-import { Checkbox } from '@/app/components/shared/checkbox';
+import { Button } from '@/app/shared/button';
+import { Checkbox } from '@/app/shared/checkbox';
 
 import { ProjectIcon } from './project-icon';
 import type { Project, ProjectColor } from './types';

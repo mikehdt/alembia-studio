@@ -3,10 +3,10 @@
 import { ListIcon, SaveIcon } from 'lucide-react';
 import { memo, useCallback, useSyncExternalStore } from 'react';
 
-import { Button } from '@/app/components/shared/button';
-import { Dropdown } from '@/app/components/shared/dropdown';
-import { SegmentedControl } from '@/app/components/shared/segmented-control/segmented-control';
-import { ToolbarDivider } from '@/app/components/shared/toolbar-divider';
+import { Button } from '@/app/shared/button';
+import { Dropdown } from '@/app/shared/dropdown';
+import { SegmentedControl } from '@/app/shared/segmented-control/segmented-control';
+import { ToolbarDivider } from '@/app/shared/toolbar-divider';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import {
   selectActiveTrainingJob,

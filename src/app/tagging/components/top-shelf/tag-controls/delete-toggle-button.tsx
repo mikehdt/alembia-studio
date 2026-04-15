@@ -1,7 +1,7 @@
 import { FileMinusIcon, FilePlusIcon } from 'lucide-react';
 import { useCallback } from 'react';
 
-import { Button } from '@/app/components/shared/button';
+import { Button } from '@/app/shared/button';
 import { markFilterTagsToDelete } from '@/app/store/assets';
 import { selectFilterTagsDeleteState } from '@/app/store/assets/selectors';
 import { selectFilterTags } from '@/app/store/filters';

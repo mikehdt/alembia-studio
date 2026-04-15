@@ -16,7 +16,7 @@ A customisable, accessible modal dialog component with smooth animations and key
 ## Usage
 
 ```tsx
-import { Modal, ModalProvider } from '../path/to/components/shared/modal';
+import { Modal, ModalProvider } from '../path/to/shared/modal';
 
 // Wrap your app in the ModalProvider (typically in a layout component)
 const AppLayout = ({ children }) => <ModalProvider>{children}</ModalProvider>;
@@ -61,7 +61,7 @@ The `ModalProvider` component creates a container where modals will be rendered 
 
 ```tsx
 // In your root layout:
-import { ModalProvider } from '../path/to/components/shared/modal';
+import { ModalProvider } from '../path/to/shared/modal';
 
 export default function RootLayout({ children }) {
   return (

@@ -1,12 +1,12 @@
 import { OctagonAlertIcon } from 'lucide-react';
 
-import { Button } from '@/app/components/shared/button';
-import { Checkbox } from '@/app/components/shared/checkbox';
-import { Dropdown, DropdownItem } from '@/app/components/shared/dropdown';
-import { FormTitle } from '@/app/components/shared/form-title/form-title';
-import { MultiTagInput } from '@/app/components/shared/multi-tag-input';
-import { RadioGroup } from '@/app/components/shared/radio-group';
 import type { TaggerOptions, TagInsertMode } from '@/app/services/auto-tagger';
+import { Button } from '@/app/shared/button';
+import { Checkbox } from '@/app/shared/checkbox';
+import { Dropdown, DropdownItem } from '@/app/shared/dropdown';
+import { FormTitle } from '@/app/shared/form-title/form-title';
+import { MultiTagInput } from '@/app/shared/multi-tag-input';
+import { RadioGroup } from '@/app/shared/radio-group';
 
 type AutoTaggerSettingsProps = {
   options: TaggerOptions;

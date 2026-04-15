@@ -1,6 +1,6 @@
-import { Button } from '@/app/components/shared/button';
-import { ProgressBar } from '@/app/components/shared/progress-bar/progress-bar';
 import type { ProviderType } from '@/app/services/auto-tagger';
+import { Button } from '@/app/shared/button';
+import { ProgressBar } from '@/app/shared/progress-bar/progress-bar';
 import type { JobStatus, TaggingProgress } from '@/app/store/jobs';
 
 type AutoTaggerProgressProps = {

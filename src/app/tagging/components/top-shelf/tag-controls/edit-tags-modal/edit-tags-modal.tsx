@@ -2,10 +2,10 @@
 
 import { BookmarkIcon } from 'lucide-react';
 
-import { Button } from '@/app/components/shared/button';
-import { Modal } from '@/app/components/shared/modal';
-import { ScopingCheckboxes } from '@/app/components/shared/scoping-checkboxes';
-import { TagStatusLegend } from '@/app/components/shared/tag-status-legend';
+import { Button } from '@/app/shared/button';
+import { Modal } from '@/app/shared/modal';
+import { ScopingCheckboxes } from '@/app/shared/scoping-checkboxes';
+import { TagStatusLegend } from '@/app/shared/tag-status-legend';
 
 import { useEditTagsModal } from './use-edit-tags-modal';
 

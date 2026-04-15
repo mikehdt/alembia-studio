@@ -2,13 +2,13 @@
 
 import { BookmarkIcon } from 'lucide-react';
 
-import { Button } from '@/app/components/shared/button';
-import { Checkbox } from '@/app/components/shared/checkbox';
-import { Modal } from '@/app/components/shared/modal';
-import { MultiTagInput } from '@/app/components/shared/multi-tag-input';
-import { RadioGroup } from '@/app/components/shared/radio-group';
-import { ScopingCheckboxes } from '@/app/components/shared/scoping-checkboxes';
-import { TagStatusLegend } from '@/app/components/shared/tag-status-legend';
+import { Button } from '@/app/shared/button';
+import { Checkbox } from '@/app/shared/checkbox';
+import { Modal } from '@/app/shared/modal';
+import { MultiTagInput } from '@/app/shared/multi-tag-input';
+import { RadioGroup } from '@/app/shared/radio-group';
+import { ScopingCheckboxes } from '@/app/shared/scoping-checkboxes';
+import { TagStatusLegend } from '@/app/shared/tag-status-legend';
 
 import { useAddTagsModal } from './use-add-tags-modal';
 

@@ -1,7 +1,7 @@
 import { FunnelXIcon } from 'lucide-react';
 import { useCallback } from 'react';
 
-import { Button } from '@/app/components/shared/button';
+import { Button } from '@/app/shared/button';
 import {
   clearFilters,
   selectHasActiveFilters,

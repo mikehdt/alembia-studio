@@ -1,6 +1,6 @@
 import { useParams, useRouter } from 'next/navigation';
 
-import { Dropdown, DropdownItem } from '@/app/components/shared/dropdown';
+import { Dropdown, DropdownItem } from '@/app/shared/dropdown';
 import {
   PaginationSize,
   selectPaginationSize,

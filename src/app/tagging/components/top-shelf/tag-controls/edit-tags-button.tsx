@@ -1,7 +1,7 @@
 import { PencilIcon } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
-import { Button } from '@/app/components/shared/button';
+import { Button } from '@/app/shared/button';
 import { selectFilterTags } from '@/app/store/filters';
 import { useAppSelector } from '@/app/store/hooks';
 

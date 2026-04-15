@@ -15,7 +15,7 @@ A simple toast notification system for displaying temporary messages to users.
 Use the `useToast` hook to show toast notifications:
 
 ```tsx
-import { useToast } from '@/app/components/shared/toast';
+import { useToast } from '@/app/shared/toast';
 
 const MyComponent = () => {
   const { showToast } = useToast();

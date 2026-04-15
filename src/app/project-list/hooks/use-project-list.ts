@@ -1,8 +1,7 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
-import type { Project } from '@/app/components/project-list/types';
-import { useToast } from '@/app/components/shared/toast/hooks/use-toast';
+import { useToast } from '@/app/shared/toast/hooks/use-toast';
 import { resetAssetsState } from '@/app/store/assets';
 import { clearFilters } from '@/app/store/filters';
 import { useAppDispatch } from '@/app/store/hooks';
@@ -15,6 +14,7 @@ import {
 import { clearSelection, clearSelectorCaches } from '@/app/store/selection';
 import { getProjectList } from '@/app/utils/project-actions';
 
+import type { Project } from '../types';
 import { useEditProject } from './use-edit-project';
 
 export const useProjectList = () => {

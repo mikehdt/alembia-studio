@@ -1,8 +1,8 @@
 import { IdCardIcon } from 'lucide-react';
 import { memo } from 'react';
 
-import { ResponsiveToolbarGroup } from '@/app/components/shared/responsive-toolbar-group';
-import { ToolbarDivider } from '@/app/components/shared/toolbar-divider';
+import { ResponsiveToolbarGroup } from '@/app/shared/responsive-toolbar-group';
+import { ToolbarDivider } from '@/app/shared/toolbar-divider';
 
 import { AssetSortControls } from './asset-sort-controls';
 import { ClearFiltersButton } from './clear-filters-button';

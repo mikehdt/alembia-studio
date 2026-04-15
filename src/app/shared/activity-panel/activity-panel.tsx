@@ -4,8 +4,8 @@ import { ActivityIcon, ChevronDownIcon } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { memo, useCallback, useEffect, useRef } from 'react';
 
-import { useIsAnyModalOpen } from '@/app/components/shared/modal';
 import { abortTagging } from '@/app/services/auto-tagger/tagging-controllers';
+import { useIsAnyModalOpen } from '@/app/shared/modal';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import {
   cancelTagging,

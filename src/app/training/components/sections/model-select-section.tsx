@@ -1,12 +1,6 @@
 import { DownloadIcon, FolderOpenIcon } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 
-import { Button } from '@/app/components/shared/button';
-import { CollapsibleSection } from '@/app/components/shared/collapsible-section';
-import { Dropdown, type DropdownItem } from '@/app/components/shared/dropdown';
-import { Input } from '@/app/components/shared/input/input';
-import { InputTray } from '@/app/components/shared/input-tray/input-tray';
-import { ToolbarDivider } from '@/app/components/shared/toolbar-divider';
 import { getTrainingDownloadable } from '@/app/services/model-manager/registries/training-models';
 import { startModelDownload } from '@/app/services/model-manager/start-download';
 import {
@@ -18,6 +12,12 @@ import {
   type ModelComponentType,
   type ModelDefinition,
 } from '@/app/services/training/models';
+import { Button } from '@/app/shared/button';
+import { CollapsibleSection } from '@/app/shared/collapsible-section';
+import { Dropdown, type DropdownItem } from '@/app/shared/dropdown';
+import { Input } from '@/app/shared/input/input';
+import { InputTray } from '@/app/shared/input-tray/input-tray';
+import { ToolbarDivider } from '@/app/shared/toolbar-divider';
 import { useAppDispatch } from '@/app/store/hooks';
 import { openPanel } from '@/app/store/jobs';
 

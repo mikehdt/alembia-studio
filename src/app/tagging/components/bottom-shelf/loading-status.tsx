@@ -1,5 +1,5 @@
-import { Loader } from '@/app/components/loader';
-import { ProgressBar } from '@/app/components/shared/progress-bar/progress-bar';
+import { Loader } from '@/app/shared/loader';
+import { ProgressBar } from '@/app/shared/progress-bar/progress-bar';
 import { IoState, LoadProgress, SaveProgress } from '@/app/store/assets';
 
 interface LoadingStatusProps {

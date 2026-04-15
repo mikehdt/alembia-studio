@@ -8,7 +8,7 @@ A responsive toolbar component that adapts its layout based on screen size:
 ## Usage
 
 ```tsx
-import { ResponsiveToolbarGroup } from '@/app/components/shared/responsive-toolbar-group';
+import { ResponsiveToolbarGroup } from '@/app/shared/responsive-toolbar-group';
 import { SomeIcon } from 'react-lucide';
 
 <ResponsiveToolbarGroup

@@ -3,7 +3,7 @@
 import { BoxIcon } from 'lucide-react';
 import Image from 'next/image';
 
-import { ProgressBar } from '@/app/components/shared/progress-bar/progress-bar';
+import { ProgressBar } from '@/app/shared/progress-bar/progress-bar';
 import { selectLoadProgress } from '@/app/store/assets';
 import { useAppSelector } from '@/app/store/hooks';
 import { selectProjectName, selectProjectThumbnail } from '@/app/store/project';

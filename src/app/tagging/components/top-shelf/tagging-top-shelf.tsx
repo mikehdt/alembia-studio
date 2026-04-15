@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
 
-import { ToolbarDivider } from '@/app/components/shared/toolbar-divider';
 import {
   ShelfInfoRow,
   ShelfToolbarRow,
   TopShelfFrame,
-} from '@/app/components/shelf';
+} from '@/app/shared/shelf';
+import { ToolbarDivider } from '@/app/shared/toolbar-divider';
 import { resetFilterModeIfNeeded } from '@/app/store/filters';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import { selectSelectedAssetsCount } from '@/app/store/selection';

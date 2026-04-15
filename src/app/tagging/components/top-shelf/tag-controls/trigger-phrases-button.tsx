@@ -1,15 +1,8 @@
 import { HighlighterIcon, PlusIcon, XIcon } from 'lucide-react';
-import {
-  type KeyboardEvent,
-  memo,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { type KeyboardEvent, memo, useCallback, useRef, useState } from 'react';
 
-import { Button } from '@/app/components/shared/button';
-import { Modal } from '@/app/components/shared/modal';
+import { Button } from '@/app/shared/button';
+import { Modal } from '@/app/shared/modal';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import {
   selectProjectFolderName,
@@ -36,19 +29,20 @@ export const TriggerPhrasesModal = ({
   const projectFolderName = useAppSelector(selectProjectFolderName);
   const [phrases, setPhrases] = useState<string[]>(() => [...triggerPhrases]);
   const [addValue, setAddValue] = useState('');
+  const [wasOpen, setWasOpen] = useState(isOpen);
   const addInputRef = useRef<HTMLInputElement>(null);
 
-  // Reset local state from Redux every time the modal opens. Without this,
-  // the lazy useState initializer runs only once for the lifetime of the
-  // component (which stays mounted across opens), so deletes/edits made in a
-  // previous Cancel'd session would persist into the next open and Save
-  // would appear "always enabled" because local phrases drifted from Redux.
-  useEffect(() => {
+  // Reset local state from Redux only on the closed→open transition. Using
+  // `triggerPhrases` in an effect dep array would re-sync mid-edit (e.g.
+  // right after Save dispatches) and clobber in-progress local changes.
+  // This is the React-docs pattern for "adjusting state on prop change".
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
       setPhrases([...triggerPhrases]);
       setAddValue('');
     }
-  }, [isOpen, triggerPhrases]);
+  }
 
   // Save commits exactly what's in the `phrases` array — pending text in the
   // add-field is intentionally ignored. The + button (or Enter) is the only

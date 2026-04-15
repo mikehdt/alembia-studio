@@ -1,7 +1,7 @@
 import { XIcon } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { SegmentedControl } from '@/app/components/shared/segmented-control/segmented-control';
+import { SegmentedControl } from '@/app/shared/segmented-control/segmented-control';
 import { useAppSelector } from '@/app/store/hooks';
 import { selectCaptionMode } from '@/app/store/project';
 

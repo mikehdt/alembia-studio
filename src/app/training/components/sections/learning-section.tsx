@@ -1,14 +1,14 @@
 import { memo, useCallback, useMemo } from 'react';
 
-import { CollapsibleSection } from '@/app/components/shared/collapsible-section';
-import { Dropdown, type DropdownItem } from '@/app/components/shared/dropdown';
-import { Input } from '@/app/components/shared/input/input';
-import { SegmentedControl } from '@/app/components/shared/segmented-control/segmented-control';
 import {
   OPTIMIZER_OPTIONS,
   SCHEDULER_OPTIONS,
   type TrainingDefaults,
 } from '@/app/services/training/models';
+import { CollapsibleSection } from '@/app/shared/collapsible-section';
+import { Dropdown, type DropdownItem } from '@/app/shared/dropdown';
+import { Input } from '@/app/shared/input/input';
+import { SegmentedControl } from '@/app/shared/segmented-control/segmented-control';
 import type { TrainingViewMode } from '@/app/store/preferences';
 
 import { SchedulerSparkline } from '../scheduler-sparkline';

@@ -4,9 +4,9 @@ import { FolderIcon, Loader2Icon, StarIcon } from 'lucide-react';
 import Image from 'next/image';
 import React, { memo, useMemo, useState } from 'react';
 
-import { Button } from '@/app/components/shared/button';
-import { Checkbox } from '@/app/components/shared/checkbox/checkbox';
-import { Popup } from '@/app/components/shared/popup';
+import { Button } from '@/app/shared/button';
+import { Checkbox } from '@/app/shared/checkbox/checkbox';
+import { Popup } from '@/app/shared/popup';
 
 import type { DatasetFolder } from '../training-config-form/use-training-config-form';
 import { useProjectPicker } from './use-project-picker';

@@ -1,17 +1,17 @@
 import { OctagonAlertIcon, RotateCcwIcon } from 'lucide-react';
 
-import { Button } from '@/app/components/shared/button';
-import { Checkbox } from '@/app/components/shared/checkbox';
-import { Dropdown, DropdownItem } from '@/app/components/shared/dropdown';
-import { FormTitle } from '@/app/components/shared/form-title/form-title';
-import { Input } from '@/app/components/shared/input/input';
-import { RadioGroup } from '@/app/components/shared/radio-group';
 import type {
   TriggerPhraseInsertMode,
   VlmOptions,
   VlmVideoQuality,
 } from '@/app/services/auto-tagger';
 import { DEFAULT_VLM_OPTIONS } from '@/app/services/auto-tagger';
+import { Button } from '@/app/shared/button';
+import { Checkbox } from '@/app/shared/checkbox';
+import { Dropdown, DropdownItem } from '@/app/shared/dropdown';
+import { FormTitle } from '@/app/shared/form-title/form-title';
+import { Input } from '@/app/shared/input/input';
+import { RadioGroup } from '@/app/shared/radio-group';
 
 const VIDEO_QUALITY_OPTIONS: { value: VlmVideoQuality; label: string }[] = [
   { value: 'low', label: 'Low' },
@@ -73,7 +73,8 @@ export function AutoTaggerVlmSettings({
   // Showing only on (a) would suggest video sampling matters when it'll
   // be discarded for poster-frame substitution; showing only on (b) would
   // surface controls a user who's only tagging stills will never use.
-  const showVideoControls = selectedVideoCount > 0 && selectedModelSupportsVideo;
+  const showVideoControls =
+    selectedVideoCount > 0 && selectedModelSupportsVideo;
   // Surface a small note when there are videos but the model can't handle
   // them, so the user understands why the controls are hidden and what
   // will happen to those videos instead.
@@ -244,9 +245,7 @@ export function AutoTaggerVlmSettings({
               <Dropdown
                 items={VIDEO_QUALITY_OPTIONS}
                 selectedValue={vlmOptions.video.quality}
-                onChange={(quality) =>
-                  onVideoOptionChange('quality', quality)
-                }
+                onChange={(quality) => onVideoOptionChange('quality', quality)}
               />
             </div>
           </div>
@@ -258,9 +257,9 @@ export function AutoTaggerVlmSettings({
           {selectedVideoCount === 1
             ? 'The selected video will'
             : `The ${selectedVideoCount} selected videos will`}{' '}
-          be captioned from a single poster frame — the chosen model
-          can&apos;t read video natively. Pick a video-capable model (e.g.
-          Qwen3-VL GPU) for true frame-by-frame captioning.
+          be captioned from a single poster frame — the chosen model can&apos;t
+          read video natively. Pick a video-capable model (e.g. Qwen3-VL GPU)
+          for true frame-by-frame captioning.
         </p>
       )}
 

@@ -2,11 +2,11 @@
 
 import { useCallback, useMemo, useState } from 'react';
 
-import { Checkbox } from '@/app/components/shared/checkbox';
-import { Dropdown } from '@/app/components/shared/dropdown';
-import { FormTitle } from '@/app/components/shared/form-title/form-title';
-import { Input } from '@/app/components/shared/input/input';
-import { Modal } from '@/app/components/shared/modal';
+import { Checkbox } from '@/app/shared/checkbox';
+import { Dropdown } from '@/app/shared/dropdown';
+import { FormTitle } from '@/app/shared/form-title/form-title';
+import { Input } from '@/app/shared/input/input';
+import { Modal } from '@/app/shared/modal';
 import { calculateKohyaBucket, KOHYA_CONFIGS } from '@/app/utils/image-utils';
 
 type BucketCropModalProps = {

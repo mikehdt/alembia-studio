@@ -1,8 +1,8 @@
 import { memo } from 'react';
 
-import { CollapsibleSection } from '@/app/components/shared/collapsible-section';
-import { Dropdown, type DropdownItem } from '@/app/components/shared/dropdown';
-import { Input } from '@/app/components/shared/input/input';
+import { CollapsibleSection } from '@/app/shared/collapsible-section';
+import { Dropdown, type DropdownItem } from '@/app/shared/dropdown';
+import { Input } from '@/app/shared/input/input';
 
 import type {
   FormState,

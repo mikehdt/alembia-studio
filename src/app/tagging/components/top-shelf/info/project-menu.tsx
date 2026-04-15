@@ -9,9 +9,9 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { memo, useCallback, useId, useRef, useState } from 'react';
 
-import { MenuEditModeSwitcher } from '@/app/components/shared/menu-edit-mode-switcher';
-import { MenuThemeSwitcher } from '@/app/components/shared/menu-theme-switcher';
-import { Popup, usePopup } from '@/app/components/shared/popup';
+import { MenuEditModeSwitcher } from '@/app/shared/menu-edit-mode-switcher';
+import { MenuThemeSwitcher } from '@/app/shared/menu-theme-switcher';
+import { Popup, usePopup } from '@/app/shared/popup';
 import { IoState, loadAllAssets, selectIoState } from '@/app/store/assets';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import {

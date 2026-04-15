@@ -3,7 +3,7 @@
 import { TriangleAlertIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-import { Button } from '@/app/components/shared/button';
+import { Button } from '@/app/shared/button';
 import { selectIoMessage, selectLoadProgress } from '@/app/store/assets';
 import { useAppSelector } from '@/app/store/hooks';
 import { selectProjectName } from '@/app/store/project';

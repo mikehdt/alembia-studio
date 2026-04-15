@@ -4,10 +4,10 @@ import { CopyIcon, FilmIcon } from 'lucide-react';
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { Button } from '@/app/components/shared/button';
-import { Modal } from '@/app/components/shared/modal';
-import { RadioGroup } from '@/app/components/shared/radio-group';
 import { isSupportedVideoExtension } from '@/app/constants';
+import { Button } from '@/app/shared/button';
+import { Modal } from '@/app/shared/modal';
+import { RadioGroup } from '@/app/shared/radio-group';
 import { copyTagsToAssets, selectTagCounts } from '@/app/store/assets';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import { selectProjectFolderName } from '@/app/store/project';

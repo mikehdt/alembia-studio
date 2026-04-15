@@ -2,8 +2,8 @@ import { ListOrderedIcon } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { memo, useCallback, useId, useMemo, useRef } from 'react';
 
-import { Button } from '@/app/components/shared/button';
-import { Popup, usePopup } from '@/app/components/shared/popup';
+import { Button } from '@/app/shared/button';
+import { Popup, usePopup } from '@/app/shared/popup';
 import {
   selectFilteredAssets,
   selectSortDirection,

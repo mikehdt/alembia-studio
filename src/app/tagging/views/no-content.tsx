@@ -4,7 +4,7 @@ import { BoxSelectIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import type { SyntheticEvent } from 'react';
 
-import { Button } from '@/app/components/shared/button';
+import { Button } from '@/app/shared/button';
 import { useAppSelector } from '@/app/store/hooks';
 import { selectProjectName } from '@/app/store/project';
 

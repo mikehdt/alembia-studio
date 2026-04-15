@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { MenuButton, MenuItem } from '@/app/components/shared/menu-button';
+import { MenuButton, MenuItem } from '@/app/shared/menu-button';
 import { gatherTags } from '@/app/store/assets';
 import { selectFilteredAssets } from '@/app/store/assets';
 import {

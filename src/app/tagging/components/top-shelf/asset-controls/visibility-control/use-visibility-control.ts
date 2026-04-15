@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
-import { type ColorScheme } from '@/app/components/shared/section-divider/section-divider';
+import { type ColorScheme } from '@/app/shared/section-divider/section-divider';
 import {
   selectHasModifiedAssets,
   selectHasTaglessAssets,

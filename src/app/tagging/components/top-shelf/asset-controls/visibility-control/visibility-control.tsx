@@ -1,7 +1,7 @@
 import { ChevronDownIcon } from 'lucide-react';
 import { memo, useCallback, useId, useRef } from 'react';
 
-import { Popup, usePopup } from '@/app/components/shared/popup';
+import { Popup, usePopup } from '@/app/shared/popup';
 
 import { useVisibilityControl } from './use-visibility-control';
 import { VisibilityPanel } from './visibility-panel';

@@ -9,10 +9,10 @@ import {
 import Image from 'next/image';
 import { memo, useCallback, useMemo } from 'react';
 
-import { Button } from '@/app/components/shared/button';
-import { Checkbox } from '@/app/components/shared/checkbox';
-import { CollapsibleSection } from '@/app/components/shared/collapsible-section';
-import { Input } from '@/app/components/shared/input/input';
+import { Button } from '@/app/shared/button';
+import { Checkbox } from '@/app/shared/checkbox';
+import { CollapsibleSection } from '@/app/shared/collapsible-section';
+import { Input } from '@/app/shared/input/input';
 
 import { ProjectPicker } from '../project-picker/project-picker';
 import type {

@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useCallback } from 'react';
 
-import { Modal } from '@/app/components/shared/modal';
+import { Modal } from '@/app/shared/modal';
 
 import { AutoTaggerProgress } from './auto-tagger-progress';
 import { AutoTaggerSettings } from './auto-tagger-settings';

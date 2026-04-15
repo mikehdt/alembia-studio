@@ -1,5 +1,5 @@
-import { Button } from '@/app/components/shared/button';
 import type { ProviderType } from '@/app/services/auto-tagger';
+import { Button } from '@/app/shared/button';
 import type { TaggingSummary } from '@/app/store/jobs';
 
 type ImageError = { fileId: string; error: string };

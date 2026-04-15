@@ -4,7 +4,7 @@ import { memo, useCallback } from 'react';
 import {
   SegmentedControl,
   type SegmentOption,
-} from '@/app/components/shared/segmented-control/segmented-control';
+} from '@/app/shared/segmented-control/segmented-control';
 import type { CaptionMode } from '@/app/store/project/types';
 
 const options: SegmentOption<CaptionMode>[] = [

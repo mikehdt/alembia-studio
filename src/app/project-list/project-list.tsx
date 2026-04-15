@@ -11,20 +11,17 @@ import {
 } from 'lucide-react';
 import { useCallback, useId, useMemo, useRef, useState } from 'react';
 
-import {
-  ProjectItem,
-  type ProjectItemActions,
-} from '@/app/components/project-list/project-item';
-import { Button } from '@/app/components/shared/button';
-import { Checkbox } from '@/app/components/shared/checkbox';
-import { MenuProjectsFolder } from '@/app/components/shared/menu-projects-folder';
-import { MenuThemeSwitcher } from '@/app/components/shared/menu-theme-switcher';
-import { Popup, usePopup } from '@/app/components/shared/popup';
+import { Button } from '@/app/shared/button';
+import { Checkbox } from '@/app/shared/checkbox';
+import { MenuProjectsFolder } from '@/app/shared/menu-projects-folder';
+import { MenuThemeSwitcher } from '@/app/shared/menu-theme-switcher';
+import { Popup, usePopup } from '@/app/shared/popup';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import { openModelManagerModal } from '@/app/store/model-manager';
 import { selectTheme, setTheme, type ThemeMode } from '@/app/store/preferences';
 
 import { useProjectList } from './hooks/use-project-list';
+import { ProjectItem, type ProjectItemActions } from './project-item';
 
 export const ProjectList = () => {
   const dispatch = useAppDispatch();

@@ -1,9 +1,9 @@
 import { ArrowDownIcon, ArrowUpIcon } from 'lucide-react';
 import { useCallback } from 'react';
 
-import { Button } from '@/app/components/shared/button';
-import { Dropdown, DropdownItem } from '@/app/components/shared/dropdown';
-import { InputTray } from '@/app/components/shared/input-tray/input-tray';
+import { Button } from '@/app/shared/button';
+import { Dropdown, DropdownItem } from '@/app/shared/dropdown';
+import { InputTray } from '@/app/shared/input-tray/input-tray';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import {
   selectTagSortDirection,

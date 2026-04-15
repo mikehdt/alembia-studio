@@ -6,7 +6,7 @@ import {
   XIcon,
 } from 'lucide-react';
 
-import { SectionDivider } from '@/app/components/shared/section-divider/section-divider';
+import { SectionDivider } from '@/app/shared/section-divider/section-divider';
 
 import { useFileView } from './use-file-view';
 

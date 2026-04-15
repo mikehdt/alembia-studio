@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
-import type { DropdownItem } from '@/app/components/shared/dropdown';
 import { isSupportedVideoExtension } from '@/app/constants';
 import type {
   AutoTaggerSettings,
@@ -25,6 +24,7 @@ import {
   registerTaggingController,
   removeTaggingController,
 } from '@/app/services/auto-tagger/tagging-controllers';
+import type { DropdownItem } from '@/app/shared/dropdown';
 import type { AppDispatch, RootState } from '@/app/store';
 import { flushPendingTagResults } from '@/app/store/assets/flush-pending-tags';
 import {
@@ -222,8 +222,7 @@ export function useAutoTagger({
                 ? {
                     frameBudget:
                       savedSettings.video.frameBudget ?? prev.video.frameBudget,
-                    maxFps:
-                      savedSettings.video.maxFps ?? prev.video.maxFps,
+                    maxFps: savedSettings.video.maxFps ?? prev.video.maxFps,
                     quality:
                       savedSettings.video.quality === 'low' ||
                       savedSettings.video.quality === 'standard' ||

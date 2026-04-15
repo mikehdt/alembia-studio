@@ -1,15 +1,13 @@
 import { useCallback, useState } from 'react';
 
-import type {
-  Project,
-  ProjectColor,
-} from '@/app/components/project-list/types';
 import {
   createProjectThumbnail,
   type ProjectConfig,
   removeProjectThumbnail,
   updateProject,
 } from '@/app/utils/project-actions';
+
+import type { Project, ProjectColor } from '../types';
 
 type UseEditProjectOptions = {
   onError?: (message: string) => void;
