@@ -152,9 +152,9 @@ export const MultiTagInput = ({
   return (
     <div
       ref={containerRef}
-      className={`flex w-full cursor-text flex-wrap items-center rounded-3xl border px-1.5 py-1.5 inset-shadow-sm transition-colors focus-within:border-sky-500 focus-within:ring-1 focus-within:ring-sky-500 dark:bg-slate-900 ${className} ${
+      className={`flex w-full cursor-text flex-wrap items-center rounded-3xl border bg-white px-1 py-1 inset-shadow-sm transition-colors focus-within:border-sky-500 focus-within:ring-1 focus-within:ring-sky-500 dark:bg-slate-900 ${className} ${
         hasFocus ? 'border-sky-500' : 'border-slate-400 dark:border-slate-500'
-      } ${isDuplicate ? 'border-amber-400 bg-amber-50 inset-shadow-amber-300 dark:bg-amber-900 dark:inset-shadow-amber-950' : 'inset-shadow-slate-300 dark:inset-shadow-slate-950'}`}
+      } ${isDuplicate ? 'border-amber-400 bg-amber-50 inset-shadow-amber-300/80 dark:bg-amber-900 dark:inset-shadow-amber-950/80' : 'inset-shadow-slate-300/80 dark:inset-shadow-slate-950/80'}`}
       data-container="true"
     >
       {tags.map((tag, index) => (
@@ -175,7 +175,7 @@ export const MultiTagInput = ({
         onFocus={() => setHasFocus(true)}
         onBlur={handleInputBlur}
         placeholder={tags.length === 0 ? placeholder : ''}
-        className="min-w-24 grow basis-0 bg-transparent px-2 py-1 focus:ring-0"
+        className="text-md min-w-24 grow basis-0 bg-transparent px-2 py-1 focus:ring-0"
         autoFocus={autoFocus}
         data-container="true"
       />

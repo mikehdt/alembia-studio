@@ -1,10 +1,16 @@
 'use client';
 
+import { SquareIcon } from 'lucide-react';
+
 import { Button } from './button';
+import { Dropdown } from './dropdown';
+import { Input } from './input';
+import { InputTray } from './input-tray/input-tray';
+import { MultiTagInput } from './multi-tag-input';
+import { SegmentedControl } from './segmented-control/segmented-control';
 
 /**
- * Temporary playground for testing button styles in light/dark mode.
- * Remove this component after testing is complete.
+ * Temporary playground for testing UI sizes and styles.
  */
 export const DevUIPlayground = () => {
   return (
@@ -13,57 +19,344 @@ export const DevUIPlayground = () => {
         UI Playground (temporary)
       </h3>
 
-      {/* Ghost buttons - the main issue */}
-      <div className="mb-4">
-        <p className="mb-2 text-xs text-(--unselected-text)">
-          Ghost buttons (slate):
+      <div className="mb-4 flex flex-col gap-2">
+        <p className="mb-2 text-xs text-(--unselected-text) uppercase">
+          xs sizes (22px high)
         </p>
-        <div className="flex items-center gap-2 rounded bg-(--surface-elevated) p-2">
-          <Button variant="ghost" color="slate" size="md">
-            Normal
+
+        <div className="flex items-center gap-2 bg-slate-200">
+          <Button width="xs" size="xs">
+            Button
           </Button>
-          <Button variant="ghost" color="slate" size="md" disabled>
-            Disabled
+
+          <Button width="xs" size="xs">
+            <SquareIcon /> Button
           </Button>
-          <Button variant="ghost" color="slate" size="md" isPressed>
-            Pressed
+
+          <Button width="xs" size="xs">
+            <SquareIcon />
+          </Button>
+        </div>
+
+        <div className="flex items-center bg-slate-200">
+          <Input size="xs" />
+        </div>
+
+        <div className="flex items-center bg-slate-200">
+          <Input size="xs" />
+          <Button width="xs" size="xs">
+            Button
+          </Button>
+          <Button width="xs" size="xs">
+            <SquareIcon /> Button
           </Button>
         </div>
       </div>
 
-      {/* Default buttons for comparison */}
-      <div className="mb-4">
-        <p className="mb-2 text-xs text-(--unselected-text)">
-          Default buttons (slate):
+      <div className="mb-4 flex flex-col gap-2">
+        <p className="mb-2 text-xs text-(--unselected-text) uppercase">
+          sm sizes (30px high)
         </p>
-        <div className="flex items-center gap-2 rounded bg-(--surface-elevated) p-2">
-          <Button variant="default" color="slate" size="md">
-            Normal
+
+        <div className="flex items-center gap-2 bg-slate-200">
+          <Button width="sm" size="sm">
+            Button
           </Button>
-          <Button variant="default" color="slate" size="md" disabled>
-            Disabled
+
+          <Button width="sm" size="sm">
+            <SquareIcon /> Button
           </Button>
-          <Button variant="default" color="slate" size="md" isPressed>
-            Pressed
+
+          <Button width="sm" size="sm">
+            <SquareIcon />
           </Button>
+        </div>
+
+        <div className="flex items-center bg-slate-200">
+          <Input size="sm" />
+        </div>
+
+        <div className="flex items-center bg-slate-200">
+          <Dropdown
+            size="sm"
+            items={[
+              { value: 'test-a', label: 'Test A' },
+              { value: 'test-b', label: 'Test B' },
+            ]}
+            selectedValue="test-a"
+            onChange={() => {}}
+          />
+        </div>
+
+        <div className="flex items-center gap-2 bg-slate-200">
+          <Input size="sm" />
+
+          <Button width="sm" size="sm">
+            Button
+          </Button>
+
+          <Button width="sm" size="sm">
+            <SquareIcon /> Button
+          </Button>
+
+          <Dropdown
+            size="sm"
+            items={[
+              { value: 'test-a', label: 'Test A' },
+              { value: 'test-b', label: 'Test B' },
+            ]}
+            selectedValue="test-a"
+            onChange={() => {}}
+          />
         </div>
       </div>
 
-      {/* Toggle buttons */}
-      <div className="mb-4">
-        <p className="mb-2 text-xs text-(--unselected-text)">
-          Toggle buttons (slate):
+      <div className="mb-4 flex flex-col gap-2">
+        <p className="mb-2 text-xs text-(--unselected-text) uppercase">
+          toolbar sizes (30px high)
         </p>
-        <div className="flex items-center gap-2 rounded bg-(--surface-elevated) p-2">
-          <Button variant="toggle" color="slate" size="md">
-            Unpressed
+
+        <div className="flex items-center gap-2 bg-slate-200">
+          <Button width="toolbar" size="toolbar">
+            Button
           </Button>
-          <Button variant="toggle" color="slate" size="md" isPressed>
-            Pressed
+
+          <Button width="toolbar" size="toolbar">
+            <SquareIcon /> Button
           </Button>
-          <Button variant="toggle" color="slate" size="md" disabled>
-            Disabled
+
+          <Button width="toolbar" size="toolbar">
+            <SquareIcon />
           </Button>
+        </div>
+
+        <div className="flex items-center bg-slate-200">
+          <Input size="toolbar" />
+        </div>
+
+        <div className="flex items-center bg-slate-200">
+          <Dropdown
+            size="toolbar"
+            items={[
+              { value: 'test-a', label: 'Test A' },
+              { value: 'test-b', label: 'Test B' },
+            ]}
+            selectedValue="test-a"
+            onChange={() => {}}
+          />
+        </div>
+
+        <div className="flex items-center gap-2 bg-slate-200">
+          <Input size="toolbar" />
+
+          <Button width="toolbar" size="toolbar">
+            Button
+          </Button>
+
+          <Button width="toolbar" size="toolbar">
+            <SquareIcon /> Button
+          </Button>
+
+          <Dropdown
+            size="toolbar"
+            items={[
+              { value: 'test-a', label: 'Test A' },
+              { value: 'test-b', label: 'Test B' },
+            ]}
+            selectedValue="test-a"
+            onChange={() => {}}
+          />
+        </div>
+
+        <div className="flex items-center bg-slate-200">
+          <InputTray size="md">
+            <Input size="toolbar" />
+
+            <Button width="toolbar" size="toolbar">
+              Button
+            </Button>
+
+            <Button width="toolbar" size="toolbar">
+              <SquareIcon /> Button
+            </Button>
+
+            <Dropdown
+              size="toolbar"
+              items={[
+                { value: 'test-a', label: 'Test A' },
+                { value: 'test-b', label: 'Test B' },
+              ]}
+              selectedValue="test-a"
+              onChange={() => {}}
+            />
+          </InputTray>
+        </div>
+      </div>
+
+      <div className="mb-4 flex flex-col gap-2">
+        <p className="mb-2 text-xs text-(--unselected-text) uppercase">
+          md sizes (34px high)
+        </p>
+
+        <div className="flex items-center gap-2 bg-slate-200">
+          <Button width="md" size="md">
+            Button
+          </Button>
+
+          <Button width="md" size="md">
+            <SquareIcon /> Button
+          </Button>
+
+          <Button width="md" size="md">
+            <SquareIcon />
+          </Button>
+        </div>
+
+        <div className="flex items-center bg-slate-200">
+          <Dropdown
+            size="md"
+            items={[
+              { value: 'test-a', label: 'Test A' },
+              { value: 'test-b', label: 'Test B' },
+            ]}
+            selectedValue="test-a"
+            onChange={() => {}}
+          />
+        </div>
+
+        <div className="flex items-center gap-2 bg-slate-200">
+          <Input size="md" />
+
+          <Button width="md" size="md">
+            Button
+          </Button>
+
+          <Button width="md" size="md">
+            <SquareIcon /> Button
+          </Button>
+
+          <Dropdown
+            size="md"
+            items={[
+              { value: 'test-a', label: 'Test A' },
+              { value: 'test-b', label: 'Test B' },
+            ]}
+            selectedValue="test-a"
+            onChange={() => {}}
+          />
+
+          <SegmentedControl
+            options={[
+              { value: 'simple', label: 'Simple' },
+              { value: 'intermediate', label: 'Intermediate' },
+            ]}
+            value="simple"
+            onChange={() => {}}
+          />
+        </div>
+
+        <div className="flex items-center bg-slate-200">
+          <InputTray size="md">
+            <Input size="md" />
+
+            <Button width="md" size="md">
+              Button
+            </Button>
+
+            <Button width="md" size="md">
+              <SquareIcon /> Button
+            </Button>
+
+            <Dropdown
+              size="md"
+              items={[
+                { value: 'test-a', label: 'Test A' },
+                { value: 'test-b', label: 'Test B' },
+              ]}
+              selectedValue="test-a"
+              onChange={() => {}}
+            />
+          </InputTray>
+        </div>
+      </div>
+
+      <div className="mb-4 flex flex-col gap-2">
+        <p className="mb-2 text-xs text-(--unselected-text) uppercase">
+          lg sizes (42px high)
+        </p>
+
+        <div className="flex items-center gap-2 bg-slate-200">
+          <Button width="lg" size="lg">
+            Button
+          </Button>
+
+          <Button width="lg" size="lg">
+            <SquareIcon /> Button
+          </Button>
+
+          <Button width="lg" size="lg">
+            <SquareIcon />
+          </Button>
+        </div>
+
+        <div className="flex items-center bg-slate-200">
+          <Dropdown
+            size="lg"
+            items={[
+              { value: 'test-a', label: 'Test A' },
+              { value: 'test-b', label: 'Test B' },
+            ]}
+            selectedValue="test-a"
+            onChange={() => {}}
+          />
+        </div>
+
+        <div className="flex items-center gap-2 bg-slate-200">
+          <Input size="lg" />
+
+          <Button width="lg" size="lg">
+            Button
+          </Button>
+
+          <Button width="lg" size="lg">
+            <SquareIcon /> Button
+          </Button>
+
+          <Dropdown
+            size="lg"
+            items={[
+              { value: 'test-a', label: 'Test A' },
+              { value: 'test-b', label: 'Test B' },
+            ]}
+            selectedValue="test-a"
+            onChange={() => {}}
+          />
+
+          <MultiTagInput tags={[]} onTagsChange={() => {}} />
+        </div>
+
+        <div className="flex items-center bg-slate-200">
+          <InputTray size="md">
+            <Input size="lg" />
+
+            <Button width="lg" size="lg">
+              Button
+            </Button>
+
+            <Button width="lg" size="lg">
+              <SquareIcon /> Button
+            </Button>
+
+            <Dropdown
+              size="lg"
+              items={[
+                { value: 'test-a', label: 'Test A' },
+                { value: 'test-b', label: 'Test B' },
+              ]}
+              selectedValue="test-a"
+              onChange={() => {}}
+            />
+          </InputTray>
         </div>
       </div>
 

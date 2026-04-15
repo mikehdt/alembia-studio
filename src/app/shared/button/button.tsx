@@ -56,20 +56,20 @@ interface ButtonProps {
 
 const sizeStyles: Record<ButtonSize, string> = {
   xs: 'py-0.5 [&_svg]:h-4 text-xs',
-  sm: 'py-1 [&_svg]:h-4 text-sm',
-  md: 'py-1.5 [&_svg]:h-4',
-  lg: 'py-2 [&_svg]:h-4',
-  xl: 'py-2.5 [&_svg]:h-4',
-  toolbar: 'py-1 [&_svg]:h-4 [&_svg]:my-0.5',
+  sm: 'py-1 [&_svg]:h-4 [&_svg]:my-0.5 text-sm',
+  md: 'py-1.5 [&_svg]:h-4 [&_svg]:my-0.5 text-sm',
+  lg: 'py-2 [&_svg]:h-4 [&_svg]:my-0.5 text-md',
+  xl: 'py-2.5 [&_svg]:h-4 [&_svg]:my-0.5 text-md',
+  toolbar: 'py-1 [&_svg]:h-4 [&_svg]:my-0.5 text-sm',
 };
 
 const widthStyles: Record<ButtonWidth, string> = {
   xs: 'px-0.5 [&_svg]:w-4',
-  sm: 'px-1 [&_svg]:w-4',
-  md: 'px-1.5 [&_svg]:w-4',
-  lg: 'px-3 [&_svg]:w-4',
-  xl: 'px-6 [&_svg]:w-4',
-  toolbar: 'px-2 [&_svg]:w-4',
+  sm: 'px-1.5 [&_svg]:w-4',
+  md: 'px-2 [&_svg]:w-4',
+  lg: 'px-2.5 [&_svg]:w-4',
+  xl: 'px-3 [&_svg]:w-4',
+  toolbar: 'px-1.5 [&_svg]:w-4',
 };
 
 const colorStyles: Record<

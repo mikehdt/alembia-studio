@@ -277,7 +277,7 @@ const DatasetSectionComponent = ({
                   size="sm"
                   width="md"
                 >
-                  <FolderOpenIcon className="h-3 w-3" />
+                  <FolderOpenIcon />
                   Add Folder
                 </Button>
               )}

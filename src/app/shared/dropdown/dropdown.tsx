@@ -105,10 +105,10 @@ interface DropdownProps<T> {
  * Size styles for dropdown buttons
  */
 const sizeStyles: Record<DropdownSize, string> = {
-  sm: 'px-2 py-1',
-  toolbar: 'px-2 py-1',
-  md: 'px-2.5 py-1.5',
-  lg: 'px-4 py-2',
+  sm: 'px-2 py-1 text-sm',
+  md: 'px-2.5 py-1.5 text-sm',
+  lg: 'px-4 py-2 text-md',
+  toolbar: 'px-2 py-1 text-sm',
 };
 
 /** Minimum width for the popup menu (matches Tailwind min-w-40 = 10rem) */
@@ -323,7 +323,7 @@ function DropdownInternal<T>({
     return (
       <div className={`relative ${fullWidth ? 'w-full' : ''} ${className}`}>
         <div
-          className={`flex items-center rounded-sm border border-slate-300 text-sm whitespace-nowrap dark:border-slate-700 ${
+          className={`flex items-center rounded-sm border border-slate-300 whitespace-nowrap dark:border-slate-700 ${
             fullWidth ? 'w-full' : ''
           } ${sizeStyles[size]} text-slate-500 dark:text-slate-400 ${buttonClassName}`}
           aria-label={ariaLabel}
@@ -344,7 +344,7 @@ function DropdownInternal<T>({
         onClick={handleClick}
         onKeyDown={handleButtonKeyDown}
         onBlur={handleButtonBlur}
-        className={`flex cursor-pointer items-center justify-between rounded-sm text-sm whitespace-nowrap transition-colors ${
+        className={`flex cursor-pointer items-center justify-between rounded-sm whitespace-nowrap transition-colors ${
           variant === 'ghost'
             ? `border border-transparent hover:inset-shadow-xs hover:inset-shadow-white dark:hover:inset-shadow-white/10 ${
                 isOpen

@@ -208,7 +208,7 @@ const ModelSelectSectionComponent = ({
                 <Button
                   onClick={() => handleBrowse(component.type, component.label)}
                   variant="ghost"
-                  size="lg"
+                  size="md"
                   width="md"
                   title="Browse…"
                 >
