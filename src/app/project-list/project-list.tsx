@@ -190,7 +190,7 @@ export const ProjectList = () => {
       <div className="w-full max-w-md">
         {featuredProjects.length > 0 && (
           <div className="mb-8">
-            <h2 className="mb-2 flex items-center border-b border-b-slate-200 pb-1 text-lg font-semibold text-slate-700 dark:border-b-slate-600 dark:text-slate-200">
+            <h2 className="mb-2 flex items-center border-b border-b-slate-200 pb-2 text-lg font-semibold text-slate-700 dark:border-b-slate-600 dark:text-slate-200">
               <span className="mr-2 flex items-center justify-center rounded-full border border-amber-300 bg-amber-200 p-2.5 text-amber-700 inset-shadow-sm inset-shadow-amber-50 dark:border-amber-500 dark:bg-amber-700 dark:text-amber-200 dark:inset-shadow-amber-900">
                 <StarIcon className="h-5 w-5" />
               </span>
@@ -212,7 +212,7 @@ export const ProjectList = () => {
 
         {regularProjects.length > 0 && (
           <div className="mb-8">
-            <h2 className="mb-2 flex items-center border-b border-b-slate-200 pb-1 text-lg font-semibold text-slate-700 dark:border-b-slate-600 dark:text-slate-200">
+            <h2 className="mb-2 flex items-center border-b border-b-slate-200 pb-2 text-lg font-semibold text-slate-700 dark:border-b-slate-600 dark:text-slate-200">
               <span className="mr-2 flex items-center justify-center rounded-full border border-slate-300 bg-slate-200 p-2.5 text-slate-700 inset-shadow-sm inset-shadow-slate-50 dark:border-slate-500 dark:bg-slate-600 dark:text-slate-200 dark:inset-shadow-slate-800">
                 <FolderClosedIcon className="h-5 w-5" />
               </span>

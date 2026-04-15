@@ -10,6 +10,7 @@ import path from 'path';
 
 import { getAllModels } from '@/app/services/auto-tagger';
 import { checkModelStatus } from '@/app/services/auto-tagger/model-manager';
+import { isDownloadActive } from '@/app/services/model-manager/active-downloads';
 import { ALL_TRAINING_MODELS } from '@/app/services/model-manager/registries/training-models';
 import { checkModelFiles } from '@/app/services/model-manager/status-checker';
 
@@ -34,10 +35,13 @@ export async function GET() {
       { status: string; localPath: string | null }
     > = {};
 
-    // Check auto-tagger models
+    // Check auto-tagger models. An active download in this process (e.g.
+    // started from another browser tab) overrides the disk check so
+    // siblings don't see partial bytes and offer Delete/Resume actions.
     for (const model of getAllModels()) {
+      const diskStatus = checkModelStatus(model);
       statuses[model.id] = {
-        status: checkModelStatus(model),
+        status: isDownloadActive(model.id) ? 'downloading' : diskStatus,
         localPath: null, // auto-tagger paths are computed internally
       };
     }
@@ -53,7 +57,8 @@ export async function GET() {
         modelDir = path.join(modelsFolder, 'other');
       }
 
-      const status = checkModelFiles(modelDir, model.files);
+      const diskStatus = checkModelFiles(modelDir, model.files);
+      const status = isDownloadActive(model.id) ? 'downloading' : diskStatus;
       statuses[model.id] = {
         status,
         localPath: status === 'ready' ? modelDir : null,

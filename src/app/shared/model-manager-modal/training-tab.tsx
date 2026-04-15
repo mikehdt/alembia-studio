@@ -197,6 +197,10 @@ function DownloadableModelRow({
 
   const isReady = status === 'ready';
   const isPartial = status === 'partial';
+  // Server reports 'downloading' when another tab in the same Node process
+  // is actively writing this model — suppress local actions to avoid
+  // clobbering the live write.
+  const isDownloadingElsewhere = status === 'downloading' && !hasLiveJob;
 
   const activeFiles =
     model.variants?.find((v) => v.id === selectedVariantId)?.files ??
@@ -292,6 +296,7 @@ function DownloadableModelRow({
 
           {/* Variant selector — only when no job is in flight */}
           {!hasLiveJob &&
+            !isDownloadingElsewhere &&
             model.variants &&
             model.variants.length > 1 &&
             !isReady && (
@@ -314,6 +319,13 @@ function DownloadableModelRow({
               onCancel={cancel}
               onDelete={remove}
             />
+          ) : isDownloadingElsewhere ? (
+            <span
+              className="rounded-full bg-sky-100 px-3 py-1 text-xs text-sky-700 dark:bg-sky-900/50 dark:text-sky-300"
+              title="This model is being downloaded in another tab."
+            >
+              Downloading in another tab…
+            </span>
           ) : isReady ? (
             <DeleteInstalledButton
               sizeBytes={totalSize}

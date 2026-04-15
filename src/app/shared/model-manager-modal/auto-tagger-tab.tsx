@@ -97,6 +97,10 @@ function AutoTaggerModelRow({ model }: { model: ModelInfo }) {
   // A job is "live" if it's currently running, interrupted, failed, or cancelled —
   // i.e. anything except completed (which means the model is now installed).
   const hasLiveJob = job && job.status !== 'completed';
+  // Server reports 'downloading' when another tab in the same Node process
+  // is actively writing this model — suppress local actions to avoid
+  // clobbering the live write.
+  const isDownloadingElsewhere = model.status === 'downloading' && !hasLiveJob;
 
   const handleDownload = () => {
     start({ id: model.id, name: model.name });
@@ -161,6 +165,13 @@ function AutoTaggerModelRow({ model }: { model: ModelInfo }) {
               onCancel={cancel}
               onDelete={remove}
             />
+          ) : isDownloadingElsewhere ? (
+            <span
+              className="rounded-full bg-sky-100 px-3 py-1 text-xs text-sky-700 dark:bg-sky-900/50 dark:text-sky-300"
+              title="This model is being downloaded in another tab."
+            >
+              Downloading in another tab…
+            </span>
           ) : isReady ? (
             <DeleteInstalledButton
               sizeBytes={model.totalSize}

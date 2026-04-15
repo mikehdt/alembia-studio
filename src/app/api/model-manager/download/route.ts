@@ -9,6 +9,10 @@ import fs from 'fs';
 import { NextRequest } from 'next/server';
 import path from 'path';
 
+import {
+  markDownloadActive,
+  markDownloadInactive,
+} from '@/app/services/model-manager/active-downloads';
 import { getModel } from '@/app/services/auto-tagger';
 import { getHfToken } from '@/app/services/config/server-config';
 import { downloadModelFiles } from '@/app/services/model-manager/download-engine';
@@ -95,6 +99,8 @@ export async function POST(request: NextRequest) {
     }
 
     const downloadId = `dl-${Date.now()}-${modelId}`;
+    const activeModelId = downloadable.id;
+    markDownloadActive(activeModelId);
 
     // Create a readable stream for SSE
     const encoder = new TextEncoder();
@@ -171,6 +177,8 @@ export async function POST(request: NextRequest) {
           } catch {
             // already closed
           }
+        } finally {
+          markDownloadInactive(activeModelId);
         }
       },
     });

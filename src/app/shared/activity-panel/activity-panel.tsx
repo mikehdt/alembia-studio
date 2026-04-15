@@ -22,6 +22,7 @@ import {
 } from '@/app/store/jobs';
 import { loadPersistedDownloads } from '@/app/store/jobs/persistence';
 
+import { Button } from '../button';
 import { DownloadJobCard } from './download-job-card';
 import { PendingJobsList } from './pending-jobs-list';
 import { TaggingJobCard } from './tagging-job-card';
@@ -183,13 +184,9 @@ const ActivityPanelComponent = () => {
       {/* Footer with Clear All */}
       {hasClearable && (
         <div className="flex justify-end border-t border-(--border-subtle) px-3 py-1.5">
-          <button
-            type="button"
-            onClick={handleClearAll}
-            className="cursor-pointer text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-          >
+          <Button onClick={handleClearAll} size="xs" width="md" variant="ghost">
             Clear all
-          </button>
+          </Button>
         </div>
       )}
     </div>

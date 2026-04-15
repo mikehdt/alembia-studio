@@ -11,6 +11,7 @@ import {
   getModelTotalSize,
 } from '@/app/services/auto-tagger';
 import { checkModelStatus } from '@/app/services/auto-tagger/model-manager';
+import { isDownloadActive } from '@/app/services/model-manager/active-downloads';
 
 export async function GET() {
   try {
@@ -21,22 +22,27 @@ export async function GET() {
       providerType: provider.providerType,
     }));
 
-    const models = getAllModels().map((model) => ({
-      id: model.id,
-      name: model.name,
-      provider: model.provider,
-      description: model.description,
-      isDefault: model.isDefault,
-      totalSize: getModelTotalSize(model),
-      // Field renamed from vramEstimate → memoryEstimate to reflect that
-      // llama-cpp models on CPU builds load into RAM, not VRAM. The UI
-      // picks the label via `runtime`.
-      memoryEstimate: model.vramEstimate,
-      runtime: model.runtime,
-      supportsVideo: model.supportsVideo,
-      videoDefaults: model.videoDefaults,
-      status: checkModelStatus(model),
-    }));
+    const models = getAllModels().map((model) => {
+      const diskStatus = checkModelStatus(model);
+      return {
+        id: model.id,
+        name: model.name,
+        provider: model.provider,
+        description: model.description,
+        isDefault: model.isDefault,
+        totalSize: getModelTotalSize(model),
+        // Field renamed from vramEstimate → memoryEstimate to reflect that
+        // llama-cpp models on CPU builds load into RAM, not VRAM. The UI
+        // picks the label via `runtime`.
+        memoryEstimate: model.vramEstimate,
+        runtime: model.runtime,
+        supportsVideo: model.supportsVideo,
+        videoDefaults: model.videoDefaults,
+        // If another tab in the same process is actively writing this
+        // model, surface that so the second tab can suppress actions.
+        status: isDownloadActive(model.id) ? 'downloading' : diskStatus,
+      };
+    });
 
     return NextResponse.json({ providers, models });
   } catch (error) {
