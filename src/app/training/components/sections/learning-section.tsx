@@ -5,6 +5,7 @@ import {
   SCHEDULER_OPTIONS,
   type TrainingDefaults,
 } from '@/app/services/training/models';
+import { Checkbox } from '@/app/shared/checkbox';
 import { CollapsibleSection } from '@/app/shared/collapsible-section';
 import { Dropdown, type DropdownItem } from '@/app/shared/dropdown';
 import { Input } from '@/app/shared/input/input';
@@ -92,6 +93,9 @@ type LearningSectionProps = {
   numRestarts: number;
   weightDecay: number;
   maxGradNorm: number;
+  trainTextEncoder: boolean;
+  backboneLR: number;
+  textEncoderLR: number;
   calculatedSteps: number;
   calculatedEpochs: number;
   totalEffective: number;
@@ -119,6 +123,9 @@ const LearningSectionComponent = ({
   numRestarts,
   weightDecay,
   maxGradNorm,
+  trainTextEncoder,
+  backboneLR,
+  textEncoderLR,
   calculatedSteps,
   calculatedEpochs,
   totalEffective,
@@ -514,6 +521,68 @@ const LearningSectionComponent = ({
             />
             <p className="mt-1 text-xs text-slate-400">
               Clip gradients to keep training stable (0 = disabled, 1.0 is standard)
+            </p>
+          </div>
+        )}
+
+        {/* Train Text Encoder */}
+        {visibleFields.has('trainTextEncoder' satisfies keyof FormState) && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              isSelected={trainTextEncoder}
+              onChange={() =>
+                onFieldChange('trainTextEncoder', !trainTextEncoder)
+              }
+              label="Train Text Encoder"
+              size="sm"
+            />
+            <span className="text-xs text-slate-400">
+              Also train the text encoder alongside the backbone
+            </span>
+          </div>
+        )}
+
+        {/* Backbone Learning Rate */}
+        {visibleFields.has('backboneLR' satisfies keyof FormState) && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
+              Backbone Learning Rate
+            </label>
+            <Input
+              type="text"
+              value={backboneLR}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val) && val >= 0) onFieldChange('backboneLR', val);
+              }}
+              placeholder={String(defaults.backboneLR)}
+              className="w-32 tabular-nums"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Override the main LR for the backbone (0 = use main LR)
+            </p>
+          </div>
+        )}
+
+        {/* Text Encoder Learning Rate — only visible when trainTextEncoder is on */}
+        {visibleFields.has('textEncoderLR' satisfies keyof FormState) && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
+              Text Encoder Learning Rate
+            </label>
+            <Input
+              type="text"
+              value={textEncoderLR}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val) && val >= 0)
+                  onFieldChange('textEncoderLR', val);
+              }}
+              placeholder={String(defaults.textEncoderLR)}
+              className="w-32 tabular-nums"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Override the main LR for the text encoder (0 = use main LR)
             </p>
           </div>
         )}

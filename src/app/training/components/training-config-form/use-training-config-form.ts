@@ -81,6 +81,9 @@ export type FormState = {
   numRestarts: number;
   weightDecay: number;
   maxGradNorm: number;
+  trainTextEncoder: boolean;
+  backboneLR: number;
+  textEncoderLR: number;
 
   // LoRA Shape
   networkType: 'lora' | 'lokr';
@@ -206,6 +209,9 @@ function defaultsToFormState(
     numRestarts: defaults.numRestarts,
     weightDecay: defaults.weightDecay,
     maxGradNorm: defaults.maxGradNorm,
+    trainTextEncoder: defaults.trainTextEncoder,
+    backboneLR: defaults.backboneLR,
+    textEncoderLR: defaults.textEncoderLR,
     networkType: 'lora',
     networkDim: defaults.networkDim,
     networkAlpha: defaults.networkAlpha,
@@ -312,6 +318,9 @@ function formReducer(state: FormState, action: FormAction): FormState {
             numRestarts: defaults.numRestarts,
             weightDecay: defaults.weightDecay,
             maxGradNorm: defaults.maxGradNorm,
+            trainTextEncoder: defaults.trainTextEncoder,
+            backboneLR: defaults.backboneLR,
+            textEncoderLR: defaults.textEncoderLR,
           };
         case 'loraShape':
           return {
@@ -598,7 +607,10 @@ export function useTrainingConfigForm() {
         state.warmupSteps !== defaults.warmupSteps ||
         state.numRestarts !== defaults.numRestarts ||
         state.weightDecay !== defaults.weightDecay ||
-        state.maxGradNorm !== defaults.maxGradNorm,
+        state.maxGradNorm !== defaults.maxGradNorm ||
+        state.trainTextEncoder !== defaults.trainTextEncoder ||
+        state.backboneLR !== defaults.backboneLR ||
+        state.textEncoderLR !== defaults.textEncoderLR,
       loraShape:
         state.networkDim !== defaults.networkDim ||
         state.networkAlpha !== defaults.networkAlpha ||

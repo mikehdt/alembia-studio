@@ -246,7 +246,9 @@ class AiToolkitProvider(TrainingProvider):
                                 "gradient_accumulation_steps", 1
                             ),
                             "train_unet": True,
-                            "train_text_encoder": False,
+                            "train_text_encoder": hp.get(
+                                "train_text_encoder", False
+                            ),
                             "gradient_checkpointing": True,
                             "noise_scheduler": defaults.get(
                                 "noise_scheduler", "flowmatch"
@@ -255,6 +257,17 @@ class AiToolkitProvider(TrainingProvider):
                                 "optimizer", defaults.get("optimizer", "adamw8bit")
                             ),
                             "lr": hp.get("lr", defaults.get("lr", 1e-4)),
+                            # Per-component LR overrides — 0 means "use main LR"
+                            **(
+                                {"lr_unet": hp["backbone_lr"]}
+                                if hp.get("backbone_lr", 0) > 0
+                                else {}
+                            ),
+                            **(
+                                {"lr_text_encoder": hp["text_encoder_lr"]}
+                                if hp.get("text_encoder_lr", 0) > 0
+                                else {}
+                            ),
                             "dtype": hp.get(
                                 "mixed_precision", defaults.get("dtype", "bf16")
                             ),

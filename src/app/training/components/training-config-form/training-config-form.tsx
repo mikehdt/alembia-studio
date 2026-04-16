@@ -66,8 +66,10 @@ const TrainingConfigFormComponent = ({
     // Restarts only apply to cosine_with_restarts
     if (state.scheduler !== 'cosine_with_restarts')
       fields.delete('numRestarts');
+    // TE learning rate only applies when training the text encoder
+    if (!state.trainTextEncoder) fields.delete('textEncoderLR');
     return fields;
-  }, [viewMode, state.modelId, state.scheduler]);
+  }, [viewMode, state.modelId, state.scheduler, state.trainTextEncoder]);
 
   // Compute hidden changes per section
   const hiddenChanges = useMemo(() => {
@@ -113,6 +115,9 @@ const TrainingConfigFormComponent = ({
       numRestarts: state.numRestarts,
       weightDecay: state.weightDecay,
       maxGradNorm: state.maxGradNorm,
+      trainTextEncoder: state.trainTextEncoder,
+      backboneLR: state.backboneLR,
+      textEncoderLR: state.textEncoderLR,
       batchSize: state.batchSize,
       networkType: state.networkType,
       networkDim: state.networkDim,
@@ -196,6 +201,9 @@ const TrainingConfigFormComponent = ({
             numRestarts={state.numRestarts}
             weightDecay={state.weightDecay}
             maxGradNorm={state.maxGradNorm}
+            trainTextEncoder={state.trainTextEncoder}
+            backboneLR={state.backboneLR}
+            textEncoderLR={state.textEncoderLR}
             calculatedSteps={calculatedSteps}
             calculatedEpochs={calculatedEpochs}
             totalEffective={datasetStats.totalEffective}
@@ -282,7 +290,7 @@ const TrainingConfigFormComponent = ({
         </div>
 
         {/* Summary column */}
-        <div className="lg:sticky lg:top-24 lg:w-full lg:max-w-80">
+        <div className="lg:sticky lg:top-24 lg:w-full lg:max-w-60 xl:max-w-100">
           <TrainingSummary
             outputName={state.outputName}
             currentModel={currentModel}

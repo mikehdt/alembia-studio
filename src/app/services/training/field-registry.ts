@@ -85,6 +85,21 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     group: 'learning',
     defaultKey: 'maxGradNorm',
   },
+  trainTextEncoder: {
+    tier: 'advanced',
+    group: 'learning',
+    defaultKey: 'trainTextEncoder',
+  },
+  backboneLR: {
+    tier: 'advanced',
+    group: 'learning',
+    defaultKey: 'backboneLR',
+  },
+  textEncoderLR: {
+    tier: 'advanced',
+    group: 'learning',
+    defaultKey: 'textEncoderLR',
+  },
 
   // LoRA Shape
   networkDim: {
