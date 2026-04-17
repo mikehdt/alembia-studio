@@ -5,6 +5,7 @@ import {
   EyeOffIcon,
   FolderIcon,
   FolderOpenIcon,
+  HomeIcon,
   PlusIcon,
   XIcon,
 } from 'lucide-react';
@@ -223,6 +224,9 @@ const DatasetSectionComponent = ({
                       }
                       onSetRepeats={onSetFolderRepeats}
                       onUpdateAugment={onUpdateFolderAugment}
+                      displayName={
+                        folder.name === 'Root' ? ds.folderName : undefined
+                      }
                     />
                   ))}
                 </div>
@@ -335,6 +339,7 @@ function FolderRow({
 }: FolderRowProps) {
   const isDisabled = effectiveRepeats === 0;
   const label = displayName ?? folderName;
+  const isRoot = folderName === 'Root';
 
   return (
     <div className={isDisabled ? 'opacity-40' : undefined}>
@@ -375,7 +380,11 @@ function FolderRow({
             className="flex min-w-0 items-center truncate"
             title={label}
           >
-            <FolderOpenIcon className="mr-2 h-4 w-4 shrink-0 text-slate-400 dark:text-slate-600" />
+            {isRoot ? (
+              <HomeIcon className="mr-2 h-4 w-4 shrink-0 text-slate-400 dark:text-slate-600" />
+            ) : (
+              <FolderOpenIcon className="mr-2 h-4 w-4 shrink-0 text-slate-400 dark:text-slate-600" />
+            )}
             <span className="truncate">{label}</span>
           </span>
         </div>
@@ -519,6 +528,45 @@ function FolderRow({
               label="Flip vertically"
               size="sm"
             />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
+              LoRA Weight
+            </label>
+            <Input
+              type="text"
+              value={augmentation.loraWeight}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val) && val >= 0) {
+                  onUpdateAugment(datasetIndex, folderName, {
+                    loraWeight: val,
+                  });
+                }
+              }}
+              className="w-20 tabular-nums"
+              size="sm"
+            />
+            <p className="mt-0.5 text-xs text-slate-400">
+              Scales this folder&apos;s contribution (1 = standard)
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              isSelected={augmentation.isRegularization}
+              onChange={() =>
+                onUpdateAugment(datasetIndex, folderName, {
+                  isRegularization: !augmentation.isRegularization,
+                })
+              }
+              label="Regularisation set"
+              size="sm"
+            />
+            <span className="text-xs text-slate-400">
+              Treat as class/regularisation data, not training data
+            </span>
           </div>
         </div>
       )}

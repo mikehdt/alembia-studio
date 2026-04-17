@@ -51,7 +51,15 @@ export type TrainingDefaults = {
   networkDim: number;
   networkAlpha: number;
   resolution: number[];
-  mixedPrecision: 'bf16' | 'fp16' | 'fp8';
+  mixedPrecision: 'bf16' | 'fp16';
+  /** Transformer weight quantization for VRAM savings. 'none' keeps full precision. */
+  transformerQuantization: 'none' | 'float8';
+  /** Text encoder weight quantization. */
+  textEncoderQuantization: 'none' | 'float8';
+  /** Pre-compute text encoder embeddings once and reuse (saves VRAM + time). */
+  cacheTextEmbeddings: boolean;
+  /** Drop the text encoder from VRAM after caching embeddings. */
+  unloadTextEncoder: boolean;
   gradientAccumulationSteps: number;
   gradientCheckpointing: boolean;
   cacheLatents: boolean;
@@ -64,13 +72,24 @@ export type TrainingDefaults = {
   captionShuffling: boolean;
   flipAugment: boolean;
   flipVAugment: boolean;
+  loraWeight: number;
+  isRegularization: boolean;
   seed: number;
   saveFormat: 'fp16' | 'bf16' | 'fp32';
   saveEvery: number;
-  saveOnlyLast: boolean;
+  /** How many recent checkpoints to retain. 0 = keep all. */
+  maxSavesToKeep: number;
   trainTextEncoder: boolean;
   backboneLR: number;
   textEncoderLR: number;
+  /** Use exponential moving average weights during training. */
+  ema: boolean;
+  /** Loss function for diffusion training. */
+  lossType: 'mse' | 'huber' | 'smooth_l1';
+  /** Timestep sampling schedule for flow-matching models (sigmoid/linear/shift). */
+  timestepType: string;
+  /** Bias the timestep distribution towards earlier/later/balanced training. */
+  timestepBias: 'balanced' | 'earlier' | 'later';
   sampleEvery: number;
   noiseScheduler: string;
   guidanceScale: number;
@@ -139,10 +158,20 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       seed: -1,
       saveFormat: 'fp16',
       saveEvery: 1,
-      saveOnlyLast: false,
+      maxSavesToKeep: 4,
       trainTextEncoder: false,
       backboneLR: 0,
       textEncoderLR: 0,
+      transformerQuantization: 'float8',
+      textEncoderQuantization: 'float8',
+      cacheTextEmbeddings: false,
+      unloadTextEncoder: false,
+      loraWeight: 1,
+      isRegularization: false,
+      ema: false,
+      lossType: 'mse',
+      timestepType: 'sigmoid',
+      timestepBias: 'balanced',
       sampleEvery: 250,
       noiseScheduler: 'flowmatch',
       guidanceScale: 4,
@@ -214,10 +243,20 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       seed: -1,
       saveFormat: 'fp16',
       saveEvery: 1,
-      saveOnlyLast: false,
+      maxSavesToKeep: 4,
       trainTextEncoder: false,
       backboneLR: 0,
       textEncoderLR: 0,
+      transformerQuantization: 'float8',
+      textEncoderQuantization: 'float8',
+      cacheTextEmbeddings: false,
+      unloadTextEncoder: false,
+      loraWeight: 1,
+      isRegularization: false,
+      ema: false,
+      lossType: 'mse',
+      timestepType: 'sigmoid',
+      timestepBias: 'balanced',
       sampleEvery: 250,
       noiseScheduler: 'flowmatch',
       guidanceScale: 4,
@@ -289,10 +328,20 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       seed: -1,
       saveFormat: 'fp16',
       saveEvery: 1,
-      saveOnlyLast: false,
+      maxSavesToKeep: 4,
       trainTextEncoder: false,
       backboneLR: 0,
       textEncoderLR: 0,
+      transformerQuantization: 'float8',
+      textEncoderQuantization: 'float8',
+      cacheTextEmbeddings: false,
+      unloadTextEncoder: false,
+      loraWeight: 1,
+      isRegularization: false,
+      ema: false,
+      lossType: 'mse',
+      timestepType: 'sigmoid',
+      timestepBias: 'balanced',
       sampleEvery: 250,
       noiseScheduler: 'flowmatch',
       guidanceScale: 1,
@@ -325,6 +374,12 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       'Lower alpha (8) helps prevent overfitting',
     ],
     availableResolutions: [768, 1024, 1280, 1536, 1920],
+    hiddenFields: [
+      'transformerQuantization',
+      'textEncoderQuantization',
+      'timestepType',
+      'timestepBias',
+    ],
     defaults: {
       steps: 3000,
       epochs: 20,
@@ -352,10 +407,20 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       seed: -1,
       saveFormat: 'fp16',
       saveEvery: 1,
-      saveOnlyLast: false,
+      maxSavesToKeep: 4,
       trainTextEncoder: true,
       backboneLR: 0,
       textEncoderLR: 0,
+      transformerQuantization: 'none',
+      textEncoderQuantization: 'none',
+      cacheTextEmbeddings: false,
+      unloadTextEncoder: false,
+      loraWeight: 1,
+      isRegularization: false,
+      ema: false,
+      lossType: 'mse',
+      timestepType: 'sigmoid',
+      timestepBias: 'balanced',
       sampleEvery: 500,
       noiseScheduler: 'ddpm',
       guidanceScale: 7,
@@ -389,6 +454,12 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       'Strong at anime and illustrative styles',
     ],
     availableResolutions: [768, 1024, 1280, 1536, 1920],
+    hiddenFields: [
+      'transformerQuantization',
+      'textEncoderQuantization',
+      'timestepType',
+      'timestepBias',
+    ],
     defaults: {
       steps: 3000,
       epochs: 20,
@@ -416,10 +487,20 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       seed: -1,
       saveFormat: 'fp16',
       saveEvery: 1,
-      saveOnlyLast: false,
+      maxSavesToKeep: 4,
       trainTextEncoder: true,
       backboneLR: 0,
       textEncoderLR: 0,
+      transformerQuantization: 'float8',
+      textEncoderQuantization: 'float8',
+      cacheTextEmbeddings: false,
+      unloadTextEncoder: false,
+      loraWeight: 1,
+      isRegularization: false,
+      ema: false,
+      lossType: 'mse',
+      timestepType: 'sigmoid',
+      timestepBias: 'balanced',
       sampleEvery: 500,
       noiseScheduler: 'ddpm',
       guidanceScale: 7,
@@ -453,6 +534,12 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       'Good for anime and character training',
     ],
     availableResolutions: [768, 1024, 1280, 1536, 1920],
+    hiddenFields: [
+      'transformerQuantization',
+      'textEncoderQuantization',
+      'timestepType',
+      'timestepBias',
+    ],
     defaults: {
       steps: 3000,
       epochs: 20,
@@ -480,10 +567,20 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       seed: -1,
       saveFormat: 'fp16',
       saveEvery: 1,
-      saveOnlyLast: false,
+      maxSavesToKeep: 4,
       trainTextEncoder: true,
       backboneLR: 0,
       textEncoderLR: 0,
+      transformerQuantization: 'float8',
+      textEncoderQuantization: 'float8',
+      cacheTextEmbeddings: false,
+      unloadTextEncoder: false,
+      loraWeight: 1,
+      isRegularization: false,
+      ema: false,
+      lossType: 'mse',
+      timestepType: 'sigmoid',
+      timestepBias: 'balanced',
       sampleEvery: 500,
       noiseScheduler: 'ddpm',
       guidanceScale: 7,
@@ -538,10 +635,20 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       seed: -1,
       saveFormat: 'fp16',
       saveEvery: 1,
-      saveOnlyLast: false,
+      maxSavesToKeep: 4,
       trainTextEncoder: false,
       backboneLR: 0,
       textEncoderLR: 0,
+      transformerQuantization: 'float8',
+      textEncoderQuantization: 'float8',
+      cacheTextEmbeddings: false,
+      unloadTextEncoder: false,
+      loraWeight: 1,
+      isRegularization: false,
+      ema: false,
+      lossType: 'mse',
+      timestepType: 'sigmoid',
+      timestepBias: 'balanced',
       sampleEvery: 250,
       noiseScheduler: 'flowmatch',
       guidanceScale: 4,
@@ -590,10 +697,20 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       seed: -1,
       saveFormat: 'fp16',
       saveEvery: 1,
-      saveOnlyLast: false,
+      maxSavesToKeep: 4,
       trainTextEncoder: false,
       backboneLR: 0,
       textEncoderLR: 0,
+      transformerQuantization: 'float8',
+      textEncoderQuantization: 'float8',
+      cacheTextEmbeddings: false,
+      unloadTextEncoder: false,
+      loraWeight: 1,
+      isRegularization: false,
+      ema: false,
+      lossType: 'mse',
+      timestepType: 'sigmoid',
+      timestepBias: 'balanced',
       sampleEvery: 500,
       noiseScheduler: 'flowmatch',
       guidanceScale: 4,
@@ -642,10 +759,20 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       seed: -1,
       saveFormat: 'fp16',
       saveEvery: 1,
-      saveOnlyLast: false,
+      maxSavesToKeep: 4,
       trainTextEncoder: false,
       backboneLR: 0,
       textEncoderLR: 0,
+      transformerQuantization: 'float8',
+      textEncoderQuantization: 'float8',
+      cacheTextEmbeddings: false,
+      unloadTextEncoder: false,
+      loraWeight: 1,
+      isRegularization: false,
+      ema: false,
+      lossType: 'mse',
+      timestepType: 'sigmoid',
+      timestepBias: 'balanced',
       sampleEvery: 500,
       noiseScheduler: 'flowmatch',
       guidanceScale: 4,
@@ -694,10 +821,20 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       seed: -1,
       saveFormat: 'fp16',
       saveEvery: 1,
-      saveOnlyLast: false,
+      maxSavesToKeep: 4,
       trainTextEncoder: false,
       backboneLR: 0,
       textEncoderLR: 0,
+      transformerQuantization: 'float8',
+      textEncoderQuantization: 'float8',
+      cacheTextEmbeddings: false,
+      unloadTextEncoder: false,
+      loraWeight: 1,
+      isRegularization: false,
+      ema: false,
+      lossType: 'mse',
+      timestepType: 'sigmoid',
+      timestepBias: 'balanced',
       sampleEvery: 500,
       noiseScheduler: 'flowmatch',
       guidanceScale: 4,

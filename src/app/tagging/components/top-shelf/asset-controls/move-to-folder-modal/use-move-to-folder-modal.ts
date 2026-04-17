@@ -139,7 +139,7 @@ export const useMoveToFolderModal = ({
     // Root option
     options.push({
       value: DESTINATION_ROOT,
-      label: 'Root',
+      label: projectInfo.projectFolderName ?? 'Root',
       count: rootAssetCount,
       isSource: DESTINATION_ROOT in sourceFolderSummary,
       disabled:
@@ -188,6 +188,7 @@ export const useMoveToFolderModal = ({
     sourceFolderSummary,
     resolvedAssetIds,
     allImages,
+    projectInfo.projectFolderName,
   ]);
 
   // Resolved destination folder name (null = root)

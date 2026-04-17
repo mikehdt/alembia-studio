@@ -162,3 +162,85 @@ body {
 .lucide {
   stroke-width: 1.5px;
 }
+
+/* Shared slider (see src/app/shared/slider/slider.tsx).
+   Thumb border uses currentColor so the accent colour can be driven via a
+   Tailwind text-* class on the input. Height is driven by --slider-thumb-size. */
+.app-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  width: 100%;
+  height: var(--slider-thumb-size, 16px);
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+/* Opt out of the global input:focus ring/border — sliders draw their own
+   focus indicator on the thumb. */
+.app-slider:focus,
+.app-slider:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border-color: transparent;
+}
+.app-slider::-webkit-slider-runnable-track {
+  background: transparent;
+  height: var(--slider-thumb-size, 16px);
+  border: none;
+}
+.app-slider::-moz-range-track {
+  background: transparent;
+  height: var(--slider-thumb-size, 16px);
+  border: none;
+}
+.app-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--slider-thumb-size, 16px);
+  height: var(--slider-thumb-size, 16px);
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 2px solid currentColor;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  margin-top: 0;
+  cursor: pointer;
+  transition: transform 0.08s ease-out;
+}
+.app-slider::-moz-range-thumb {
+  width: var(--slider-thumb-size, 16px);
+  height: var(--slider-thumb-size, 16px);
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 2px solid currentColor;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: transform 0.08s ease-out;
+}
+.app-slider:hover:not(:disabled)::-webkit-slider-thumb {
+  transform: scale(1.08);
+}
+.app-slider:hover:not(:disabled)::-moz-range-thumb {
+  transform: scale(1.08);
+}
+.app-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, currentColor 35%, transparent),
+    0 1px 2px rgba(0, 0, 0, 0.18);
+}
+.app-slider:focus-visible::-moz-range-thumb {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, currentColor 35%, transparent),
+    0 1px 2px rgba(0, 0, 0, 0.18);
+}
+.app-slider:disabled {
+  cursor: not-allowed;
+}
+html.dark .app-slider::-webkit-slider-thumb,
+html.dark .app-slider::-moz-range-thumb {
+  background: var(--color-slate-100);
+}

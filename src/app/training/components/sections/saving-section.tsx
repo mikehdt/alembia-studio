@@ -22,7 +22,7 @@ type SavingSectionProps = {
   saveEveryEpochs: number;
   saveEverySteps: number;
   saveFormat: 'fp16' | 'bf16' | 'fp32';
-  saveOnlyLast: boolean;
+  maxSavesToKeep: number;
   saveState: boolean;
   resumeState: string;
   visibleFields: Set<string>;
@@ -48,7 +48,7 @@ const SavingSectionComponent = ({
   saveEveryEpochs,
   saveEverySteps,
   saveFormat,
-  saveOnlyLast,
+  maxSavesToKeep,
   saveState,
   resumeState,
   visibleFields,
@@ -179,20 +179,27 @@ const SavingSectionComponent = ({
                 </div>
 
                 {visibleFields.has(
-                  'saveOnlyLast' satisfies keyof FormState,
+                  'maxSavesToKeep' satisfies keyof FormState,
                 ) && (
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      isSelected={saveOnlyLast}
-                      onChange={() =>
-                        onFieldChange('saveOnlyLast', !saveOnlyLast)
-                      }
-                      label="Keep only the last checkpoint"
-                      size="sm"
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
+                      Max Saves to Keep
+                    </label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={maxSavesToKeep}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (!isNaN(val) && val >= 0)
+                          onFieldChange('maxSavesToKeep', val);
+                      }}
+                      className="w-20"
                     />
-                    <span className="text-xs text-slate-400">
-                      Delete older saves as new ones are written
-                    </span>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Rolling window of recent checkpoints. 1 = only the latest,
+                      0 = keep all.
+                    </p>
                   </div>
                 )}
               </div>

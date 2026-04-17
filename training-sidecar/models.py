@@ -26,6 +26,10 @@ class JobStatus(str, Enum):
 class DatasetEntry(BaseModel):
     path: str
     num_repeats: int = 1
+    # Per-folder overrides — defaults preserve prior behaviour when the Node
+    # side doesn't supply them.
+    lora_weight: float = 1.0
+    is_regularization: bool = False
 
 
 class StartJobRequest(BaseModel):

@@ -30,6 +30,10 @@ export type FolderAugmentation = {
   keepTokens: number;
   flipAugment: boolean;
   flipVAugment: boolean;
+  /** Weight applied to this folder's LoRA contribution during training. */
+  loraWeight: number;
+  /** When true, this folder is treated as regularisation/class data, not training data. */
+  isRegularization: boolean;
 };
 
 export type DatasetFolder = {
@@ -84,17 +88,30 @@ export type FormState = {
   trainTextEncoder: boolean;
   backboneLR: number;
   textEncoderLR: number;
+  ema: boolean;
+  lossType: 'mse' | 'huber' | 'smooth_l1';
+  timestepType: string;
+  timestepBias: 'balanced' | 'earlier' | 'later';
 
   // LoRA Shape
   networkType: 'lora' | 'lokr';
   networkDim: number;
   networkAlpha: number;
+  /**
+   * UI-only link between Rank and Alpha. When true, editing either field
+   * updates the other. Persisted so the preference sticks across sessions.
+   */
+  networkDimAlphaLinked: boolean;
   networkDropout: number;
 
   // Performance
   batchSize: number;
   resolution: number[];
-  mixedPrecision: 'bf16' | 'fp16' | 'fp8';
+  mixedPrecision: 'bf16' | 'fp16';
+  transformerQuantization: 'none' | 'float8';
+  textEncoderQuantization: 'none' | 'float8';
+  cacheTextEmbeddings: boolean;
+  unloadTextEncoder: boolean;
   gradientAccumulationSteps: number;
   gradientCheckpointing: boolean;
   cacheLatents: boolean;
@@ -116,7 +133,7 @@ export type FormState = {
   saveEveryEpochs: number;
   saveEverySteps: number;
   saveFormat: 'fp16' | 'bf16' | 'fp32';
-  saveOnlyLast: boolean;
+  maxSavesToKeep: number;
   saveState: boolean;
   resumeState: string;
 };
@@ -186,6 +203,8 @@ export function defaultFolderAugmentation(
     keepTokens: defaults.keepTokens,
     flipAugment: defaults.flipAugment,
     flipVAugment: defaults.flipVAugment,
+    loraWeight: defaults.loraWeight,
+    isRegularization: defaults.isRegularization,
   };
 }
 
@@ -212,13 +231,22 @@ function defaultsToFormState(
     trainTextEncoder: defaults.trainTextEncoder,
     backboneLR: defaults.backboneLR,
     textEncoderLR: defaults.textEncoderLR,
+    ema: defaults.ema,
+    lossType: defaults.lossType,
+    timestepType: defaults.timestepType,
+    timestepBias: defaults.timestepBias,
     networkType: 'lora',
     networkDim: defaults.networkDim,
     networkAlpha: defaults.networkAlpha,
+    networkDimAlphaLinked: defaults.networkDim === defaults.networkAlpha,
     networkDropout: defaults.networkDropout,
     batchSize: defaults.batchSize,
     resolution: defaults.resolution,
     mixedPrecision: defaults.mixedPrecision,
+    transformerQuantization: defaults.transformerQuantization,
+    textEncoderQuantization: defaults.textEncoderQuantization,
+    cacheTextEmbeddings: defaults.cacheTextEmbeddings,
+    unloadTextEncoder: defaults.unloadTextEncoder,
     gradientAccumulationSteps: defaults.gradientAccumulationSteps,
     gradientCheckpointing: defaults.gradientCheckpointing,
     cacheLatents: defaults.cacheLatents,
@@ -236,7 +264,7 @@ function defaultsToFormState(
     saveEveryEpochs: defaults.saveEvery,
     saveEverySteps: 250,
     saveFormat: defaults.saveFormat,
-    saveOnlyLast: defaults.saveOnlyLast,
+    maxSavesToKeep: defaults.maxSavesToKeep,
     saveState: false,
     resumeState: '',
   };
@@ -321,6 +349,10 @@ function formReducer(state: FormState, action: FormAction): FormState {
             trainTextEncoder: defaults.trainTextEncoder,
             backboneLR: defaults.backboneLR,
             textEncoderLR: defaults.textEncoderLR,
+            ema: defaults.ema,
+            lossType: defaults.lossType,
+            timestepType: defaults.timestepType,
+            timestepBias: defaults.timestepBias,
           };
         case 'loraShape':
           return {
@@ -328,6 +360,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
             networkType: 'lora',
             networkDim: defaults.networkDim,
             networkAlpha: defaults.networkAlpha,
+            networkDimAlphaLinked: defaults.networkDim === defaults.networkAlpha,
             networkDropout: defaults.networkDropout,
           };
         case 'performance':
@@ -335,6 +368,10 @@ function formReducer(state: FormState, action: FormAction): FormState {
             ...state,
             resolution: defaults.resolution,
             mixedPrecision: defaults.mixedPrecision,
+            transformerQuantization: defaults.transformerQuantization,
+            textEncoderQuantization: defaults.textEncoderQuantization,
+            cacheTextEmbeddings: defaults.cacheTextEmbeddings,
+            unloadTextEncoder: defaults.unloadTextEncoder,
             gradientAccumulationSteps: defaults.gradientAccumulationSteps,
             gradientCheckpointing: defaults.gradientCheckpointing,
             cacheLatents: defaults.cacheLatents,
@@ -360,7 +397,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
             saveEveryEpochs: defaults.saveEvery,
             saveEverySteps: 250,
             saveFormat: defaults.saveFormat,
-            saveOnlyLast: defaults.saveOnlyLast,
+            maxSavesToKeep: defaults.maxSavesToKeep,
             saveState: false,
             resumeState: '',
           };
@@ -590,7 +627,9 @@ export function useTrainingConfigForm() {
       f.captionDropoutRate !== baseAugment.captionDropoutRate ||
       f.keepTokens !== baseAugment.keepTokens ||
       f.flipAugment !== baseAugment.flipAugment ||
-      f.flipVAugment !== baseAugment.flipVAugment;
+      f.flipVAugment !== baseAugment.flipVAugment ||
+      f.loraWeight !== baseAugment.loraWeight ||
+      f.isRegularization !== baseAugment.isRegularization;
     const anyFolderCustomised =
       state.datasets.some((ds) => ds.folders.some(folderCustomised)) ||
       state.extraFolders.some(folderCustomised);
@@ -610,7 +649,11 @@ export function useTrainingConfigForm() {
         state.maxGradNorm !== defaults.maxGradNorm ||
         state.trainTextEncoder !== defaults.trainTextEncoder ||
         state.backboneLR !== defaults.backboneLR ||
-        state.textEncoderLR !== defaults.textEncoderLR,
+        state.textEncoderLR !== defaults.textEncoderLR ||
+        state.ema !== defaults.ema ||
+        state.lossType !== defaults.lossType ||
+        state.timestepType !== defaults.timestepType ||
+        state.timestepBias !== defaults.timestepBias,
       loraShape:
         state.networkDim !== defaults.networkDim ||
         state.networkAlpha !== defaults.networkAlpha ||
@@ -618,6 +661,10 @@ export function useTrainingConfigForm() {
         state.networkDropout !== defaults.networkDropout,
       performance:
         state.mixedPrecision !== defaults.mixedPrecision ||
+        state.transformerQuantization !== defaults.transformerQuantization ||
+        state.textEncoderQuantization !== defaults.textEncoderQuantization ||
+        state.cacheTextEmbeddings !== defaults.cacheTextEmbeddings ||
+        state.unloadTextEncoder !== defaults.unloadTextEncoder ||
         state.gradientAccumulationSteps !==
           defaults.gradientAccumulationSteps ||
         state.gradientCheckpointing !== defaults.gradientCheckpointing ||

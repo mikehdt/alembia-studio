@@ -216,11 +216,13 @@ class AiToolkitProvider(TrainingProvider):
                                 hp.get("epochs", 10),
                                 hp.get("steps", defaults.get("steps", 2000)),
                             ),
-                            # save_only_last → keep exactly 1 step checkpoint;
-                            # otherwise keep a rolling window of 4.
-                            "max_step_saves_to_keep": 1
-                            if hp.get("save_only_last", False)
-                            else 4,
+                            # Rolling checkpoint window. 0 means "keep all" —
+                            # ai-toolkit uses a large sentinel for that.
+                            "max_step_saves_to_keep": (
+                                hp["max_saves_to_keep"]
+                                if hp.get("max_saves_to_keep", 4) > 0
+                                else 10_000
+                            ),
                             # Full training state snapshot so runs can resume.
                             "save_state": hp.get("save_state", False),
                         },
@@ -236,6 +238,8 @@ class AiToolkitProvider(TrainingProvider):
                                 ),
                                 "num_repeats": ds.num_repeats,
                                 "keep_tokens": hp.get("keep_tokens", 0),
+                                "network_weight": ds.lora_weight,
+                                "is_reg": ds.is_regularization,
                             }
                             for ds in request.datasets
                         ],
@@ -272,6 +276,22 @@ class AiToolkitProvider(TrainingProvider):
                                 "mixed_precision", defaults.get("dtype", "bf16")
                             ),
                             "max_grad_norm": hp.get("max_grad_norm", 1.0),
+                            # EMA — ai-toolkit expects an ema_config block
+                            **(
+                                {"ema_config": {"use_ema": True, "ema_decay": 0.99}}
+                                if hp.get("ema", False)
+                                else {}
+                            ),
+                            "loss_type": hp.get("loss_type", "mse"),
+                            "timestep_type": hp.get("timestep_type", "sigmoid"),
+                            "timestep_bias": hp.get("timestep_bias", "balanced"),
+                            # Text-encoder VRAM optimisations
+                            "cache_text_embeddings": hp.get(
+                                "cache_text_embeddings", False
+                            ),
+                            "unload_text_encoder": hp.get(
+                                "unload_text_encoder", False
+                            ),
                             # Point at a previously saved training-state dir
                             # to continue from where a prior run left off.
                             **(
@@ -285,6 +305,14 @@ class AiToolkitProvider(TrainingProvider):
                                 "model_path", model_def["model_path"]
                             ),
                             **model_def["config"],
+                            # Separate transformer vs text-encoder quantization
+                            # overrides the model-level `quantize` default.
+                            "quantize": hp.get(
+                                "transformer_quantization", "float8"
+                            ) == "float8",
+                            "quantize_te": hp.get(
+                                "text_encoder_quantization", "float8"
+                            ) == "float8",
                         },
                         **(
                             {

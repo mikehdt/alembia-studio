@@ -12,10 +12,14 @@ import {
   SCHEDULER_OPTIONS,
 } from '@/app/services/training/models';
 
+import { KohyaBucketPreview } from './kohya-bucket-preview';
+import type { DatasetSource } from './training-config-form/use-training-config-form';
+
 type TrainingSummaryProps = {
   outputName: string;
   currentModel: ModelDefinition;
   modelPaths: Partial<Record<ModelComponentType, string>>;
+  datasets: DatasetSource[];
   totalImages: number;
   totalEffective: number;
   durationMode: 'epochs' | 'steps';
@@ -94,6 +98,7 @@ const TrainingSummaryComponent = ({
   outputName,
   currentModel,
   modelPaths,
+  datasets,
   totalImages,
   totalEffective,
   durationMode,
@@ -158,10 +163,15 @@ const TrainingSummaryComponent = ({
     );
   }, [scheduler]);
 
+  const showBuckets =
+    currentModel.provider === 'kohya' &&
+    resolution.length > 0 &&
+    datasets.length > 0;
+
   return (
-    <div className="flex flex-col gap-y-4">
+    <div className="flex flex-wrap gap-4 lg:flex-col">
       {/* Training overview */}
-      <div className="rounded-lg border border-slate-200 bg-(--surface)/30 p-3 dark:border-slate-700">
+      <div className="w-1/2 rounded-lg border border-slate-200 bg-(--surface)/30 p-3 md:w-1/3 lg:w-full dark:border-slate-700">
         <span className="mb-2 block text-xs font-medium text-(--foreground)/70">
           Overview
         </span>
@@ -193,8 +203,21 @@ const TrainingSummaryComponent = ({
         </div>
       </div>
 
+      {/* Bucketing (Kohya only) */}
+      {showBuckets && (
+        <div className="w-1/2 rounded-lg border border-slate-200 bg-(--surface)/30 p-3 md:w-1/3 lg:w-full dark:border-slate-700">
+          <span className="mb-2 block text-xs font-medium text-(--foreground)/70">
+            Buckets
+          </span>
+          <KohyaBucketPreview
+            baseResolution={resolution[0]}
+            datasets={datasets}
+          />
+        </div>
+      )}
+
       {/* LoRA & optimiser */}
-      <div className="rounded-lg border border-slate-200 bg-(--surface)/30 p-3 dark:border-slate-700">
+      <div className="w-1/2 rounded-lg border border-slate-200 bg-(--surface)/30 p-3 md:w-1/3 lg:w-full dark:border-slate-700">
         <span className="mb-2 block text-xs font-medium text-(--foreground)/70">
           Network & Optimiser
         </span>
@@ -211,7 +234,7 @@ const TrainingSummaryComponent = ({
       </div>
 
       {/* Readiness */}
-      <div className="rounded-lg border border-slate-200 bg-(--surface)/30 p-3 dark:border-slate-700">
+      <div className="w-full rounded-lg border border-slate-200 bg-(--surface)/30 p-3 md:w-1/3 lg:w-full dark:border-slate-700">
         <span className="mb-2 block text-xs font-medium text-(--foreground)/70">
           Training Readiness
         </span>

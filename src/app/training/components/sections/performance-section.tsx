@@ -1,16 +1,11 @@
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 
 import { Checkbox } from '@/app/shared/checkbox';
 import { CollapsibleSection } from '@/app/shared/collapsible-section';
 import { Dropdown, type DropdownItem } from '@/app/shared/dropdown';
 import { Input } from '@/app/shared/input/input';
-import {
-  calculateKohyaBucket,
-  generateBucketList,
-} from '@/app/utils/image-utils';
 
 import type {
-  DatasetSource,
   FormState,
   SectionName,
 } from '../training-config-form/use-training-config-form';
@@ -22,8 +17,11 @@ type PerformanceSectionProps = {
   resolution: number[];
   availableResolutions: number[];
   provider: 'ai-toolkit' | 'kohya';
-  datasets: DatasetSource[];
-  mixedPrecision: 'bf16' | 'fp16' | 'fp8';
+  mixedPrecision: 'bf16' | 'fp16';
+  transformerQuantization: 'none' | 'float8';
+  textEncoderQuantization: 'none' | 'float8';
+  cacheTextEmbeddings: boolean;
+  unloadTextEncoder: boolean;
   gradientAccumulationSteps: number;
   gradientCheckpointing: boolean;
   cacheLatents: boolean;
@@ -40,7 +38,11 @@ type PerformanceSectionProps = {
 const PRECISION_ITEMS: DropdownItem<string>[] = [
   { value: 'bf16', label: 'bfloat16' },
   { value: 'fp16', label: 'float16' },
-  { value: 'fp8', label: 'float8 (lower VRAM)' },
+];
+
+const QUANTIZATION_ITEMS: DropdownItem<string>[] = [
+  { value: 'none', label: 'None (full precision)' },
+  { value: 'float8', label: 'float8 (lower VRAM)' },
 ];
 
 const PerformanceSectionComponent = ({
@@ -48,8 +50,11 @@ const PerformanceSectionComponent = ({
   resolution,
   availableResolutions,
   provider,
-  datasets,
   mixedPrecision,
+  transformerQuantization,
+  textEncoderQuantization,
+  cacheTextEmbeddings,
+  unloadTextEncoder,
   gradientAccumulationSteps,
   gradientCheckpointing,
   cacheLatents,
@@ -64,6 +69,10 @@ const PerformanceSectionComponent = ({
   const hasVisibleFields =
     visibleFields.has('resolution') ||
     visibleFields.has('mixedPrecision') ||
+    visibleFields.has('transformerQuantization') ||
+    visibleFields.has('textEncoderQuantization') ||
+    visibleFields.has('cacheTextEmbeddings') ||
+    visibleFields.has('unloadTextEncoder') ||
     visibleFields.has('gradientAccumulationSteps') ||
     visibleFields.has('gradientCheckpointing') ||
     visibleFields.has('cacheLatents');
@@ -133,9 +142,96 @@ const PerformanceSectionComponent = ({
               aria-label="Training precision"
             />
             <p className="mt-1 text-xs text-slate-400">
-              Independent of the base model&apos;s format. BF16 is more stable
-              on modern GPUs (RTX 3000+)
+              Compute dtype. BF16 is more stable on modern GPUs (RTX 3000+)
             </p>
+          </div>
+        )}
+
+        {/* Transformer Quantization */}
+        {visibleFields.has(
+          'transformerQuantization' satisfies keyof FormState,
+        ) && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
+              Transformer Quantization
+            </label>
+            <Dropdown
+              items={QUANTIZATION_ITEMS}
+              selectedValue={transformerQuantization}
+              onChange={(val) =>
+                onFieldChange(
+                  'transformerQuantization',
+                  val as FormState['transformerQuantization'],
+                )
+              }
+              aria-label="Transformer quantization"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Quantise base-model weights to fit larger models in VRAM
+            </p>
+          </div>
+        )}
+
+        {/* Text Encoder Quantization */}
+        {visibleFields.has(
+          'textEncoderQuantization' satisfies keyof FormState,
+        ) && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
+              Text Encoder Quantization
+            </label>
+            <Dropdown
+              items={QUANTIZATION_ITEMS}
+              selectedValue={textEncoderQuantization}
+              onChange={(val) =>
+                onFieldChange(
+                  'textEncoderQuantization',
+                  val as FormState['textEncoderQuantization'],
+                )
+              }
+              aria-label="Text encoder quantization"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Applies to T5, CLIP or Qwen text encoders as relevant
+            </p>
+          </div>
+        )}
+
+        {/* Cache Text Embeddings */}
+        {visibleFields.has(
+          'cacheTextEmbeddings' satisfies keyof FormState,
+        ) && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              isSelected={cacheTextEmbeddings}
+              onChange={() =>
+                onFieldChange('cacheTextEmbeddings', !cacheTextEmbeddings)
+              }
+              label="Cache Text Embeddings"
+              size="sm"
+            />
+            <span className="text-xs text-slate-400">
+              Pre-compute caption embeddings once, reuse every epoch
+            </span>
+          </div>
+        )}
+
+        {/* Unload Text Encoder */}
+        {visibleFields.has(
+          'unloadTextEncoder' satisfies keyof FormState,
+        ) && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              isSelected={unloadTextEncoder}
+              onChange={() =>
+                onFieldChange('unloadTextEncoder', !unloadTextEncoder)
+              }
+              label="Unload Text Encoder"
+              size="sm"
+            />
+            <span className="text-xs text-slate-400">
+              Drop TE from VRAM after caching embeddings (requires caching)
+            </span>
           </div>
         )}
 
@@ -164,12 +260,6 @@ const PerformanceSectionComponent = ({
                 );
               })}
             </div>
-            {isKohya && resolution.length > 0 && datasets.length > 0 && (
-              <KohyaBucketPreview
-                baseResolution={resolution[0]}
-                datasets={datasets}
-              />
-            )}
           </div>
         )}
 
@@ -243,77 +333,4 @@ const PerformanceSectionComponent = ({
 };
 
 /** Informational preview of Kohya bucketing for a given base resolution. */
-const KohyaBucketPreview = memo(
-  ({
-    baseResolution,
-    datasets,
-  }: {
-    baseResolution: number;
-    datasets: DatasetSource[];
-  }) => {
-    const buckets = useMemo(
-      () => generateBucketList(baseResolution),
-      [baseResolution],
-    );
-
-    // Assign images from dimension histograms to buckets
-    const bucketCounts = useMemo(() => {
-      const counts = new Map<string, number>();
-
-      // Aggregate histograms across all datasets
-      for (const ds of datasets) {
-        if (!ds.dimensionHistogram) continue;
-        for (const [dimKey, count] of Object.entries(ds.dimensionHistogram)) {
-          const [w, h] = dimKey.split('x').map(Number);
-          if (!w || !h) continue;
-          const bucket = calculateKohyaBucket(w, h, {
-            targetResolution: baseResolution,
-            stepSize: 64,
-            minSize: 256,
-            maxSize: baseResolution * 2,
-          });
-          const key = `${bucket.width}x${bucket.height}`;
-          counts.set(key, (counts.get(key) ?? 0) + count);
-        }
-      }
-      return counts;
-    }, [datasets, baseResolution]);
-
-    if (buckets.length === 0) return null;
-
-    const hasImageData = bucketCounts.size > 0;
-    const squareCount = buckets.filter((b) => b.width === b.height).length;
-    const totalBuckets = buckets.length + (buckets.length - squareCount);
-
-    return (
-      <div className="mt-1.5">
-        <p className="text-xs text-slate-400">
-          {totalBuckets} buckets ({buckets.length} unique ratios + portrait
-          mirrors)
-        </p>
-        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-slate-400 tabular-nums">
-          {buckets.map((b) => {
-            const key = `${b.width}x${b.height}`;
-            const portraitKey = `${b.height}x${b.width}`;
-            const count =
-              (bucketCounts.get(key) ?? 0) +
-              (b.width !== b.height ? (bucketCounts.get(portraitKey) ?? 0) : 0);
-            // When we have image data, only show buckets that have images
-            if (hasImageData && count === 0) return null;
-            return (
-              <span key={key}>
-                {b.width}&times;{b.height}
-                {hasImageData && (
-                  <span className="ml-0.5 text-sky-500">({count})</span>
-                )}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-    );
-  },
-);
-KohyaBucketPreview.displayName = 'KohyaBucketPreview';
-
 export const PerformanceSection = memo(PerformanceSectionComponent);

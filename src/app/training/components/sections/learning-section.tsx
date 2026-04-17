@@ -10,6 +10,7 @@ import { CollapsibleSection } from '@/app/shared/collapsible-section';
 import { Dropdown, type DropdownItem } from '@/app/shared/dropdown';
 import { Input } from '@/app/shared/input/input';
 import { SegmentedControl } from '@/app/shared/segmented-control/segmented-control';
+import { Slider } from '@/app/shared/slider/slider';
 import type { TrainingViewMode } from '@/app/store/preferences';
 
 import { SchedulerSparkline } from '../scheduler-sparkline';
@@ -22,12 +23,12 @@ import { SectionResetButton } from './section-reset-button';
 
 /** Common LR presets mapped to human-readable labels */
 const LR_PRESETS = [
-  { value: 1e-6, label: 'Very Low', position: 0 },
-  { value: 5e-5, label: 'Conservative', position: 25 },
+  { value: 1e-6, label: 'Very Slow', position: 0 },
+  { value: 5e-5, label: 'Slower', position: 25 },
   { value: 1e-4, label: 'Standard', position: 50 },
-  { value: 2e-4, label: 'Higher', position: 62 },
-  { value: 5e-4, label: 'Aggressive', position: 75 },
-  { value: 1e-3, label: 'Very High', position: 100 },
+  { value: 2e-4, label: 'Faster', position: 62 },
+  { value: 5e-4, label: 'Very Fast', position: 75 },
+  { value: 1e-3, label: 'Aggressive', position: 100 },
 ] as const;
 
 /** Map a slider position (0-100) to a learning rate value */
@@ -96,6 +97,10 @@ type LearningSectionProps = {
   trainTextEncoder: boolean;
   backboneLR: number;
   textEncoderLR: number;
+  ema: boolean;
+  lossType: 'mse' | 'huber' | 'smooth_l1';
+  timestepType: string;
+  timestepBias: 'balanced' | 'earlier' | 'later';
   calculatedSteps: number;
   calculatedEpochs: number;
   totalEffective: number;
@@ -112,6 +117,25 @@ type LearningSectionProps = {
   onReset: (section: SectionName) => void;
 };
 
+const LOSS_TYPE_ITEMS: DropdownItem<string>[] = [
+  { value: 'mse', label: 'Mean Squared Error (default)' },
+  { value: 'huber', label: 'Huber (outlier-robust)' },
+  { value: 'smooth_l1', label: 'Smooth L1' },
+];
+
+const TIMESTEP_TYPE_ITEMS: DropdownItem<string>[] = [
+  { value: 'sigmoid', label: 'Sigmoid' },
+  { value: 'linear', label: 'Linear' },
+  { value: 'shift', label: 'Shift' },
+  { value: 'weighted', label: 'Weighted' },
+];
+
+const TIMESTEP_BIAS_ITEMS: DropdownItem<string>[] = [
+  { value: 'balanced', label: 'Balanced' },
+  { value: 'earlier', label: 'Earlier (coarse structure)' },
+  { value: 'later', label: 'Later (fine details)' },
+];
+
 const LearningSectionComponent = ({
   durationMode,
   epochs,
@@ -126,6 +150,10 @@ const LearningSectionComponent = ({
   trainTextEncoder,
   backboneLR,
   textEncoderLR,
+  ema,
+  lossType,
+  timestepType,
+  timestepBias,
   calculatedSteps,
   calculatedEpochs,
   totalEffective,
@@ -196,9 +224,17 @@ const LearningSectionComponent = ({
   const lrLabel = getLrLabel(learningRate);
 
   const handleLrSlider = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const pos = parseInt(e.target.value, 10);
+    (pos: number) => {
       onFieldChange('learningRate', sliderToLr(pos));
+    },
+    [onFieldChange],
+  );
+
+  const handleLrTextChange = useCallback(
+    (raw: string) => {
+      const parsed = parseFloat(raw);
+      if (!Number.isFinite(parsed) || parsed <= 0) return;
+      onFieldChange('learningRate', parsed);
     },
     [onFieldChange],
   );
@@ -308,28 +344,21 @@ const LearningSectionComponent = ({
               Learning Rate
             </label>
             {isSimple ? (
-              /* Simple mode: labelled slider with value display */
-              <div>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={Math.round(sliderPosition)}
-                    onChange={handleLrSlider}
-                    className="flex-1"
-                  />
-                  <span className="w-16 text-right text-sm font-medium text-(--foreground) tabular-nums">
-                    {learningRate}
-                  </span>
-                </div>
-                <div className="mt-0.5 flex justify-between text-xs text-slate-400">
-                  <span>Slower</span>
-                  <span className="font-medium text-slate-500">{lrLabel}</span>
-                  <span>Faster</span>
-                </div>
-              </div>
+              <Slider
+                min={0}
+                max={100}
+                step={1}
+                value={Math.round(sliderPosition)}
+                onChange={handleLrSlider}
+                showTrackFill
+                startLabel="Slower"
+                midLabel={lrLabel}
+                endLabel="Faster"
+                valueDisplay={learningRate}
+                numberInputSize="md"
+                onValueDisplayChange={handleLrTextChange}
+                ariaLabel="Learning rate"
+              />
             ) : (
               /* Intermediate+: direct number input */
               <Input
@@ -352,7 +381,7 @@ const LearningSectionComponent = ({
         {visibleFields.has('optimizer' satisfies keyof FormState) && (
           <div>
             <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
-              Optimizer
+              Optimiser
             </label>
             {isSimple ? (
               <p className="text-sm text-(--foreground)/80">
@@ -520,7 +549,8 @@ const LearningSectionComponent = ({
               className="w-32 tabular-nums"
             />
             <p className="mt-1 text-xs text-slate-400">
-              Clip gradients to keep training stable (0 = disabled, 1.0 is standard)
+              Clip gradients to keep training stable (0 = disabled, 1.0 is
+              standard)
             </p>
           </div>
         )}
@@ -584,6 +614,73 @@ const LearningSectionComponent = ({
             <p className="mt-1 text-xs text-slate-400">
               Override the main LR for the text encoder (0 = use main LR)
             </p>
+          </div>
+        )}
+
+        {/* EMA */}
+        {visibleFields.has('ema' satisfies keyof FormState) && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              isSelected={ema}
+              onChange={() => onFieldChange('ema', !ema)}
+              label="Use EMA"
+              size="sm"
+            />
+            <span className="text-xs text-slate-400">
+              Exponential moving average of weights — can improve stability
+            </span>
+          </div>
+        )}
+
+        {/* Loss Type */}
+        {visibleFields.has('lossType' satisfies keyof FormState) && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
+              Loss Type
+            </label>
+            <Dropdown
+              items={LOSS_TYPE_ITEMS}
+              selectedValue={lossType}
+              onChange={(val) =>
+                onFieldChange('lossType', val as FormState['lossType'])
+              }
+              aria-label="Loss type"
+            />
+          </div>
+        )}
+
+        {/* Timestep Type (flow-matching models) */}
+        {visibleFields.has('timestepType' satisfies keyof FormState) && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
+              Timestep Type
+            </label>
+            <Dropdown
+              items={TIMESTEP_TYPE_ITEMS}
+              selectedValue={timestepType}
+              onChange={(val) => onFieldChange('timestepType', val)}
+              aria-label="Timestep type"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Sampling distribution for training timesteps (flow-matching)
+            </p>
+          </div>
+        )}
+
+        {/* Timestep Bias */}
+        {visibleFields.has('timestepBias' satisfies keyof FormState) && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
+              Timestep Bias
+            </label>
+            <Dropdown
+              items={TIMESTEP_BIAS_ITEMS}
+              selectedValue={timestepBias}
+              onChange={(val) =>
+                onFieldChange('timestepBias', val as FormState['timestepBias'])
+              }
+              aria-label="Timestep bias"
+            />
           </div>
         )}
       </div>

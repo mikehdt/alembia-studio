@@ -1,8 +1,11 @@
-import { memo } from 'react';
+import { Link2Icon, Unlink2Icon } from 'lucide-react';
+import { memo, useCallback } from 'react';
 
+import { Button } from '@/app/shared/button/button';
 import { CollapsibleSection } from '@/app/shared/collapsible-section';
 import { Dropdown, type DropdownItem } from '@/app/shared/dropdown';
 import { Input } from '@/app/shared/input/input';
+import { Slider } from '@/app/shared/slider/slider';
 
 import type {
   FormState,
@@ -14,6 +17,7 @@ type LoraShapeSectionProps = {
   networkType: 'lora' | 'lokr';
   networkDim: number;
   networkAlpha: number;
+  networkDimAlphaLinked: boolean;
   networkDropout: number;
   hasChanges: boolean;
   visibleFields: Set<string>;
@@ -34,6 +38,7 @@ const LoraShapeSectionComponent = ({
   networkType,
   networkDim,
   networkAlpha,
+  networkDimAlphaLinked,
   networkDropout,
   hasChanges,
   visibleFields,
@@ -46,6 +51,31 @@ const LoraShapeSectionComponent = ({
     visibleFields.has('networkAlpha') ||
     visibleFields.has('networkType') ||
     visibleFields.has('networkDropout');
+
+  const handleRankChange = useCallback(
+    (v: number) => {
+      onFieldChange('networkDim', v);
+      if (networkDimAlphaLinked) onFieldChange('networkAlpha', v);
+    },
+    [networkDimAlphaLinked, onFieldChange],
+  );
+
+  const handleAlphaChange = useCallback(
+    (v: number) => {
+      onFieldChange('networkAlpha', v);
+      if (networkDimAlphaLinked) onFieldChange('networkDim', v);
+    },
+    [networkDimAlphaLinked, onFieldChange],
+  );
+
+  const toggleLinked = useCallback(() => {
+    const next = !networkDimAlphaLinked;
+    onFieldChange('networkDimAlphaLinked', next);
+    // On re-link, Rank wins — snap Alpha to match.
+    if (next && networkAlpha !== networkDim) {
+      onFieldChange('networkAlpha', networkDim);
+    }
+  }, [networkDimAlphaLinked, networkAlpha, networkDim, onFieldChange]);
 
   if (!hasVisibleFields) return null;
 
@@ -88,69 +118,65 @@ const LoraShapeSectionComponent = ({
           </div>
         )}
 
-        <div className="flex gap-4">
+        <div className="flex items-end gap-2">
           {visibleFields.has('networkDim' satisfies keyof FormState) && (
             <div className="flex-1">
               <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
                 Rank (dim)
               </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="range"
-                  min={1}
-                  max={128}
-                  step={1}
-                  value={networkDim}
-                  onChange={(e) =>
-                    onFieldChange('networkDim', parseInt(e.target.value, 10))
-                  }
-                  className="flex-1"
-                />
-                <Input
-                  type="number"
-                  min={1}
-                  max={128}
-                  value={networkDim}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    if (val > 0 && val <= 128) onFieldChange('networkDim', val);
-                  }}
-                  className="w-16 text-center"
-                />
-              </div>
+              <Slider
+                min={1}
+                max={128}
+                step={1}
+                value={networkDim}
+                onChange={handleRankChange}
+                showTrackFill
+                showNumberInput
+                ariaLabel="Rank"
+              />
             </div>
           )}
+
+          {visibleFields.has('networkDim' satisfies keyof FormState) &&
+            visibleFields.has('networkAlpha' satisfies keyof FormState) && (
+              <div className="pb-0.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  width="sm"
+                  color={networkDimAlphaLinked ? 'sky' : 'slate'}
+                  isPressed={networkDimAlphaLinked}
+                  onClick={toggleLinked}
+                  title={
+                    networkDimAlphaLinked
+                      ? 'Rank and Alpha are linked — click to edit independently'
+                      : 'Rank and Alpha are unlinked — click to re-link (Alpha snaps to Rank)'
+                  }
+                >
+                  {networkDimAlphaLinked ? (
+                    <Link2Icon className="h-4 w-4" />
+                  ) : (
+                    <Unlink2Icon className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            )}
 
           {visibleFields.has('networkAlpha' satisfies keyof FormState) && (
             <div className="flex-1">
               <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
                 Alpha
               </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="range"
-                  min={1}
-                  max={128}
-                  step={1}
-                  value={networkAlpha}
-                  onChange={(e) =>
-                    onFieldChange('networkAlpha', parseInt(e.target.value, 10))
-                  }
-                  className="flex-1"
-                />
-                <Input
-                  type="number"
-                  min={1}
-                  max={128}
-                  value={networkAlpha}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    if (val > 0 && val <= 128)
-                      onFieldChange('networkAlpha', val);
-                  }}
-                  className="w-16 text-center"
-                />
-              </div>
+              <Slider
+                min={1}
+                max={128}
+                step={1}
+                value={networkAlpha}
+                onChange={handleAlphaChange}
+                showTrackFill
+                showNumberInput
+                ariaLabel="Alpha"
+              />
             </div>
           )}
         </div>

@@ -118,6 +118,10 @@ const TrainingConfigFormComponent = ({
       trainTextEncoder: state.trainTextEncoder,
       backboneLR: state.backboneLR,
       textEncoderLR: state.textEncoderLR,
+      ema: state.ema,
+      lossType: state.lossType,
+      timestepType: state.timestepType,
+      timestepBias: state.timestepBias,
       batchSize: state.batchSize,
       networkType: state.networkType,
       networkDim: state.networkDim,
@@ -125,6 +129,10 @@ const TrainingConfigFormComponent = ({
       networkDropout: state.networkDropout,
       resolution: state.resolution,
       mixedPrecision: state.mixedPrecision,
+      transformerQuantization: state.transformerQuantization,
+      textEncoderQuantization: state.textEncoderQuantization,
+      cacheTextEmbeddings: state.cacheTextEmbeddings,
+      unloadTextEncoder: state.unloadTextEncoder,
       gradientAccumulationSteps: state.gradientAccumulationSteps,
       gradientCheckpointing: state.gradientCheckpointing,
       cacheLatents: state.cacheLatents,
@@ -138,7 +146,7 @@ const TrainingConfigFormComponent = ({
       saveEveryEpochs: state.saveEveryEpochs,
       saveEverySteps: state.saveEverySteps,
       saveFormat: state.saveFormat,
-      saveOnlyLast: state.saveOnlyLast,
+      maxSavesToKeep: state.maxSavesToKeep,
       saveState: state.saveState,
       resumeState: state.resumeState,
       samplingEnabled: state.samplingEnabled,
@@ -204,6 +212,10 @@ const TrainingConfigFormComponent = ({
             trainTextEncoder={state.trainTextEncoder}
             backboneLR={state.backboneLR}
             textEncoderLR={state.textEncoderLR}
+            ema={state.ema}
+            lossType={state.lossType}
+            timestepType={state.timestepType}
+            timestepBias={state.timestepBias}
             calculatedSteps={calculatedSteps}
             calculatedEpochs={calculatedEpochs}
             totalEffective={datasetStats.totalEffective}
@@ -221,6 +233,7 @@ const TrainingConfigFormComponent = ({
             networkType={state.networkType}
             networkDim={state.networkDim}
             networkAlpha={state.networkAlpha}
+            networkDimAlphaLinked={state.networkDimAlphaLinked}
             networkDropout={state.networkDropout}
             hasChanges={sectionHasChanges.loraShape}
             visibleFields={visibleFields}
@@ -234,8 +247,11 @@ const TrainingConfigFormComponent = ({
             resolution={state.resolution}
             availableResolutions={currentModel.availableResolutions}
             provider={currentModel.provider}
-            datasets={state.datasets}
             mixedPrecision={state.mixedPrecision}
+            transformerQuantization={state.transformerQuantization}
+            textEncoderQuantization={state.textEncoderQuantization}
+            cacheTextEmbeddings={state.cacheTextEmbeddings}
+            unloadTextEncoder={state.unloadTextEncoder}
             gradientAccumulationSteps={state.gradientAccumulationSteps}
             gradientCheckpointing={state.gradientCheckpointing}
             cacheLatents={state.cacheLatents}
@@ -272,7 +288,7 @@ const TrainingConfigFormComponent = ({
             saveEveryEpochs={state.saveEveryEpochs}
             saveEverySteps={state.saveEverySteps}
             saveFormat={state.saveFormat}
-            saveOnlyLast={state.saveOnlyLast}
+            maxSavesToKeep={state.maxSavesToKeep}
             saveState={state.saveState}
             resumeState={state.resumeState}
             visibleFields={visibleFields}
@@ -295,6 +311,7 @@ const TrainingConfigFormComponent = ({
             outputName={state.outputName}
             currentModel={currentModel}
             modelPaths={state.modelPaths}
+            datasets={state.datasets}
             totalImages={datasetStats.totalImages}
             totalEffective={datasetStats.totalEffective}
             durationMode={state.durationMode}

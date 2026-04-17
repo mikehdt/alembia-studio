@@ -100,6 +100,26 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     group: 'learning',
     defaultKey: 'textEncoderLR',
   },
+  ema: {
+    tier: 'advanced',
+    group: 'learning',
+    defaultKey: 'ema',
+  },
+  lossType: {
+    tier: 'advanced',
+    group: 'learning',
+    defaultKey: 'lossType',
+  },
+  timestepType: {
+    tier: 'advanced',
+    group: 'learning',
+    defaultKey: 'timestepType',
+  },
+  timestepBias: {
+    tier: 'advanced',
+    group: 'learning',
+    defaultKey: 'timestepBias',
+  },
 
   // LoRA Shape
   networkDim: {
@@ -111,6 +131,13 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     tier: 'intermediate',
     group: 'loraShape',
     defaultKey: 'networkAlpha',
+  },
+  // UI-only preference: does not affect training config, but lives in form
+  // state so it persists alongside user edits.
+  networkDimAlphaLinked: {
+    tier: 'intermediate',
+    group: 'loraShape',
+    defaultKey: null,
   },
   networkType: {
     tier: 'intermediate',
@@ -133,6 +160,26 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     tier: 'simple',
     group: 'performance',
     defaultKey: 'mixedPrecision',
+  },
+  transformerQuantization: {
+    tier: 'intermediate',
+    group: 'performance',
+    defaultKey: 'transformerQuantization',
+  },
+  textEncoderQuantization: {
+    tier: 'intermediate',
+    group: 'performance',
+    defaultKey: 'textEncoderQuantization',
+  },
+  cacheTextEmbeddings: {
+    tier: 'intermediate',
+    group: 'performance',
+    defaultKey: 'cacheTextEmbeddings',
+  },
+  unloadTextEncoder: {
+    tier: 'advanced',
+    group: 'performance',
+    defaultKey: 'unloadTextEncoder',
   },
   cacheLatents: {
     tier: 'simple',
@@ -207,10 +254,10 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
   saveMode: { tier: 'simple', group: 'saving', defaultKey: null },
   saveEveryEpochs: { tier: 'simple', group: 'saving', defaultKey: null },
   saveEverySteps: { tier: 'simple', group: 'saving', defaultKey: null },
-  saveOnlyLast: {
+  maxSavesToKeep: {
     tier: 'intermediate',
     group: 'saving',
-    defaultKey: 'saveOnlyLast',
+    defaultKey: 'maxSavesToKeep',
   },
   saveState: { tier: 'advanced', group: 'saving', defaultKey: null },
   resumeState: { tier: 'advanced', group: 'saving', defaultKey: null },
