@@ -19,8 +19,13 @@ import {
   selectPanelOpen,
   selectPendingJobs,
   type TaggingJob,
+  updateJobStatus,
 } from '@/app/store/jobs';
-import { loadPersistedDownloads } from '@/app/store/jobs/persistence';
+import {
+  loadPersistedDownloads,
+  loadPersistedTrainingJobs,
+  reconcileDownloadsWithServer,
+} from '@/app/store/jobs/persistence';
 
 import { Button } from '../button';
 import { DownloadJobCard } from './download-job-card';
@@ -44,19 +49,39 @@ const ActivityPanelComponent = () => {
     pathname.startsWith('/tagging') || pathname.startsWith('/training');
   const bottomClass = hasBottomShelf ? 'bottom-16' : 'bottom-4';
 
-  // Restore persisted downloads from localStorage on mount
+  // Restore persisted downloads and terminal training jobs on mount.
+  // Downloads that were `running` when the page closed are restored as-is,
+  // then reconciled against the server's active-download set: another tab
+  // may still own the stream, in which case we leave the job alone. Only
+  // jobs the server no longer tracks get flipped to `interrupted`.
   const restoredRef = useRef(false);
   useEffect(() => {
     if (restoredRef.current) return;
     restoredRef.current = true;
 
-    const persisted = loadPersistedDownloads();
-    if (persisted.length > 0) {
-      dispatch(restoreJobs(persisted));
-      if (persisted.some((j) => j.status === 'interrupted')) {
-        dispatch(openPanel());
-      }
+    const downloads = loadPersistedDownloads();
+    const training = loadPersistedTrainingJobs();
+    const persisted = [...downloads, ...training];
+    if (persisted.length === 0) return;
+
+    dispatch(restoreJobs(persisted));
+    if (downloads.some((j) => j.status === 'interrupted')) {
+      dispatch(openPanel());
     }
+
+    void reconcileDownloadsWithServer(downloads).then((staleIds) => {
+      if (staleIds.length === 0) return;
+      for (const id of staleIds) {
+        dispatch(
+          updateJobStatus({
+            id,
+            status: 'interrupted',
+            error: 'Download interrupted — click Retry to continue',
+          }),
+        );
+      }
+      dispatch(openPanel());
+    });
   }, [dispatch]);
 
   const handleOpen = useCallback(() => {
@@ -83,6 +108,10 @@ const ActivityPanelComponent = () => {
 
   const handleClearAll = useCallback(() => {
     dispatch(clearCompletedJobs());
+    // Tell the sidecar to drop any terminal active_job too, so a refresh
+    // doesn't re-hydrate one we just cleared. The endpoint is a no-op when
+    // the sidecar isn't running or has nothing to clear.
+    fetch('/api/training/clear', { method: 'POST' }).catch(() => {});
   }, [dispatch]);
 
   if (!hasJobs || isAnyModalOpen) return null;

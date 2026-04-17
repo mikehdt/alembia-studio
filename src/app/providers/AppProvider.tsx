@@ -19,6 +19,7 @@ import {
   setProjectInfo,
   setTriggerPhrases,
 } from '../store/project';
+import { hydrateActiveTraining } from '../store/training/training-runtime';
 import { Error } from '../tagging/views/error';
 import { InitialLoad } from '../tagging/views/initial-load';
 import { NoContent } from '../tagging/views/no-content';
@@ -42,6 +43,13 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname();
   const [hasCompletedInitialLoad, setHasCompletedInitialLoad] = useState(false);
   const dispatch = useAppDispatch();
+
+  // Reattach to an in-flight training job on every app mount, regardless of
+  // route. Without this, refreshing on a non-training page loses the activity
+  // panel until the user navigates back to /training.
+  useEffect(() => {
+    dispatch(hydrateActiveTraining());
+  }, [dispatch]);
   const ioState = useAppSelector(selectIoState);
   const imageCount = useAppSelector(selectImageCount);
   const projectFolderName = useAppSelector(selectProjectFolderName);

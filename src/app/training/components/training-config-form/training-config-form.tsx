@@ -42,6 +42,7 @@ const TrainingConfigFormComponent = ({
     sectionHasChanges,
     setField,
     setModel,
+    setProvider,
     setModelPath,
     resetSection,
     addDataset,
@@ -104,7 +105,7 @@ const TrainingConfigFormComponent = ({
     onStartTraining?.({
       modelId: state.modelId,
       modelPaths: state.modelPaths,
-      provider: currentModel.provider,
+      provider: state.selectedProvider,
       outputName: state.outputName,
       datasets: state.datasets,
       steps: effectiveSteps,
@@ -173,9 +174,11 @@ const TrainingConfigFormComponent = ({
         <div className="mr-auto w-full min-w-0 flex-1 space-y-3 lg:max-w-300">
           <ModelSelectSection
             modelId={state.modelId}
+            selectedProvider={state.selectedProvider}
             modelPaths={state.modelPaths}
             appModelDefaults={appModelDefaults}
             onModelChange={setModel}
+            onProviderChange={setProvider}
             onModelPathChange={setModelPath}
             currentModel={currentModel}
             visibleFields={visibleFields}
@@ -246,7 +249,7 @@ const TrainingConfigFormComponent = ({
             batchSize={state.batchSize}
             resolution={state.resolution}
             availableResolutions={currentModel.availableResolutions}
-            provider={currentModel.provider}
+            provider={state.selectedProvider}
             mixedPrecision={state.mixedPrecision}
             transformerQuantization={state.transformerQuantization}
             textEncoderQuantization={state.textEncoderQuantization}
@@ -310,6 +313,7 @@ const TrainingConfigFormComponent = ({
           <TrainingSummary
             outputName={state.outputName}
             currentModel={currentModel}
+            selectedProvider={state.selectedProvider}
             modelPaths={state.modelPaths}
             datasets={state.datasets}
             totalImages={datasetStats.totalImages}
@@ -332,6 +336,7 @@ const TrainingConfigFormComponent = ({
             saveEveryEpochs={state.saveEveryEpochs}
             saveEverySteps={state.saveEverySteps}
             saveFormat={state.saveFormat}
+            seed={state.seed}
           />
         </div>
       </div>

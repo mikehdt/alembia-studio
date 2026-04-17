@@ -12,18 +12,22 @@ import { createListenerMiddleware, isAnyOf } from '@reduxjs/toolkit';
 import { updateModelStatus as updateAutoTaggerModelStatus } from '../auto-tagger';
 import type { RootState } from '../index';
 import { addJob, openPanel } from '../jobs';
-import { persistDownloadJobs } from '../jobs/persistence';
+import {
+  persistDownloadJobs,
+  persistTrainingJobs,
+} from '../jobs/persistence';
 import { setModelStatus } from '../model-manager';
 
 export const jobPersistenceMiddleware = createListenerMiddleware();
 
-// Persist download jobs to localStorage on any jobs/ action
+// Persist download + terminal training jobs to localStorage on any jobs/ action
 jobPersistenceMiddleware.startListening({
   predicate: (action) =>
     typeof action.type === 'string' && action.type.startsWith('jobs/'),
   effect: (_action, listenerApi) => {
     const state = listenerApi.getState() as RootState;
     persistDownloadJobs(state.jobs.jobs);
+    persistTrainingJobs(state.jobs.jobs);
   },
 });
 

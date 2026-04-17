@@ -151,15 +151,6 @@ const SamplingSectionComponent = ({
                   <label className="text-xs font-medium text-(--foreground)/70">
                     Generate Samples Every
                   </label>
-                  <SegmentedControl
-                    options={[
-                      { value: 'epochs', label: 'Epochs' },
-                      { value: 'steps', label: 'Steps' },
-                    ]}
-                    value={sampleMode}
-                    onChange={(val) => onFieldChange('sampleMode', val)}
-                    size="sm"
-                  />
                 </div>
                 <Input
                   type="number"
@@ -170,6 +161,15 @@ const SamplingSectionComponent = ({
                     if (val > 0) onFieldChange(activeField, val);
                   }}
                   className="w-32"
+                />
+                <SegmentedControl
+                  options={[
+                    { value: 'epochs', label: 'Epochs' },
+                    { value: 'steps', label: 'Steps' },
+                  ]}
+                  value={sampleMode}
+                  onChange={(val) => onFieldChange('sampleMode', val)}
+                  size="sm"
                 />
               </div>
             )}

@@ -37,6 +37,12 @@ export function DownloadRowStatus({
   const total = progress?.totalBytes ?? 0;
   const pct = total > 0 ? Math.round((bytes / total) * 100) : 0;
 
+  const multiFile =
+    progress?.totalFiles !== undefined && progress.totalFiles > 1;
+  const fileCountLabel = multiFile
+    ? `File ${progress?.fileIndex ?? 1} of ${progress?.totalFiles}`
+    : null;
+
   return (
     <div className="flex w-56 flex-col gap-1.5">
       <ProgressBar
@@ -46,6 +52,10 @@ export function DownloadRowStatus({
         color={canResume ? 'amber' : 'indigo'}
         indeterminate={isRunning && (!progress || total === 0)}
       />
+
+      {isRunning && fileCountLabel && (
+        <p className="text-xs text-slate-400">{fileCountLabel}</p>
+      )}
 
       <div className="flex flex-wrap justify-between text-xs text-slate-500 tabular-nums">
         <span className="truncate">

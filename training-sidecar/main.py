@@ -24,6 +24,7 @@ from models import (
     StartJobRequest,
 )
 from providers.ai_toolkit import AiToolkitProvider
+from providers.mock import MockProvider
 from ws_manager import WebSocketManager
 
 # --- Globals initialised at startup ---
@@ -50,6 +51,12 @@ def _register_providers(jm: JobManager, config: SidecarConfig):
     # if kohya_path:
     #     provider = KohyaProvider(kohya_path)
     #     jm.register_provider("kohya", provider)
+
+    # Mock provider is always registered — it needs no external tooling and
+    # lets the UI be exercised end-to-end (including GPU-busy blocking)
+    # without a real training backend installed.
+    jm.register_provider("mock", MockProvider())
+    print("[sidecar] Registered mock provider")
 
     if not jm.providers:
         print(

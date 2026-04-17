@@ -6,7 +6,7 @@ export type SegmentOption<T extends string> = {
   icon?: ReactNode;
 };
 
-type SegmentedControlSize = 'sm' | 'md' | 'xl';
+type SegmentedControlSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'toolbar';
 
 type SegmentedControlTone = 'default' | 'surface';
 
@@ -26,17 +26,29 @@ const sizeClasses: Record<
   SegmentedControlSize,
   { container: string; button: string }
 > = {
-  sm: {
-    container: 'text-xs shadow-xs  inset-shadow-xs',
-    button: 'px-2 [&_svg]:w-4',
+  xs: {
+    container: 'text-xs shadow-xs inset-shadow-xs',
+    button: 'px-2 py-0.5 [&_svg]:w-4',
   },
-  md: {
-    container: 'text-sm shadow-sm  inset-shadow-sm',
+  sm: {
+    container: 'text-sm shadow-xs inset-shadow-xs',
     button: 'px-2 py-1 [&_svg]:w-4',
   },
+  md: {
+    container: 'text-sm shadow-sm inset-shadow-sm',
+    button: 'px-4 py-1.5 [&_svg]:w-4',
+  },
+  lg: {
+    container: 'text-sm shadow-sm inset-shadow-sm',
+    button: 'px-4 py-1.5 [&_svg]:w-4',
+  },
   xl: {
-    container: 'text-sm font-medium shadow-md  inset-shadow-sm',
+    container: 'text-md shadow-md inset-shadow-sm',
     button: 'px-4 py-2 [&_svg]:w-4',
+  },
+  toolbar: {
+    container: 'text-sm shadow-sm inset-shadow-sm',
+    button: 'px-4 py-1 [&_svg]:w-4',
   },
 };
 
@@ -61,7 +73,7 @@ export function SegmentedControl<T extends string>({
 
   return (
     <div
-      className={`flex items-center rounded-sm bg-slate-100 dark:border dark:border-slate-600 dark:bg-slate-700 ${width === 'full' ? 'w-full' : ''} ${toneClasses[tone]} ${sizes.container} ${disabled ? 'pointer-events-none opacity-40' : ''} ${className}`}
+      className={`${width === 'full' ? 'flex w-full' : 'inline-flex'} items-center rounded-sm border border-white bg-slate-100 dark:border-slate-600 dark:bg-slate-700 ${toneClasses[tone]} ${sizes.container} ${disabled ? 'pointer-events-none opacity-40' : ''} ${className}`}
     >
       {options.map((option, index) => {
         const isSelected = value === option.value;
@@ -83,7 +95,7 @@ export function SegmentedControl<T extends string>({
             title={option.label}
             className={`flex flex-auto cursor-pointer items-center justify-center gap-1 transition-colors ${sizes.button} ${roundedClasses} ${
               isSelected
-                ? 'z-10 bg-white shadow-sm shadow-slate-300 dark:bg-slate-500 dark:inset-shadow-xs dark:shadow-slate-800 dark:inset-shadow-slate-400'
+                ? 'z-10 bg-white shadow-sm shadow-slate-300 dark:bg-slate-500 dark:inset-shadow-xs dark:shadow-slate-500 dark:inset-shadow-slate-400'
                 : 'text-slate-600 hover:bg-slate-300 hover:text-slate-500 dark:text-slate-400 dark:hover:bg-slate-600 dark:hover:text-slate-300'
             }`}
           >

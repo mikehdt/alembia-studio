@@ -11,6 +11,7 @@ import {
   OPTIMIZER_OPTIONS,
   SCHEDULER_OPTIONS,
 } from '@/app/services/training/models';
+import type { TrainingProvider } from '@/app/services/training/types';
 
 import { KohyaBucketPreview } from './kohya-bucket-preview';
 import type { DatasetSource } from './training-config-form/use-training-config-form';
@@ -18,6 +19,7 @@ import type { DatasetSource } from './training-config-form/use-training-config-f
 type TrainingSummaryProps = {
   outputName: string;
   currentModel: ModelDefinition;
+  selectedProvider: TrainingProvider;
   modelPaths: Partial<Record<ModelComponentType, string>>;
   datasets: DatasetSource[];
   totalImages: number;
@@ -40,6 +42,7 @@ type TrainingSummaryProps = {
   saveEveryEpochs: number;
   saveEverySteps: number;
   saveFormat: string;
+  seed: number;
 };
 
 const ReadinessItem = ({
@@ -97,6 +100,7 @@ const SummaryRow = ({
 const TrainingSummaryComponent = ({
   outputName,
   currentModel,
+  selectedProvider,
   modelPaths,
   datasets,
   totalImages,
@@ -119,6 +123,7 @@ const TrainingSummaryComponent = ({
   saveEveryEpochs,
   saveEverySteps,
   saveFormat,
+  seed,
 }: TrainingSummaryProps) => {
   const hasOutputName = outputName.trim() !== '';
   const hasDataset = totalImages > 0;
@@ -164,7 +169,7 @@ const TrainingSummaryComponent = ({
   }, [scheduler]);
 
   const showBuckets =
-    currentModel.provider === 'kohya' &&
+    selectedProvider === 'kohya' &&
     resolution.length > 0 &&
     datasets.length > 0;
 
@@ -197,6 +202,9 @@ const TrainingSummaryComponent = ({
             </>
           )}
           <SummaryRow label="Batch size">{batchSize}</SummaryRow>
+          <SummaryRow label="Seed">
+            {seed === -1 ? 'Random' : seed}
+          </SummaryRow>
           {saveEnabled && checkpointCount > 0 && (
             <SummaryRow label="Checkpoints">~{checkpointCount}</SummaryRow>
           )}

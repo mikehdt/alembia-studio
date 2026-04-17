@@ -6,7 +6,8 @@
       "Bash(pnpm build:*)",
       "Bash(pnpm knip:*)",
       "Bash(pnpm format:*)",
-      "Bash(pnpm tsc:*)"
+      "Bash(pnpm tsc:*)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

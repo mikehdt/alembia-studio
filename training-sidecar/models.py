@@ -12,6 +12,7 @@ VlmRuntime = Literal["llama-cpp", "transformers"]
 class ProviderType(str, Enum):
     AI_TOOLKIT = "ai-toolkit"
     KOHYA = "kohya"
+    MOCK = "mock"
 
 
 class JobStatus(str, Enum):

@@ -38,7 +38,7 @@ const MenuThemeSwitcherComponent = ({
         options={options}
         value={theme}
         onChange={setTheme}
-        size="sm"
+        size="xs"
         width="full"
         className="ml-auto"
       />

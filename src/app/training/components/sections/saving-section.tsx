@@ -155,17 +155,7 @@ const SavingSectionComponent = ({
                     <label className="text-xs font-medium text-(--foreground)/70">
                       Save Every
                     </label>
-                    <SegmentedControl
-                      options={[
-                        { value: 'epochs', label: 'Epochs' },
-                        { value: 'steps', label: 'Steps' },
-                      ]}
-                      value={saveMode}
-                      onChange={(val) => onFieldChange('saveMode', val)}
-                      size="sm"
-                    />
                   </div>
-
                   <Input
                     type="number"
                     min={1}
@@ -175,6 +165,15 @@ const SavingSectionComponent = ({
                       if (val > 0) onFieldChange(activeField, val);
                     }}
                     className="w-20"
+                  />
+                  <SegmentedControl
+                    options={[
+                      { value: 'epochs', label: 'Epochs' },
+                      { value: 'steps', label: 'Steps' },
+                    ]}
+                    value={saveMode}
+                    onChange={(val) => onFieldChange('saveMode', val)}
+                    size="sm"
                   />
                 </div>
 

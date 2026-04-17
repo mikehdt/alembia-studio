@@ -1,4 +1,5 @@
 import { ListPlusIcon, PlayIcon } from 'lucide-react';
+import { useSyncExternalStore } from 'react';
 
 import { BottomShelfFrame } from '@/app/shared/shelf';
 import { Button } from '@/app/shared/button';
@@ -10,11 +11,27 @@ type TrainingBottomShelfProps = {
   onStart: () => void;
 };
 
+// Defer the button's disabled state until after hydration. `canStart` is
+// derived from form state that matches SSR, but something in React 19 /
+// Turbopack is flagging the `disabled` attribute as mismatched anyway.
+// Using the server-snapshot technique guarantees the first client render
+// mirrors SSR, then the real value comes in on the mount re-render.
+const subscribe = () => () => {};
+const getSnapshot = () => true;
+const getServerSnapshot = () => false;
+
 export const TrainingBottomShelf = ({
   canStart,
   onStart,
 }: TrainingBottomShelfProps) => {
   const isTraining = useAppSelector(selectIsTraining);
+  const isClient = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot,
+  );
+
+  const effectiveCanStart = isClient ? canStart : true;
 
   return (
     <BottomShelfFrame>
@@ -24,10 +41,10 @@ export const TrainingBottomShelf = ({
           onClick={onStart}
           ghostDisabled
           neutralDisabled
-          disabled={!canStart}
+          disabled={!effectiveCanStart}
           color="teal"
         >
-          {isTraining ? (
+          {isClient && isTraining ? (
             <>
               <ListPlusIcon />
               Add to Queue

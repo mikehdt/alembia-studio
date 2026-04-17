@@ -321,9 +321,11 @@ function DropdownInternal<T>({
   // Single selectable item → render as static text (no interaction needed)
   if (singleItem) {
     return (
-      <div className={`relative ${fullWidth ? 'w-full' : ''} ${className}`}>
+      <div
+        className={`relative ${fullWidth ? 'w-full' : 'inline-flex'} ${className}`}
+      >
         <div
-          className={`flex items-center rounded-sm border border-slate-300 whitespace-nowrap dark:border-slate-700 ${
+          className={`flex min-w-40 items-center rounded-sm border border-slate-300 whitespace-nowrap dark:border-slate-700 ${
             fullWidth ? 'w-full' : ''
           } ${sizeStyles[size]} text-slate-500 dark:text-slate-400 ${buttonClassName}`}
           aria-label={ariaLabel}
@@ -344,7 +346,7 @@ function DropdownInternal<T>({
         onClick={handleClick}
         onKeyDown={handleButtonKeyDown}
         onBlur={handleButtonBlur}
-        className={`flex cursor-pointer items-center justify-between rounded-sm whitespace-nowrap transition-colors ${
+        className={`flex min-w-20 cursor-pointer items-center justify-between rounded-sm whitespace-nowrap transition-colors ${
           variant === 'ghost'
             ? `border border-transparent hover:inset-shadow-xs hover:inset-shadow-white dark:hover:inset-shadow-white/10 ${
                 isOpen

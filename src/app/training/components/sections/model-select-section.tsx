@@ -9,6 +9,10 @@ import {
   type ModelComponentType,
   type ModelDefinition,
 } from '@/app/services/training/models';
+import {
+  TRAINING_PROVIDER_LABELS,
+  type TrainingProvider,
+} from '@/app/services/training/types';
 import { CollapsibleSection } from '@/app/shared/collapsible-section';
 import { Dropdown, type DropdownItem } from '@/app/shared/dropdown';
 
@@ -22,9 +26,11 @@ import type {
 
 type ModelSelectSectionProps = {
   modelId: string;
+  selectedProvider: TrainingProvider;
   modelPaths: ModelPaths;
   appModelDefaults: AppModelDefaults;
   onModelChange: (modelId: string) => void;
+  onProviderChange: (provider: TrainingProvider) => void;
   onModelPathChange: (component: ModelComponentType, path: string) => void;
   currentModel: ModelDefinition;
   visibleFields: Set<string>;
@@ -34,9 +40,11 @@ type ModelSelectSectionProps = {
 
 const ModelSelectSectionComponent = ({
   modelId,
+  selectedProvider,
   modelPaths,
   appModelDefaults,
   onModelChange,
+  onProviderChange,
   onModelPathChange,
   currentModel,
   visibleFields,
@@ -104,12 +112,12 @@ const ModelSelectSectionComponent = ({
       <div className="space-y-3">
         {visibleFields.has('modelId' satisfies keyof FormState) && (
           <div>
-            <label className="mb-1 block text-xs font-medium text-(--foreground)">
-              Base Model
-            </label>
-
             <div className="flex">
               <div className="w-1/2">
+                <label className="mb-1 block text-xs font-medium text-(--foreground)">
+                  Base Model
+                </label>
+
                 <Dropdown
                   items={modelGroups}
                   selectedValue={modelId}
@@ -119,21 +127,39 @@ const ModelSelectSectionComponent = ({
                   )}
                   aria-label="Select base model"
                 />
-
                 <p className="mt-2 text-xs text-slate-400">
                   {currentModel.description}
                 </p>
+
+                {currentModel.tips && currentModel.tips.length > 0 && (
+                  <ul className="mt-2 ml-4 list-disc space-y-1">
+                    {currentModel.tips.map((tip) => (
+                      <li key={tip} className="text-xs text-slate-400/80">
+                        {tip}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
 
-              {currentModel.tips && currentModel.tips.length > 0 && (
-                <ul className="w-1/2 list-disc space-y-1">
-                  {currentModel.tips.map((tip) => (
-                    <li key={tip} className="text-xs text-slate-400/80">
-                      {tip}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              {/* Backend — lists every provider this model supports */}
+              <div className="w-1/2">
+                <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
+                  Backend
+                </label>
+
+                <Dropdown
+                  items={currentModel.providers.map(
+                    (p): DropdownItem<TrainingProvider> => ({
+                      value: p,
+                      label: TRAINING_PROVIDER_LABELS[p],
+                    }),
+                  )}
+                  selectedValue={selectedProvider}
+                  onChange={onProviderChange}
+                  aria-label="Training backend"
+                />
+              </div>
             </div>
           </div>
         )}
@@ -163,27 +189,6 @@ const ModelSelectSectionComponent = ({
               )}
             </div>
           ))}
-
-        {/* Backend — single-item Dropdown renders as static label */}
-        <div>
-          <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
-            Backend
-          </label>
-          <Dropdown
-            items={[
-              {
-                value: currentModel.provider,
-                label:
-                  currentModel.provider === 'kohya'
-                    ? 'Kohya (sd-scripts)'
-                    : 'ai-toolkit',
-              },
-            ]}
-            selectedValue={currentModel.provider}
-            onChange={() => {}}
-            aria-label="Training backend"
-          />
-        </div>
       </div>
     </CollapsibleSection>
   );

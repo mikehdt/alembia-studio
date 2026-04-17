@@ -127,6 +127,7 @@ const ClassModeSection = ({
           options={CLASS_MODES}
           value={section.mode}
           width="full"
+          size="sm"
           onChange={(mode) => onSetMode(section.key, mode)}
         />
       </div>

@@ -56,16 +56,19 @@ function writeManifest(modelDir: string, files: ModelFile[]): void {
 }
 
 /**
- * Check if all required files exist in `modelDir` with correct sizes.
+ * Check if a model is fully downloaded in `modelDir`.
  *
- * Priority order for size comparison:
- * 1. manifest.json (actual sizes recorded at download completion)
- * 2. ModelFile.size from the registry (hand-declared, may be an estimate)
- * 3. If neither tells us an exact size, existence is enough.
+ * If a `manifest.json` exists it's treated as the source of truth for
+ * both the file list and sizes — this matters for multi-variant models
+ * where the on-disk file names differ per variant (e.g. Z-Image's int4
+ * variant ships a single transformer safetensors, the bf16 variant
+ * ships three sharded ones). The passed-in `files` array is only used
+ * when no manifest is present (pre-manifest downloads or hand-placed
+ * files), and sizes fall back to tolerance-matching.
  *
  * Returns:
- * - 'ready' if every file is present and matches its expected size
- * - 'partial' if some files exist but at least one has the wrong size
+ * - 'ready' if every expected file is present and matches its expected size
+ * - 'partial' if some files exist but at least one is missing or wrong
  * - 'not_installed' if no files are present
  */
 export function checkModelFiles(
@@ -78,10 +81,35 @@ export function checkModelFiles(
 
   const manifest = loadManifest(modelDir);
 
+  // Manifest wins. It records exactly what was downloaded, which may be
+  // a variant with a different file layout than the registry default.
+  if (manifest) {
+    let anyExists = false;
+    let allComplete = true;
+    for (const entry of manifest.files) {
+      const filePath = path.join(modelDir, entry.name);
+      if (!fs.existsSync(filePath)) {
+        allComplete = false;
+        continue;
+      }
+      anyExists = true;
+      try {
+        const stats = fs.statSync(filePath);
+        if (stats.size !== entry.size) allComplete = false;
+      } catch {
+        allComplete = false;
+      }
+    }
+    if (allComplete && anyExists) return 'ready';
+    if (anyExists) return 'partial';
+    return 'not_installed';
+  }
+
+  // No manifest — fall back to the registry's declared file list with
+  // size tolerance. Declared sizes for GGUF/HF downloads are often
+  // estimates, so we allow a small delta rather than hard-failing.
   let anyExists = false;
   let allComplete = true;
-  // Track whether we inferred "complete" from the tolerance path so we can
-  // self-heal old downloads by writing a manifest retroactively.
   let inferredComplete = false;
 
   for (const file of files) {
@@ -94,21 +122,6 @@ export function checkModelFiles(
 
     anyExists = true;
 
-    // If we have a manifest, trust it absolutely (exact byte match).
-    const manifestEntry = manifest?.files.find((f) => f.name === file.name);
-    if (manifestEntry) {
-      try {
-        const stats = fs.statSync(filePath);
-        if (stats.size !== manifestEntry.size) allComplete = false;
-      } catch {
-        allComplete = false;
-      }
-      continue;
-    }
-
-    // No manifest — fall back to the registry-declared size with tolerance.
-    // Declared sizes for GGUF/HF downloads are often estimates, so we allow
-    // a small delta rather than hard-failing.
     if (file.size > 0) {
       try {
         const stats = fs.statSync(filePath);
@@ -126,9 +139,9 @@ export function checkModelFiles(
   }
 
   if (allComplete && anyExists) {
-    // Self-heal: if we passed the check via tolerance, persist a manifest
-    // so future checks are exact and don't depend on the estimate.
-    if (inferredComplete && !manifest) {
+    // Self-heal: persist a manifest so future checks are exact and
+    // don't depend on the estimate.
+    if (inferredComplete) {
       writeManifest(modelDir, files);
     }
     return 'ready';

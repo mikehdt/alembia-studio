@@ -7,6 +7,7 @@ import {
   type ModelDefinition,
   type TrainingDefaults,
 } from '@/app/services/training/models';
+import type { TrainingProvider } from '@/app/services/training/types';
 
 // --- Types ---
 
@@ -67,6 +68,8 @@ export type AppModelDefaults = Record<
 export type FormState = {
   // What to Train
   modelId: string;
+  /** Selected training backend. Defaults to the first of the model's providers. */
+  selectedProvider: TrainingProvider;
   modelPaths: ModelPaths;
   outputName: string;
 
@@ -145,6 +148,7 @@ type FormAction =
       value: FormState[keyof FormState];
     }
   | { type: 'SET_MODEL'; modelId: string }
+  | { type: 'SET_PROVIDER'; provider: TrainingProvider }
   | { type: 'SET_MODEL_PATH'; component: ModelComponentType; path: string }
   | { type: 'APPLY_APP_DEFAULTS'; paths: ModelPaths }
   | { type: 'RESET_SECTION'; section: SectionName }
@@ -212,8 +216,10 @@ function defaultsToFormState(
   defaults: TrainingDefaults,
   modelId: string,
 ): FormState {
+  const model = getModelById(modelId);
   return {
     modelId,
+    selectedProvider: model?.providers[0] ?? 'ai-toolkit',
     modelPaths: {},
     outputName: '',
     datasets: [],
@@ -284,8 +290,17 @@ function formReducer(state: FormState, action: FormAction): FormState {
 
     case 'SET_MODEL': {
       const defaults = getDefaults(action.modelId);
+      const nextModel = getModelById(action.modelId);
+      // Keep user's explicit 'mock' selection across model switches; otherwise
+      // snap to the new model's preferred (first) provider.
+      const preserveMock =
+        state.selectedProvider === 'mock' &&
+        nextModel?.providers.includes('mock');
       return {
         ...defaultsToFormState(defaults, action.modelId),
+        selectedProvider: preserveMock
+          ? 'mock'
+          : (nextModel?.providers[0] ?? 'ai-toolkit'),
         // Preserve user's dataset and output choices
         outputName: state.outputName,
         datasets: state.datasets,
@@ -293,6 +308,9 @@ function formReducer(state: FormState, action: FormAction): FormState {
         samplePrompts: state.samplePrompts,
       };
     }
+
+    case 'SET_PROVIDER':
+      return { ...state, selectedProvider: action.provider };
 
     case 'SET_MODEL_PATH':
       return {
@@ -686,6 +704,10 @@ export function useTrainingConfigForm() {
     dispatch({ type: 'SET_MODEL', modelId });
   }, []);
 
+  const setProvider = useCallback((provider: TrainingProvider) => {
+    dispatch({ type: 'SET_PROVIDER', provider });
+  }, []);
+
   const setModelPath = useCallback(
     (component: ModelComponentType, path: string) => {
       dispatch({ type: 'SET_MODEL_PATH', component, path });
@@ -790,6 +812,7 @@ export function useTrainingConfigForm() {
     sectionHasChanges,
     setField,
     setModel,
+    setProvider,
     setModelPath,
     resetSection,
     resetAll,

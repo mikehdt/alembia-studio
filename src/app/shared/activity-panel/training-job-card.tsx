@@ -3,8 +3,11 @@ import { useMemo } from 'react';
 
 import { SCHEDULER_OPTIONS } from '@/app/services/training/models';
 import { useAppDispatch } from '@/app/store/hooks';
-import { removeJob, type TrainingJob } from '@/app/store/jobs';
-import { cancelMockTraining } from '@/app/store/training/mock-training';
+import { type TrainingJob } from '@/app/store/jobs';
+import {
+  cancelTraining,
+  clearTrainingJob,
+} from '@/app/store/training/training-runtime';
 import { SchedulerSparkline } from '@/app/training/components/scheduler-sparkline';
 
 import { ProgressBar } from '../progress-bar/progress-bar';
@@ -149,7 +152,7 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
       <div className="flex items-center gap-1 border-t border-dashed border-(--border-subtle) px-3 py-1.5">
         {isRunning && (
           <ActionButton
-            onClick={() => dispatch(cancelMockTraining(job.id))}
+            onClick={() => dispatch(cancelTraining(job.id))}
             title="Cancel training"
             variant="danger"
           >
@@ -161,7 +164,7 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
           <>
             <div className="mr-auto" />
             <ActionButton
-              onClick={() => dispatch(removeJob(job.id))}
+              onClick={() => dispatch(clearTrainingJob(job.id))}
               title="Clear from list"
             >
               <XIcon className="h-2.5 w-2.5" />

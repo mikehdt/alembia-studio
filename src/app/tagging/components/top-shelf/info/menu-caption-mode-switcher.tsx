@@ -40,7 +40,7 @@ const MenuCaptionModeSwitcherComponent = ({
         options={options}
         value={captionMode}
         onChange={setCaptionMode}
-        size="sm"
+        size="xs"
         width="full"
         className="ml-auto"
       />

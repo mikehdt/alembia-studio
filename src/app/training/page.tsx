@@ -3,7 +3,7 @@
 import { useCallback } from 'react';
 
 import { useAppDispatch } from '../store/hooks';
-import { startMockTraining } from '../store/training/mock-training';
+import { startTraining } from '../store/training/training-runtime';
 import { TrainingConfigForm } from './components/training-config-form/training-config-form';
 
 export default function TrainingPage() {
@@ -11,7 +11,7 @@ export default function TrainingPage() {
 
   const handleStartTraining = useCallback(
     (config: Record<string, unknown>) => {
-      dispatch(startMockTraining(config));
+      dispatch(startTraining(config));
     },
     [dispatch],
   );

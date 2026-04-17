@@ -208,6 +208,26 @@ const LearningSectionComponent = ({
               <label className="text-xs font-medium text-(--foreground)/70">
                 Duration
               </label>
+            </div>
+
+            <div>
+              <Input
+                type="number"
+                min={1}
+                value={durationMode === 'epochs' ? epochs : steps}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  if (val > 0) {
+                    onFieldChange(
+                      durationMode === 'epochs' ? 'epochs' : 'steps',
+                      val,
+                    );
+                  }
+                }}
+                className="w-32"
+                size="md"
+              />
+
               <SegmentedControl
                 options={[
                   { value: 'epochs', label: 'Epochs' },
@@ -215,25 +235,9 @@ const LearningSectionComponent = ({
                 ]}
                 value={durationMode}
                 onChange={(val) => onFieldChange('durationMode', val)}
-                size="sm"
+                size="md"
               />
             </div>
-
-            <Input
-              type="number"
-              min={1}
-              value={durationMode === 'epochs' ? epochs : steps}
-              onChange={(e) => {
-                const val = parseInt(e.target.value, 10);
-                if (val > 0) {
-                  onFieldChange(
-                    durationMode === 'epochs' ? 'epochs' : 'steps',
-                    val,
-                  );
-                }
-              }}
-              className="w-32"
-            />
 
             {totalEffective > 0 && (
               <p className="mt-1 text-xs text-slate-400 tabular-nums">

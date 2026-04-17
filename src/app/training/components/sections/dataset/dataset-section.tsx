@@ -149,7 +149,12 @@ const DatasetSectionComponent = ({
               </ProjectPicker>
 
               {visibleFields.has('extraFolders' satisfies keyof FormState) && (
-                <Button variant="ghost" onClick={handleBrowseFolder}>
+                <Button
+                  variant="ghost"
+                  size="md"
+                  width="lg"
+                  onClick={handleBrowseFolder}
+                >
                   <FolderOpenIcon />
                   Add Folder
                 </Button>
@@ -194,7 +199,7 @@ const DatasetSectionComponent = ({
                   </button>
                 </div>
 
-                <div className="divide-y divide-slate-400 dark:divide-slate-600">
+                <div className="divide-y divide-slate-300 dark:divide-slate-700">
                   {ds.folders.map((folder) => (
                     <FolderRow
                       key={folder.name}
@@ -258,7 +263,7 @@ const DatasetSectionComponent = ({
                 Extra Folders
               </span>
             </div>
-            <div className="divide-y divide-slate-400 dark:divide-slate-600">
+            <div className="divide-y divide-slate-300 dark:divide-slate-700">
               {extraFolders.map((ef, i) => (
                 <FolderRow
                   key={ef.path}

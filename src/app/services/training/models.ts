@@ -4,6 +4,8 @@
  * and what their sensible defaults are.
  */
 
+import type { TrainingProvider } from './types';
+
 export type ModelArchitecture = 'flux' | 'sdxl' | 'zimage' | 'wan' | 'ltx';
 
 export type ModelComponentType =
@@ -28,7 +30,12 @@ export type ModelDefinition = {
   name: string;
   architecture: ModelArchitecture;
   description: string;
-  provider: 'ai-toolkit' | 'kohya';
+  /**
+   * Supported training backends, ordered by preference. The first entry is
+   * the default selected in the form. `'mock'` is always appended by
+   * {@link MODEL_DEFINITIONS} so every model has a fake option for testing.
+   */
+  providers: TrainingProvider[];
   defaults: TrainingDefaults;
   /** Model components that need local file paths (checkpoint, VAE, text encoders, etc.) */
   components: ModelComponent[];
@@ -102,7 +109,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     name: 'Flux.2 Klein 9B',
     architecture: 'flux',
     description: 'Latest generation, practical for home GPUs (~18 GB fp16)',
-    provider: 'ai-toolkit',
+    providers: ['ai-toolkit', 'mock'],
     components: [
       {
         type: 'checkpoint',
@@ -183,7 +190,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     name: 'Flux.1 Dev',
     architecture: 'flux',
     description: 'Best for photorealistic styles and characters',
-    provider: 'ai-toolkit',
+    providers: ['ai-toolkit', 'mock'],
     components: [
       {
         type: 'checkpoint',
@@ -268,7 +275,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     name: 'Flux.1 Schnell',
     architecture: 'flux',
     description: 'Fast generation, fewer steps needed',
-    provider: 'ai-toolkit',
+    providers: ['ai-toolkit', 'mock'],
     components: [
       {
         type: 'checkpoint',
@@ -353,7 +360,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     name: 'Stable Diffusion XL',
     architecture: 'sdxl',
     description: 'Mature ecosystem, wide compatibility',
-    provider: 'kohya',
+    providers: ['kohya', 'mock'],
     components: [
       {
         type: 'checkpoint',
@@ -432,7 +439,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     name: 'Illustrious XL v2.0',
     architecture: 'sdxl',
     description: 'Illustration-focused SDXL base model',
-    provider: 'kohya',
+    providers: ['kohya', 'mock'],
     components: [
       {
         type: 'checkpoint',
@@ -512,7 +519,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     name: 'NoobAI XL 1.1',
     architecture: 'sdxl',
     description: 'Anime/illustration SDXL, non-vpred variant',
-    provider: 'kohya',
+    providers: ['kohya', 'mock'],
     components: [
       {
         type: 'checkpoint',
@@ -592,7 +599,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     name: 'Z-Image Turbo',
     architecture: 'zimage',
     description: 'Fast, high-quality image generation',
-    provider: 'ai-toolkit',
+    providers: ['ai-toolkit', 'mock'],
     components: [
       {
         type: 'checkpoint',
@@ -660,7 +667,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     name: 'Wan 2.2 14B',
     architecture: 'wan',
     description: 'Video/image generation, last open-weights release',
-    provider: 'ai-toolkit',
+    providers: ['ai-toolkit', 'mock'],
     components: [
       { type: 'checkpoint', label: 'Model File', required: true },
     ],
@@ -722,7 +729,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     name: 'LTX-Video 2',
     architecture: 'ltx',
     description: 'Actively evolving open video model',
-    provider: 'ai-toolkit',
+    providers: ['ai-toolkit', 'mock'],
     components: [
       { type: 'checkpoint', label: 'Model File', required: true },
     ],
@@ -784,7 +791,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     name: 'LTX-Video 2.3',
     architecture: 'ltx',
     description: 'Latest LTX with improved motion and quality',
-    provider: 'ai-toolkit',
+    providers: ['ai-toolkit', 'mock'],
     components: [
       { type: 'checkpoint', label: 'Model File', required: true },
     ],

@@ -2,7 +2,13 @@ import type { ModelComponentType } from './models';
 
 // --- Provider & Backend ---
 
-export type TrainingProvider = 'ai-toolkit' | 'kohya';
+export type TrainingProvider = 'ai-toolkit' | 'kohya' | 'mock';
+
+export const TRAINING_PROVIDER_LABELS: Record<TrainingProvider, string> = {
+  'ai-toolkit': 'ai-toolkit',
+  kohya: 'Kohya (sd-scripts)',
+  mock: 'Mock (fake GPU, for testing)',
+};
 
 // --- Job Lifecycle ---
 
@@ -82,7 +88,7 @@ export type TrainingJobConfig = {
 
 // --- Per-Project Settings (stored in project config JSON) ---
 
-type TrainingSettings = {
+export type TrainingSettings = {
   datasets?: TrainingDataset[];
   provider?: TrainingProvider;
   baseModel?: string;

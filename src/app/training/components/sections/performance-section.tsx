@@ -1,5 +1,6 @@
 import { memo } from 'react';
 
+import type { TrainingProvider } from '@/app/services/training/types';
 import { Checkbox } from '@/app/shared/checkbox';
 import { CollapsibleSection } from '@/app/shared/collapsible-section';
 import { Dropdown, type DropdownItem } from '@/app/shared/dropdown';
@@ -16,7 +17,7 @@ type PerformanceSectionProps = {
   batchSize: number;
   resolution: number[];
   availableResolutions: number[];
-  provider: 'ai-toolkit' | 'kohya';
+  provider: TrainingProvider;
   mixedPrecision: 'bf16' | 'fp16';
   transformerQuantization: 'none' | 'float8';
   textEncoderQuantization: 'none' | 'float8';

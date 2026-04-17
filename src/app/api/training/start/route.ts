@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
 
+import { buildSidecarStartRequest } from '@/app/services/training/build-sidecar-request';
 import { ensureSidecar } from '@/app/services/training/sidecar-manager';
 
 /**
  * POST /api/training/start — Start a training job via the Python sidecar.
+ *
+ * The request body is the raw client-side form config. This route assembles
+ * the sidecar-shaped StartJobRequest (absolute paths, snake_case) before
+ * forwarding.
  */
 export async function POST(request: Request) {
-  // Ensure sidecar is running
   const sidecar = await ensureSidecar();
   if (sidecar.status !== 'ready') {
     return NextResponse.json(
@@ -16,7 +20,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = await request.json();
+    const clientConfig = await request.json();
+    const body = buildSidecarStartRequest(clientConfig);
     const res = await fetch(`http://127.0.0.1:${sidecar.port}/jobs/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -24,7 +29,12 @@ export async function POST(request: Request) {
     });
 
     const data = await res.json();
-    return NextResponse.json(data, { status: res.status });
+    // Echo the built request back so the client can seed Redux with the
+    // exact config the sidecar received.
+    return NextResponse.json(
+      { ...data, sidecar_port: sidecar.port, sent_request: body },
+      { status: res.status },
+    );
   } catch (error) {
     return NextResponse.json(
       { error: `Failed to start training: ${error}` },

@@ -360,10 +360,21 @@ const selectAnyActiveTaggingJob = createSelector(
 );
 
 /** Whether the GPU is busy (training or tagging active — blocks other GPU work). */
-const selectIsGpuBusy = createSelector(
+export const selectIsGpuBusy = createSelector(
   selectActiveTrainingJob,
   selectAnyActiveTaggingJob,
   (training, tagging) => training !== null || tagging !== null,
+);
+
+/** The reason the GPU is busy, or null if idle. Used for guard error messages. */
+export const selectGpuBusyReason = createSelector(
+  selectActiveTrainingJob,
+  selectAnyActiveTaggingJob,
+  (training, tagging): 'training' | 'tagging' | null => {
+    if (training !== null) return 'training';
+    if (tagging !== null) return 'tagging';
+    return null;
+  },
 );
 
 /** Whether the activity panel is open. */
