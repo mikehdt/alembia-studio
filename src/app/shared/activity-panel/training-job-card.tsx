@@ -14,6 +14,43 @@ import { ProgressBar } from '../progress-bar/progress-bar';
 import { ActionButton } from './action-button';
 import { formatDuration } from './helpers';
 
+const TQDM_RE = /(\d+)\/(\d+)\s+\[/;
+
+/**
+ * Turn the most recent sidecar log lines into a short, readable phase
+ * label so the activity card can show "Caching latents (3/4)" instead of
+ * a raw tqdm string or a silent "Preparing…". Walks backwards through
+ * the log tail to pick up the latest progress bar, classifying it from
+ * nearby context when the bar itself has no prefix.
+ */
+function derivePreparingPhase(lines: string[] | undefined): string | null {
+  if (!lines || lines.length === 0) return null;
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    const tqdm = line.match(TQDM_RE);
+    if (tqdm) {
+      const counter = `${tqdm[1]}/${tqdm[2]}`;
+      const context = [line, ...lines.slice(Math.max(0, i - 5), i)]
+        .join(' ')
+        .toLowerCase();
+      if (/cach.*latent/.test(context)) return `Caching latents (${counter})`;
+      if (/text.*(encod|embed)|cach.*text/.test(context))
+        return `Encoding text (${counter})`;
+      return `Processing (${counter})`;
+    }
+
+    const l = line.toLowerCase();
+    if (/load.*(model|transformer|pipeline)/.test(l)) return 'Loading model';
+    if (/quantiz/.test(l)) return 'Quantizing';
+    if (/cach.*latent/.test(l)) return 'Caching latents';
+    if (/text.*(encod|embed)/.test(l)) return 'Encoding text';
+    if (/start.*train|begin.*train/.test(l)) return 'Starting training';
+  }
+
+  return null;
+}
+
 export function TrainingJobCard({ job }: { job: TrainingJob }) {
   const dispatch = useAppDispatch();
 
@@ -40,6 +77,11 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
 
   const checkpointPositions = progress?.checkpointSteps ?? [];
   const savedCount = checkpointPositions.length;
+
+  const preparingPhase = useMemo(
+    () => derivePreparingPhase(progress?.logLines),
+    [progress?.logLines],
+  );
 
   const schedulerCurve = useMemo(() => {
     const schedulerName = config?.hyperparameters?.scheduler;
@@ -124,7 +166,10 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
               className="mb-2"
             />
             <div className="flex flex-col gap-0.5 text-xs text-slate-500">
-              <span>Preparing…</span>
+              <span>
+                Preparing
+                {preparingPhase ? ` · ${preparingPhase}` : '…'}
+              </span>
               {progress?.logLines && progress.logLines.length > 0 && (
                 <span className="truncate font-mono text-[10px] text-slate-400">
                   {progress.logLines[progress.logLines.length - 1]}

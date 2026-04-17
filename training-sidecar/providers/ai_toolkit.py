@@ -398,34 +398,60 @@ class AiToolkitProvider(TrainingProvider):
                                 yield line
                             break
 
-        # Drain stderr in the background. Without this the child's stderr
-        # buffer fills up (especially on Windows pipes, ~4-8KB) and the
-        # process blocks — and any Python traceback explaining why ai-toolkit
-        # refused to start never reaches us.
-        async def drain_stderr():
-            async for line in read_stream(self._process.stderr, is_stderr=True):
+        # Merge stdout and stderr into one queue. tqdm writes progress to
+        # stderr by default (ai-toolkit does this), so if we only parsed
+        # stdout we'd miss every step and the UI would stay on "Preparing…"
+        # for the whole run. Draining both also prevents the child process
+        # from blocking on a full stderr pipe buffer (~4-8KB on Windows),
+        # which would otherwise hide Python tracebacks entirely.
+        line_queue: asyncio.Queue = asyncio.Queue()
+        EOF = object()
+
+        async def drain(stream, is_stderr: bool):
+            async for line in read_stream(stream, is_stderr=is_stderr):
+                await line_queue.put((line, is_stderr))
+            await line_queue.put((EOF, is_stderr))
+
+        stdout_task = asyncio.create_task(drain(self._process.stdout, False))
+        stderr_task = asyncio.create_task(drain(self._process.stderr, True))
+
+        # Until the first tqdm line arrives we're still in the "preparing"
+        # phase — ai-toolkit can spend several minutes loading the base
+        # model, quantizing, caching latents, etc. Yield a PREPARING
+        # progress on each log line so the UI shows what's happening.
+        training_started = False
+        eofs_seen = 0
+        while eofs_seen < 2:
+            item, is_stderr = await line_queue.get()
+            if item is EOF:
+                eofs_seen += 1
+                continue
+            line = item
+
+            if is_stderr:
                 stderr_lines.append(line)
 
-        stderr_task = asyncio.create_task(drain_stderr())
-
-        # Read stdout for progress. Until the first tqdm line arrives, we're
-        # still in the "preparing" phase — ai-toolkit can spend several
-        # minutes loading the base model, quantizing, caching latents, etc.
-        # Yield a PREPARING progress on each log line so the UI shows what
-        # the sidecar is actually doing instead of a silent "Preparing…".
-        training_started = False
-        async for line in read_stream(self._process.stdout):
-            # Try to parse tqdm progress
             match = TQDM_PATTERN.search(line)
-            if match:
+            postfix = match.group(4) if match else ""
+            loss_match = LOSS_PATTERN.search(postfix) if match else None
+            lr_match = LR_PATTERN.search(postfix) if match else None
+
+            # ai-toolkit emits several tqdm bars during a run: caching
+            # latents, text-encoder passes, epoch counters, and the actual
+            # training loop. Only the training loop carries lr:/loss: in
+            # its postfix, so we use that as the discriminator — once we
+            # see one, latch training_started and treat all subsequent
+            # tqdm matches as training steps (the first few ticks may not
+            # have loss yet).
+            is_training_bar = bool(
+                match and (loss_match or lr_match or training_started)
+            )
+
+            if match and is_training_bar:
                 training_started = True
                 current_step = int(match.group(1))
                 total_steps = int(match.group(2))
                 time_info = match.group(3)
-                postfix = match.group(4)
-
-                loss_match = LOSS_PATTERN.search(postfix)
-                lr_match = LR_PATTERN.search(postfix)
                 eta = _parse_eta_seconds(time_info)
 
                 yield JobProgress(
@@ -437,22 +463,19 @@ class AiToolkitProvider(TrainingProvider):
                     learning_rate=float(lr_match.group(1)) if lr_match else None,
                     eta_seconds=eta,
                     sample_image_paths=sample_paths,
-                    log_lines=log_lines[-50:],  # Keep last 50 lines
+                    log_lines=log_lines[-50:],
                 )
             else:
-                # Non-progress line — add to log
+                # Setup bar or regular log line. Keep it in the log so
+                # the UI can surface "Caching latents 3/4", "Encoding
+                # text 30/30" etc. under the Preparing label.
                 log_lines.append(line)
 
-                # Check for sample image saves
                 if "sample" in line.lower() and (
                     line.endswith(".png") or line.endswith(".jpg")
                 ):
                     sample_paths.append(line.strip())
 
-                # Surface setup activity to the UI so "Preparing…" isn't
-                # a silent black box. Only broadcast while we're still
-                # before the first tqdm tick — once training is
-                # underway the next tqdm yield carries the logs.
                 if not training_started:
                     yield JobProgress(
                         job_id=job_id,
@@ -461,7 +484,7 @@ class AiToolkitProvider(TrainingProvider):
                         sample_image_paths=sample_paths,
                     )
 
-        # Wait for stderr drain and the process itself
+        await stdout_task
         await stderr_task
         return_code = await self._process.wait()
         self._process = None
