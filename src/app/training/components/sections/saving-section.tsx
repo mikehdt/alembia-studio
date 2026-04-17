@@ -57,18 +57,6 @@ const SavingSectionComponent = ({
   onOutputNameChange,
   onReset,
 }: SavingSectionProps) => {
-  const hasVisibleFields =
-    visibleFields.has('saveEveryEpochs') ||
-    visibleFields.has('saveEverySteps') ||
-    visibleFields.has('outputName') ||
-    visibleFields.has('saveFormat');
-
-  if (!hasVisibleFields) return null;
-
-  const activeField =
-    saveMode === 'epochs' ? 'saveEveryEpochs' : 'saveEverySteps';
-  const activeValue = saveMode === 'epochs' ? saveEveryEpochs : saveEverySteps;
-
   const handleBrowseResumeState = useCallback(async () => {
     try {
       const params = new URLSearchParams({
@@ -82,6 +70,18 @@ const SavingSectionComponent = ({
       // Dialog failed — user can paste the path manually
     }
   }, [onFieldChange]);
+
+  const hasVisibleFields =
+    visibleFields.has('saveEveryEpochs') ||
+    visibleFields.has('saveEverySteps') ||
+    visibleFields.has('outputName') ||
+    visibleFields.has('saveFormat');
+
+  if (!hasVisibleFields) return null;
+
+  const activeField =
+    saveMode === 'epochs' ? 'saveEveryEpochs' : 'saveEverySteps';
+  const activeValue = saveMode === 'epochs' ? saveEveryEpochs : saveEverySteps;
 
   return (
     <CollapsibleSection
@@ -217,7 +217,8 @@ const SavingSectionComponent = ({
               size="sm"
             />
             <span className="text-xs text-slate-400">
-              Writes optimiser state alongside each checkpoint so training can be resumed
+              Writes optimiser state alongside each checkpoint so training can
+              be resumed
             </span>
           </div>
         )}
