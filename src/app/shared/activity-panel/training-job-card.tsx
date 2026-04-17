@@ -25,10 +25,13 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
   const progress = job.progress;
   const config = job.config;
 
-  const pct =
-    progress && progress.totalSteps > 0
-      ? Math.round((progress.currentStep / progress.totalSteps) * 100)
-      : 0;
+  // If totalSteps was never reported, training never got past preparing.
+  // Don't render the bar / "Step 0 of 0" — show the error (or status) only.
+  const hasStepInfo = (progress?.totalSteps ?? 0) > 0;
+
+  const pct = hasStepInfo
+    ? Math.round((progress!.currentStep / progress!.totalSteps) * 100)
+    : 0;
 
   const elapsed =
     progress?.completedAt != null && progress.startedAt != null
@@ -94,23 +97,42 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
 
       {/* Progress */}
       <div className="px-3 pb-2.5">
-        <ProgressBar
-          value={progress?.currentStep ?? 0}
-          max={progress?.totalSteps ?? 1}
-          color={isCompleted ? 'green' : isFailed ? 'red' : 'sky'}
-          indeterminate={!progress}
-          marks={checkpointPositions}
-          className="mb-2"
-        />
+        {hasStepInfo ? (
+          <>
+            <ProgressBar
+              value={progress!.currentStep}
+              max={progress!.totalSteps}
+              color={isCompleted ? 'green' : isFailed ? 'red' : 'sky'}
+              marks={checkpointPositions}
+              className="mb-2"
+            />
 
-        <div className="flex items-baseline justify-between text-xs tabular-nums">
-          <span className="text-slate-500">
-            {progress
-              ? `Step ${progress.currentStep.toLocaleString()} / ${progress.totalSteps.toLocaleString()}`
-              : 'Preparing...'}
-          </span>
-          <span className="font-medium text-(--foreground)">{pct}%</span>
-        </div>
+            <div className="flex items-baseline justify-between text-xs tabular-nums">
+              <span className="text-slate-500">
+                {`Step ${progress!.currentStep.toLocaleString()} / ${progress!.totalSteps.toLocaleString()}`}
+              </span>
+              <span className="font-medium text-(--foreground)">{pct}%</span>
+            </div>
+          </>
+        ) : isRunning ? (
+          <>
+            <ProgressBar
+              value={0}
+              max={1}
+              color="sky"
+              indeterminate
+              className="mb-2"
+            />
+            <div className="flex flex-col gap-0.5 text-xs text-slate-500">
+              <span>Preparing…</span>
+              {progress?.logLines && progress.logLines.length > 0 && (
+                <span className="truncate font-mono text-[10px] text-slate-400">
+                  {progress.logLines[progress.logLines.length - 1]}
+                </span>
+              )}
+            </div>
+          </>
+        ) : null}
 
         {progress && progress.loss !== null && (
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-400">
@@ -144,7 +166,9 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
           </p>
         )}
         {isFailed && progress?.error && (
-          <p className="mt-1.5 text-xs text-red-500">{progress.error}</p>
+          <pre className="mt-1.5 max-h-40 overflow-auto font-mono text-[10px] whitespace-pre-wrap text-red-500">
+            {progress.error}
+          </pre>
         )}
       </div>
 

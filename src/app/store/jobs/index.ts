@@ -87,7 +87,11 @@ const jobsSlice = createSlice({
 
       // Sync status from progress
       const progressStatus = action.payload.progress.status;
-      if (progressStatus === 'training') {
+      if (progressStatus === 'pending') {
+        job.status = 'pending';
+      } else if (progressStatus === 'preparing') {
+        job.status = 'preparing';
+      } else if (progressStatus === 'training') {
         job.status = 'running';
         job.startedAt ??= action.payload.progress.startedAt;
       } else if (progressStatus === 'completed') {

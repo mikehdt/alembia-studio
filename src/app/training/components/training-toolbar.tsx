@@ -43,9 +43,12 @@ const TrainingToolbarComponent = () => {
   const activeTrainingJob = useAppSelector(selectActiveTrainingJob);
   const panelOpen = useAppSelector(selectPanelOpen);
 
-  // Defer Redux-dependent state until after hydration
-  const hasActiveJob = Boolean(isClient && activeTrainingJob !== null);
-  const isRunning = Boolean(isClient && activeTrainingJob !== null);
+  // Mirror the TrainingBottomShelf fix: pick a default that makes SSR emit
+  // no `disabled` attribute, then settle on the real value post-hydration.
+  // React 19/Turbopack flags any `disabled` mismatch as a hydration error,
+  // so we have to avoid rendering `disabled={true}` during SSR.
+  const hasActiveJob = isClient ? activeTrainingJob !== null : true;
+  const isRunning = isClient && activeTrainingJob !== null;
 
   const handleViewModeChange = useCallback(
     (mode: TrainingViewMode) => {

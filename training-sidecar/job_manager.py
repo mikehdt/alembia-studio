@@ -180,12 +180,21 @@ class JobManager:
         self._persist_state()
 
     def clear_completed(self):
-        """Clear a completed/failed/cancelled job from active state."""
+        """Clear a completed/failed/cancelled job from active state.
+
+        Also deletes the persisted state file so the job doesn't come
+        back via `_recover_state()` the next time the sidecar starts.
+        """
         if self._active_job and self._active_job.status in (
             JobStatus.COMPLETED,
             JobStatus.FAILED,
             JobStatus.CANCELLED,
         ):
+            path = self._jobs_dir / f"{self._active_job.job_id}.json"
+            try:
+                path.unlink(missing_ok=True)
+            except OSError as e:
+                print(f"Warning: Failed to delete cleared job file: {e}")
             self._active_job = None
 
     def _persist_state(self):
@@ -203,7 +212,13 @@ class JobManager:
             print(f"Warning: Failed to persist job state: {e}")
 
     def _recover_state(self):
-        """Attempt to recover the most recent active job from disk."""
+        """Attempt to recover an in-flight job from disk after a restart.
+
+        Terminal jobs (completed/failed/cancelled) are NOT recovered — the
+        client owns terminal training history via localStorage, so there's
+        no reason to resurface them here. Stale terminal files are cleaned
+        up opportunistically.
+        """
         if not self._jobs_dir.exists():
             return
 
@@ -220,18 +235,22 @@ class JobManager:
             data = json.loads(latest[1].read_text(encoding="utf-8"))
             job = JobState(**data)
 
-            # Only recover jobs that were in-progress (not completed/failed)
             if job.status in (
                 JobStatus.PENDING,
                 JobStatus.PREPARING,
                 JobStatus.TRAINING,
             ):
-                # Mark as failed since the sidecar restarted while it was running
+                # Sidecar restarted while this job was running — mark failed.
                 job.status = JobStatus.FAILED
                 job.progress.status = JobStatus.FAILED
                 job.progress.error = "Training interrupted — sidecar restarted"
                 job.completed_at = datetime.now(timezone.utc).isoformat()
-
-            self._active_job = job
+                self._active_job = job
+            else:
+                # Terminal job left over from a previous session — drop it.
+                try:
+                    latest[1].unlink(missing_ok=True)
+                except OSError:
+                    pass
         except (json.JSONDecodeError, OSError, ValueError) as e:
             print(f"Warning: Failed to recover job state: {e}")

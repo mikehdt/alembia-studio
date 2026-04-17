@@ -57,9 +57,14 @@ function buildDatasets(
     for (const folder of ds.folders) {
       const repeats = folder.overrideRepeats ?? folder.detectedRepeats;
       if (repeats <= 0) continue;
+      // "Root" is a display-only sentinel from getProjectFolders meaning
+      // "images live directly in the project folder, no subdir" — strip it
+      // so the absolute path points at the project folder itself, not a
+      // nonexistent F:\...\project\Root directory.
+      const subfolder = folder.name === 'Root' ? '' : folder.name;
       const folderPath = projectsFolder
-        ? path.join(projectsFolder, ds.folderName, folder.name)
-        : path.join(ds.folderName, folder.name);
+        ? path.join(projectsFolder, ds.folderName, subfolder)
+        : path.join(ds.folderName, subfolder);
       entries.push({
         path: folderPath,
         num_repeats: repeats,

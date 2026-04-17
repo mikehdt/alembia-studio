@@ -373,6 +373,7 @@ class AiToolkitProvider(TrainingProvider):
         yield JobProgress(job_id=job_id, status=JobStatus.PREPARING)
 
         log_lines: list[str] = []
+        stderr_lines: list[str] = []
         sample_paths: list[str] = []
 
         async def read_stream(
@@ -397,11 +398,27 @@ class AiToolkitProvider(TrainingProvider):
                                 yield line
                             break
 
-        # Read stdout for progress, stderr for logs
+        # Drain stderr in the background. Without this the child's stderr
+        # buffer fills up (especially on Windows pipes, ~4-8KB) and the
+        # process blocks — and any Python traceback explaining why ai-toolkit
+        # refused to start never reaches us.
+        async def drain_stderr():
+            async for line in read_stream(self._process.stderr, is_stderr=True):
+                stderr_lines.append(line)
+
+        stderr_task = asyncio.create_task(drain_stderr())
+
+        # Read stdout for progress. Until the first tqdm line arrives, we're
+        # still in the "preparing" phase — ai-toolkit can spend several
+        # minutes loading the base model, quantizing, caching latents, etc.
+        # Yield a PREPARING progress on each log line so the UI shows what
+        # the sidecar is actually doing instead of a silent "Preparing…".
+        training_started = False
         async for line in read_stream(self._process.stdout):
             # Try to parse tqdm progress
             match = TQDM_PATTERN.search(line)
             if match:
+                training_started = True
                 current_step = int(match.group(1))
                 total_steps = int(match.group(2))
                 time_info = match.group(3)
@@ -432,7 +449,20 @@ class AiToolkitProvider(TrainingProvider):
                 ):
                     sample_paths.append(line.strip())
 
-        # Wait for process to finish
+                # Surface setup activity to the UI so "Preparing…" isn't
+                # a silent black box. Only broadcast while we're still
+                # before the first tqdm tick — once training is
+                # underway the next tqdm yield carries the logs.
+                if not training_started:
+                    yield JobProgress(
+                        job_id=job_id,
+                        status=JobStatus.PREPARING,
+                        log_lines=log_lines[-50:],
+                        sample_image_paths=sample_paths,
+                    )
+
+        # Wait for stderr drain and the process itself
+        await stderr_task
         return_code = await self._process.wait()
         self._process = None
 
@@ -444,16 +474,23 @@ class AiToolkitProvider(TrainingProvider):
                 sample_image_paths=sample_paths,
             )
         else:
-            # Collect stderr for error message
-            stderr_lines = []
-            if self._process is None:
-                # Process already finished, stderr was not read
-                pass
+            # Surface stderr — ai-toolkit often only logs useful errors there
+            # (Python tracebacks, argparse failures, missing deps). Fall back
+            # to stdout if stderr is empty.
+            tail = stderr_lines[-10:] if stderr_lines else log_lines[-10:]
+            detail = "\n".join(tail).strip()
+            error_msg = f"Training process exited with code {return_code}"
+            if detail:
+                error_msg = f"{error_msg}\n{detail}"
+
+            # Merge stderr into logs so the UI log view sees them too.
+            merged_logs = (log_lines + stderr_lines)[-50:]
+
             yield JobProgress(
                 job_id=job_id,
                 status=JobStatus.FAILED,
-                error=f"Training process exited with code {return_code}",
-                log_lines=log_lines[-50:],
+                error=error_msg,
+                log_lines=merged_logs,
             )
 
     async def cancel_training(self) -> None:
@@ -500,21 +537,32 @@ def _first_resolution(hp: dict, defaults: dict) -> int:
 
 
 def _find_python(toolkit_path: Path) -> str:
-    """Find the Python executable for ai-toolkit's environment."""
+    """Find the Python executable for ai-toolkit's environment.
+
+    Checks, in order:
+      1. `venv/` or `.venv/` inside the toolkit path (git-clone + uv/pip setup)
+      2. `python_embeded/python.exe` in the toolkit's parent dir
+         (Windows "Start-AI-Toolkit.bat" / portable-installer convention,
+         same as ComfyUI portable — ships with the installer launcher at
+         the parent directory level)
+      3. the sidecar's own Python (won't work without ai-toolkit's deps,
+         but gives a clearer error than a silent hang)
+    """
     if sys.platform == "win32":
         candidates = [
             toolkit_path / "venv" / "Scripts" / "python.exe",
             toolkit_path / ".venv" / "Scripts" / "python.exe",
+            toolkit_path.parent / "python_embeded" / "python.exe",
         ]
     else:
         candidates = [
             toolkit_path / "venv" / "bin" / "python",
             toolkit_path / ".venv" / "bin" / "python",
+            toolkit_path.parent / "python_embeded" / "bin" / "python",
         ]
 
     for candidate in candidates:
         if candidate.exists():
             return str(candidate)
 
-    # Fall back to system python
     return sys.executable
