@@ -13,7 +13,6 @@ import { openModelManagerModal } from '@/app/store/model-manager';
 import { selectAllModelStatuses } from '@/app/store/model-manager';
 
 import { useModelDefaultsModal } from '../model-defaults-modal/use-model-defaults-modal';
-
 import { resolveDownloadedPath } from './resolve-downloaded-path';
 
 const MODEL_FILE_FILTER = 'safetensors,ckpt,bin,pt,pth';
@@ -112,7 +111,7 @@ export function ModelPathField({
   const hasExtra = canReset || (canDownload && !isDownloading);
 
   return (
-    <InputTray size="md" className={className}>
+    <InputTray size="md" width="full" className={className}>
       <Input
         type="text"
         size="md"
