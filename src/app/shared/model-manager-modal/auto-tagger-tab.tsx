@@ -57,7 +57,7 @@ export function AutoTaggerTab() {
         if (providerModels.length === 0) return null;
         return (
           <div key={provider.id}>
-            <div className="mb-2 rounded-md bg-slate-50 p-3 dark:bg-slate-900">
+            <div className="mb-2 rounded-md bg-slate-200 p-3 dark:bg-slate-900">
               <h3 className="text-sm font-medium text-slate-700 dark:text-slate-200">
                 {provider.name}
               </h3>
@@ -73,7 +73,6 @@ export function AutoTaggerTab() {
           </div>
         );
       })}
-
       {error && (
         <div className="rounded-md bg-rose-50 p-3 text-sm text-rose-700">
           {error}

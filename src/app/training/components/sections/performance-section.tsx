@@ -37,8 +37,8 @@ type PerformanceSectionProps = {
 };
 
 const PRECISION_ITEMS: DropdownItem<string>[] = [
-  { value: 'bf16', label: 'bfloat16' },
-  { value: 'fp16', label: 'float16' },
+  { value: 'bf16', label: 'BF16 Floating Point (Modern GPUs)' },
+  { value: 'fp16', label: 'FP16 Floating Point (Compatibility)' },
 ];
 
 const QUANTIZATION_ITEMS: DropdownItem<string>[] = [

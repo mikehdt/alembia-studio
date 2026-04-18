@@ -265,10 +265,13 @@ export async function* downloadModelFiles(
     }
   }
 
-  // Write a manifest recording actual on-disk sizes. This is the source of
-  // truth for the status checker — the declared sizes in the model registry
-  // are often estimates (especially for GGUF models from HuggingFace) and
-  // won't match byte-for-byte.
+  // Write a per-model manifest recording actual on-disk sizes. This is the
+  // source of truth for the status checker — the declared sizes in the model
+  // registry are often estimates (especially for GGUF models from HuggingFace)
+  // and won't match byte-for-byte. Keyed by modelId because multiple models
+  // can share a targetDir (e.g. every SDXL checkpoint lives under
+  // public/models/sdxl/), and a shared manifest would make each model
+  // report its neighbour's files as its own.
   try {
     const manifest: { files: { name: string; size: number }[] } = { files: [] };
     for (const file of files) {
@@ -281,7 +284,7 @@ export async function* downloadModelFiles(
       }
     }
     fs.writeFileSync(
-      path.join(targetDir, 'manifest.json'),
+      path.join(targetDir, `${modelId}.manifest.json`),
       JSON.stringify(manifest, null, 2),
       'utf-8',
     );

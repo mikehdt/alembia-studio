@@ -73,7 +73,23 @@ class AiToolkitUiProvider(TrainingProvider):
         # ai-toolkit id for polling/cancel.
         local_job_id = request.output_name
 
+        # Accumulate a log tail as we progress through setup so the UI
+        # can surface what the sidecar is actually doing during the
+        # pre-training window (which can take a minute+ the first time
+        # ai-toolkit's server cold-starts).
+        log_tail: list[str] = []
+
+        def _emit(label: str) -> JobProgress:
+            log_tail.append(label)
+            return JobProgress(
+                job_id=local_job_id,
+                status=JobStatus.PREPARING,
+                log_lines=log_tail[-50:],
+            )
+
+        yield _emit("Starting ai-toolkit server...")
         await self._server.ensure_running()
+        yield _emit("ai-toolkit server ready")
 
         config_dict = _build_config_dict(request)
         # Unique name — ai-toolkit's `name` column is a unique key, so a
@@ -84,6 +100,7 @@ class AiToolkitUiProvider(TrainingProvider):
         async with httpx.AsyncClient(
             base_url=self._server.base_url, timeout=30.0
         ) as client:
+            yield _emit("Submitting job to ai-toolkit...")
             # 1. Create the job row
             create_res = await client.post(
                 "/api/jobs",
@@ -102,11 +119,7 @@ class AiToolkitUiProvider(TrainingProvider):
             aitk_id: str = created["id"]
             self._current_job_id = aitk_id
 
-            yield JobProgress(
-                job_id=local_job_id,
-                status=JobStatus.PREPARING,
-                log_lines=[f"ai-toolkit job created: {aitk_id}"],
-            )
+            yield _emit(f"Job created: {aitk_id}")
 
             # 2. Queue the job
             start_res = await client.get(f"/api/jobs/{aitk_id}/start")
@@ -128,10 +141,13 @@ class AiToolkitUiProvider(TrainingProvider):
                     f"{queue_res.status_code}: {queue_res.text[:300]}"
                 )
 
-            # 4. Poll the job row until terminal
+            yield _emit("Waiting for worker to pick up job...")
+
+            # 4. Poll the job row until terminal. We keep the log_tail we
+            # already built up during setup so the UI doesn't lose context
+            # when the polling phase starts.
             total_steps = int(request.hyperparameters.get("steps", 0)) or 0
             sample_paths: list[str] = []
-            log_tail: list[str] = []
             last_step = -1
             last_status_label = ""
 
@@ -158,14 +174,14 @@ class AiToolkitUiProvider(TrainingProvider):
 
                 if info and info != last_status_label:
                     log_tail.append(info)
-                    log_tail = log_tail[-50:]
+                    del log_tail[:-50]
                     last_status_label = info
 
                 if aitk_status in ("queued", "starting"):
                     yield JobProgress(
                         job_id=local_job_id,
                         status=JobStatus.PREPARING,
-                        log_lines=log_tail,
+                        log_lines=log_tail[-50:],
                     )
                 elif aitk_status == "running":
                     if step != last_step or info != last_status_label:

@@ -41,6 +41,13 @@ function derivePreparingPhase(lines: string[] | undefined): string | null {
     }
 
     const l = line.toLowerCase();
+    // Sidecar-emitted setup phases (before the training backend starts).
+    if (/starting.*(ai-toolkit|server)/.test(l)) return 'Starting backend';
+    if (/server ready/.test(l)) return 'Backend ready';
+    if (/submitting/.test(l)) return 'Submitting job';
+    if (/job created/.test(l)) return 'Job created';
+    if (/waiting.*worker/.test(l)) return 'Waiting for worker';
+    // Training backend phases.
     if (/load.*(model|transformer|pipeline)/.test(l)) return 'Loading model';
     if (/quantiz/.test(l)) return 'Quantizing';
     if (/cach.*latent/.test(l)) return 'Caching latents';
@@ -94,22 +101,46 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
   return (
     <div className="border-b border-(--border-subtle) inset-shadow-sm inset-shadow-slate-100 last:border-b-0 dark:inset-shadow-slate-900">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2">
-        <div className="flex items-center gap-2">
-          <span
-            className={`h-2 w-2 rounded-full ${
-              isRunning
-                ? 'animate-pulse bg-sky-500'
-                : isCompleted
-                  ? 'bg-green-500'
-                  : isFailed
-                    ? 'bg-red-500'
-                    : 'bg-slate-400'
-            }`}
-          />
-          <span className="text-xs font-medium text-(--foreground)">
-            {config?.outputName || 'Training'}
-          </span>
+      <div className="flex items-center justify-between gap-2 px-3 py-2">
+        <span
+          className={`h-2 w-2 rounded-full p-1 ${
+            isRunning
+              ? 'animate-pulse bg-sky-500'
+              : isCompleted
+                ? 'bg-green-500'
+                : isFailed
+                  ? 'bg-rose-500'
+                  : 'bg-slate-400'
+          }`}
+        />
+        <span className="text-xs font-medium text-(--foreground)">
+          {config?.outputName || 'Training'}
+        </span>
+
+        {/* Actions */}
+        <div className="ml-auto flex items-center gap-1 border-t border-dashed border-(--border-subtle)">
+          {isRunning && (
+            <ActionButton
+              onClick={() => dispatch(cancelTraining(job.id))}
+              title="Cancel training"
+              variant="danger"
+            >
+              <XIcon className="h-2.5 w-2.5" />
+              Cancel
+            </ActionButton>
+          )}
+          {isDone && (
+            <>
+              <div className="mr-auto" />
+              <ActionButton
+                onClick={() => dispatch(clearTrainingJob(job.id))}
+                title="Clear from list"
+              >
+                <XIcon className="h-2.5 w-2.5" />
+                Clear
+              </ActionButton>
+            </>
+          )}
         </div>
       </div>
 
@@ -146,10 +177,10 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
               max={progress!.totalSteps}
               color={isCompleted ? 'green' : isFailed ? 'red' : 'sky'}
               marks={checkpointPositions}
-              className="mb-2"
+              size={isCompleted ? 'xs' : 'sm'}
             />
 
-            <div className="flex items-baseline justify-between text-xs tabular-nums">
+            <div className="mt-2 flex items-baseline justify-between text-xs tabular-nums">
               <span className="text-slate-500">
                 {`Step ${progress!.currentStep.toLocaleString()} / ${progress!.totalSteps.toLocaleString()}`}
               </span>
@@ -158,14 +189,8 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
           </>
         ) : isRunning ? (
           <>
-            <ProgressBar
-              value={0}
-              max={1}
-              color="sky"
-              indeterminate
-              className="mb-2"
-            />
-            <div className="flex flex-col gap-0.5 text-xs text-slate-500">
+            <ProgressBar value={0} max={1} color="sky" indeterminate />
+            <div className="mt-2 flex flex-col gap-0.5 text-xs text-slate-500">
               <span>
                 Preparing
                 {preparingPhase ? ` · ${preparingPhase}` : '…'}
@@ -211,35 +236,9 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
           </p>
         )}
         {isFailed && progress?.error && (
-          <pre className="mt-1.5 max-h-40 overflow-auto font-mono text-[10px] whitespace-pre-wrap text-red-500">
+          <pre className="mt-1.5 max-h-40 overflow-auto font-mono text-[10px] whitespace-pre-wrap text-rose-500">
             {progress.error}
           </pre>
-        )}
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-1 border-t border-dashed border-(--border-subtle) px-3 py-1.5">
-        {isRunning && (
-          <ActionButton
-            onClick={() => dispatch(cancelTraining(job.id))}
-            title="Cancel training"
-            variant="danger"
-          >
-            <XIcon className="h-2.5 w-2.5" />
-            Cancel
-          </ActionButton>
-        )}
-        {isDone && (
-          <>
-            <div className="mr-auto" />
-            <ActionButton
-              onClick={() => dispatch(clearTrainingJob(job.id))}
-              title="Clear from list"
-            >
-              <XIcon className="h-2.5 w-2.5" />
-              Clear
-            </ActionButton>
-          </>
         )}
       </div>
     </div>

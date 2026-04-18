@@ -223,7 +223,7 @@ const TRAINING_CHECKPOINTS: DownloadableModel[] = [
     description: 'Fast generation, fewer steps',
     requiresLicense: {
       url: 'https://huggingface.co/black-forest-labs/FLUX.1-schnell',
-      name: 'Apache 2.0 (gated)',
+      name: 'Apache 2.0',
     },
     variants: [
       {
@@ -289,38 +289,55 @@ const TRAINING_CHECKPOINTS: DownloadableModel[] = [
   // under one download rather than splitting into shared components —
   // the text encoder (Qwen3-4B) isn't reused by any other model yet.
   //
-  // The default variant is Disty0's SDNQ int4 quant — a full pipeline at
-  // ~6.5 GB, used during dev for fast iteration. It's inference-only;
-  // ai-toolkit won't train against SDNQ weights. The `bf16` variant
-  // downloads the original Tongyi fp32 release (~32.8 GB, stored fp32
-  // even though it runs in bf16) for when training is actually wired up
-  // and we need a loader-compatible base.
+  // Stored fp32 even though it runs in bf16 — this is the loader-compatible
+  // base ai-toolkit trains against.
   {
     id: 'dl-zimage-turbo',
     name: 'Z-Image Turbo',
-    repoId: 'Disty0/Z-Image-Turbo-SDNQ-uint4-svd-r32',
+    repoId: 'Tongyi-MAI/Z-Image-Turbo',
     feature: 'training',
     architecture: 'zimage',
     componentType: 'checkpoint',
-    description:
-      'Fast DiT with Qwen3-4B text encoder — int4 quant for dev, bf16 for training',
+    description: 'Fast DiT with Qwen3-4B text encoder (~32.8 GB)',
     files: [
-      { name: 'model_index.json', size: 457 },
-      { name: 'scheduler/scheduler_config.json', size: 487 },
-      { name: 'transformer/config.json', size: 1_328 },
-      { name: 'transformer/quantization_config.json', size: 723 },
+      { name: 'model_index.json', size: 467 },
+      { name: 'scheduler/scheduler_config.json', size: 173 },
+      { name: 'transformer/config.json', size: 473 },
       {
-        name: 'transformer/diffusion_pytorch_model.safetensors',
-        size: 3_484_396_712,
+        name: 'transformer/diffusion_pytorch_model.safetensors.index.json',
+        size: 48_969,
       },
-      { name: 'text_encoder/config.json', size: 2_681 },
-      { name: 'text_encoder/generation_config.json', size: 214 },
-      { name: 'text_encoder/quantization_config.json', size: 1_025 },
       {
-        name: 'text_encoder/model.safetensors',
-        size: 2_840_784_408,
+        name: 'transformer/diffusion_pytorch_model-00001-of-00003.safetensors',
+        size: 9_973_693_184,
       },
-      { name: 'vae/config.json', size: 920 },
+      {
+        name: 'transformer/diffusion_pytorch_model-00002-of-00003.safetensors',
+        size: 9_973_714_824,
+      },
+      {
+        name: 'transformer/diffusion_pytorch_model-00003-of-00003.safetensors',
+        size: 4_672_282_880,
+      },
+      { name: 'text_encoder/config.json', size: 726 },
+      { name: 'text_encoder/generation_config.json', size: 239 },
+      {
+        name: 'text_encoder/model.safetensors.index.json',
+        size: 32_819,
+      },
+      {
+        name: 'text_encoder/model-00001-of-00003.safetensors',
+        size: 3_957_900_840,
+      },
+      {
+        name: 'text_encoder/model-00002-of-00003.safetensors',
+        size: 3_987_450_520,
+      },
+      {
+        name: 'text_encoder/model-00003-of-00003.safetensors',
+        size: 99_630_640,
+      },
+      { name: 'vae/config.json', size: 805 },
       {
         name: 'vae/diffusion_pytorch_model.safetensors',
         size: 167_666_902,
@@ -329,94 +346,6 @@ const TRAINING_CHECKPOINTS: DownloadableModel[] = [
       { name: 'tokenizer/tokenizer.json', size: 11_422_654 },
       { name: 'tokenizer/merges.txt', size: 1_671_853 },
       { name: 'tokenizer/vocab.json', size: 2_776_833 },
-    ],
-    variants: [
-      {
-        id: 'int4',
-        label: 'int4 (SDNQ)',
-        description:
-          'Quantised full pipeline — dev/inference only, not trainable by ai-toolkit',
-        files: [
-          { name: 'model_index.json', size: 457 },
-          { name: 'scheduler/scheduler_config.json', size: 487 },
-          { name: 'transformer/config.json', size: 1_328 },
-          { name: 'transformer/quantization_config.json', size: 723 },
-          {
-            name: 'transformer/diffusion_pytorch_model.safetensors',
-            size: 3_484_396_712,
-          },
-          { name: 'text_encoder/config.json', size: 2_681 },
-          { name: 'text_encoder/generation_config.json', size: 214 },
-          { name: 'text_encoder/quantization_config.json', size: 1_025 },
-          {
-            name: 'text_encoder/model.safetensors',
-            size: 2_840_784_408,
-          },
-          { name: 'vae/config.json', size: 920 },
-          {
-            name: 'vae/diffusion_pytorch_model.safetensors',
-            size: 167_666_902,
-          },
-          { name: 'tokenizer/tokenizer_config.json', size: 9_732 },
-          { name: 'tokenizer/tokenizer.json', size: 11_422_654 },
-          { name: 'tokenizer/merges.txt', size: 1_671_853 },
-          { name: 'tokenizer/vocab.json', size: 2_776_833 },
-        ],
-      },
-      {
-        id: 'bf16',
-        label: 'bf16',
-        description: 'Full pipeline (fp32-stored) — required for training',
-        repoId: 'Tongyi-MAI/Z-Image-Turbo',
-        files: [
-          { name: 'model_index.json', size: 467 },
-          { name: 'scheduler/scheduler_config.json', size: 173 },
-          { name: 'transformer/config.json', size: 473 },
-          {
-            name: 'transformer/diffusion_pytorch_model.safetensors.index.json',
-            size: 48_969,
-          },
-          {
-            name: 'transformer/diffusion_pytorch_model-00001-of-00003.safetensors',
-            size: 9_973_693_184,
-          },
-          {
-            name: 'transformer/diffusion_pytorch_model-00002-of-00003.safetensors',
-            size: 9_973_714_824,
-          },
-          {
-            name: 'transformer/diffusion_pytorch_model-00003-of-00003.safetensors',
-            size: 4_672_282_880,
-          },
-          { name: 'text_encoder/config.json', size: 726 },
-          { name: 'text_encoder/generation_config.json', size: 239 },
-          {
-            name: 'text_encoder/model.safetensors.index.json',
-            size: 32_819,
-          },
-          {
-            name: 'text_encoder/model-00001-of-00003.safetensors',
-            size: 3_957_900_840,
-          },
-          {
-            name: 'text_encoder/model-00002-of-00003.safetensors',
-            size: 3_987_450_520,
-          },
-          {
-            name: 'text_encoder/model-00003-of-00003.safetensors',
-            size: 99_630_640,
-          },
-          { name: 'vae/config.json', size: 805 },
-          {
-            name: 'vae/diffusion_pytorch_model.safetensors',
-            size: 167_666_902,
-          },
-          { name: 'tokenizer/tokenizer_config.json', size: 9_732 },
-          { name: 'tokenizer/tokenizer.json', size: 11_422_654 },
-          { name: 'tokenizer/merges.txt', size: 1_671_853 },
-          { name: 'tokenizer/vocab.json', size: 2_776_833 },
-        ],
-      },
     ],
   },
 ];

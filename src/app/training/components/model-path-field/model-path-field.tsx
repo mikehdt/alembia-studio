@@ -10,6 +10,7 @@ import { Dropdown } from '@/app/shared/dropdown';
 import { Input } from '@/app/shared/input/input';
 import { InputTray } from '@/app/shared/input-tray/input-tray';
 import { ToolbarDivider } from '@/app/shared/toolbar-divider';
+import { useHfTokenStatus } from '@/app/shared/use-hf-token-status';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import { openPanel } from '@/app/store/jobs';
 import { selectAllModelStatuses } from '@/app/store/model-manager';
@@ -46,6 +47,7 @@ export function ModelPathField({
 }: ModelPathFieldProps) {
   const dispatch = useAppDispatch();
   const statuses = useAppSelector(selectAllModelStatuses);
+  const hasHfToken = useHfTokenStatus();
   const [variantId, setVariantId] = useState<string | undefined>(undefined);
 
   const downloadable = useMemo(
@@ -82,6 +84,8 @@ export function ModelPathField({
     trimmedValue === '' &&
     !canReset;
   const isDownloading = entry?.status === 'downloading';
+  // Gate downloads of gated models until a HF token is configured.
+  const needsToken = !!downloadable?.requiresLicense && hasHfToken === false;
 
   const handleBrowse = useCallback(async () => {
     try {
@@ -173,7 +177,12 @@ export function ModelPathField({
             variant="ghost"
             size="md"
             color="indigo"
-            title={`Download ${browseTitle}…`}
+            disabled={needsToken}
+            title={
+              needsToken
+                ? `Set a HuggingFace token in the Model Manager Settings tab to download ${browseTitle}`
+                : `Download ${browseTitle}…`
+            }
           >
             <DownloadIcon />
           </Button>

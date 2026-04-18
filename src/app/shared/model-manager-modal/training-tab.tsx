@@ -23,6 +23,7 @@ import type { ModelEntry } from '@/app/store/model-manager/types';
 import { formatBytes } from '../activity-panel/helpers';
 import { useDownloadActions } from '../activity-panel/use-download-actions';
 import { Dropdown, type DropdownItem } from '../dropdown';
+import { useHfTokenStatus } from '../use-hf-token-status';
 import { DeleteInstalledButton } from './delete-installed-button';
 import { DownloadRowButton, DownloadRowStatus } from './download-row-status';
 import { getModelStatus } from './use-model-manager';
@@ -100,7 +101,7 @@ export function TrainingTab() {
       {/* Model groups by architecture */}
       {groups.map((group) => (
         <div key={group.architecture}>
-          <div className="mb-2 rounded-md bg-slate-50 p-3 dark:bg-slate-900">
+          <div className="mb-2 rounded-md bg-slate-200 p-3 dark:bg-slate-900">
             <h3 className="text-sm font-medium text-slate-700 dark:text-slate-200">
               {group.label}
             </h3>
@@ -122,13 +123,13 @@ export function TrainingTab() {
       {/* Shared components section */}
       {usedSharedComponents.length > 0 && (
         <div>
-          <div className="mb-2 rounded-md bg-slate-50 p-3 dark:bg-slate-900">
+          <div className="mb-2 rounded-md bg-slate-200 p-3 dark:bg-slate-900">
             <h3 className="text-sm font-medium text-slate-700 dark:text-slate-200">
               Shared Components
             </h3>
             <p className="mt-1 text-xs text-slate-500">
-              Shared across multiple models. Download once, use everywhere.
-              Components not yet needed are faded out.
+              Components shared across multiple models. Components not yet
+              needed are faded out.
             </p>
           </div>
           <div className="flex flex-col gap-2">
@@ -195,6 +196,12 @@ function DownloadableModelRow({
   const { start, retry, cancel, remove, uninstall } = useDownloadActions();
   const hasLiveJob = job && job.status !== 'completed';
 
+  const hasHfToken = useHfTokenStatus();
+  // Gate downloads of gated models until a token is set. Resume is also
+  // blocked — without a token HF returns 401 on the very next range request
+  // and the user's left with a stuck "Resume" that won't work.
+  const needsToken = !!model.requiresLicense && hasHfToken === false;
+
   const isReady = status === 'ready';
   const isPartial = status === 'partial';
   // Server reports 'downloading' when another tab in the same Node process
@@ -257,31 +264,42 @@ function DownloadableModelRow({
             <p className="mt-1 text-sm text-slate-500">{model.description}</p>
           )}
           {model.requiresLicense && !isReady && (
-            <div className="mt-1 flex w-full gap-2 text-amber-700 dark:text-amber-400">
-              <InfoIcon className="-mt-0.5 inline h-5 w-5" />
-              <p className="text-xs">
-                Requires accepting the{' '}
-                {model.requiresLicense.name ?? 'repository'} license to
-                download.{' '}
-                <a
-                  href={model.requiresLicense.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-0.5 underline hover:text-amber-800 dark:hover:text-amber-300"
-                >
-                  Accept on HuggingFace
-                  <ExternalLinkIcon className="h-3 w-3" />
-                </a>
-              </p>
+            <div className="mt-1 flex flex-col gap-2 rounded-md border border-amber-300 bg-amber-50 p-1.5 text-amber-800 dark:border-amber-600 dark:bg-amber-900 dark:text-amber-300">
+              {needsToken && (
+                <div className="flex gap-1.5">
+                  <InfoIcon className="h-3.5 w-3.5" />
+                  <p className="flex-1 text-xs">
+                    Add your HuggingFace token in Settings to download.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-1.5">
+                <InfoIcon className="h-3.5 w-3.5" />
+                <p className="flex-1 text-xs">
+                  Requires accepting the{' '}
+                  {model.requiresLicense.name ?? 'repository'} license to
+                  download.{' '}
+                  <a
+                    href={model.requiresLicense.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-0.5 underline hover:text-amber-800 dark:hover:text-amber-300"
+                  >
+                    Accept on HuggingFace
+                    <ExternalLinkIcon className="h-3 w-3" />
+                  </a>
+                </p>
+              </div>
             </div>
           )}
           {dependencies && dependencies.length > 0 && (
             <p className="mt-1 text-xs text-slate-400">
-              Also requires: {dependencies.join(', ')}
+              Requires {dependencies.join(', ')}
               {missingDeps.length > 0 && (
-                <span className="text-amber-500">
+                <span className="text-slate-500">
                   {' '}
-                  ({missingDeps.length} not yet downloaded)
+                  &ndash; {missingDeps.length} not yet downloaded
                 </span>
               )}
             </p>
@@ -333,14 +351,32 @@ function DownloadableModelRow({
             />
           ) : isPartial ? (
             <div className="flex items-center gap-2">
-              <DownloadRowButton onClick={handleDownload} label="Resume" />
+              <DownloadRowButton
+                onClick={handleDownload}
+                label="Resume"
+                disabled={needsToken}
+                title={
+                  needsToken
+                    ? 'Add your HuggingFace token in Settings to resume'
+                    : undefined
+                }
+              />
               <DeleteInstalledButton
                 sizeBytes={totalSize}
                 onConfirm={handleUninstall}
               />
             </div>
           ) : (
-            <DownloadRowButton onClick={handleDownload} label="Download" />
+            <DownloadRowButton
+              onClick={handleDownload}
+              label="Download"
+              disabled={needsToken}
+              title={
+                needsToken
+                  ? 'Set a HuggingFace token in Settings to download'
+                  : undefined
+              }
+            />
           )}
         </div>
       </div>

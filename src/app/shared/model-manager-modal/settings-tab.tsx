@@ -12,6 +12,7 @@ import {
 import { Button } from '../button';
 import { Checkbox } from '../checkbox';
 import { Input } from '../input/input';
+import { refreshHfTokenStatus } from '../use-hf-token-status';
 
 type ConfigResponse = {
   hfTokenMasked: string | null;
@@ -95,6 +96,9 @@ export function SettingsTab() {
       setMaskedToken(data.hfTokenMasked);
       setDraft('');
       setSavedAt(Date.now());
+      // Notify other components (training tab, ModelPathField) that the
+      // token state changed so their Download buttons re-enable immediately.
+      refreshHfTokenStatus();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
@@ -123,7 +127,7 @@ export function SettingsTab() {
             HuggingFace API Token
           </h3>
           <p className="mt-1">
-            Required for downloading gated models (e.g. FLUX.1). Create one at{' '}
+            Required for downloading gated models. Create a token at{' '}
             <a
               href="https://huggingface.co/settings/tokens"
               target="_blank"
@@ -135,7 +139,9 @@ export function SettingsTab() {
             </a>
             .
           </p>
-          <p>A read-only token is sufficient.</p>
+          <p>
+            <strong>Note:</strong> A read-only token is sufficient.
+          </p>
         </div>
 
         {loading ? (

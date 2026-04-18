@@ -1,10 +1,14 @@
 'use client';
 
-import { ListIcon, SaveIcon } from 'lucide-react';
-import { memo, useCallback, useSyncExternalStore } from 'react';
+import {
+  ListIcon,
+  RotateCcwIcon,
+  SaveIcon,
+  Trash2Icon,
+} from 'lucide-react';
+import { memo, useCallback, useState, useSyncExternalStore } from 'react';
 
 import { Button } from '@/app/shared/button';
-import { Dropdown } from '@/app/shared/dropdown';
 import { SegmentedControl } from '@/app/shared/segmented-control/segmented-control';
 import { ToolbarDivider } from '@/app/shared/toolbar-divider';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
@@ -17,7 +21,19 @@ import {
   setTrainingViewMode,
   type TrainingViewMode,
 } from '@/app/store/preferences';
+import {
+  resetToSuggestedDefaults,
+  revertToBaseline,
+  selectForm,
+  selectIsDirty,
+  selectLoadedProject,
+} from '@/app/store/training-config';
+import { saveCurrentVersion } from '@/app/store/training-config/thunks';
 
+import { DeleteProjectModal } from './project-toolbar/delete-project-modal';
+import { LoadProjectModal } from './project-toolbar/load-project-modal';
+import { ProjectSelector } from './project-toolbar/project-selector';
+import { SaveAsModal } from './project-toolbar/save-as-modal';
 import { useTrainingViewMode } from './use-training-view-mode';
 
 const subscribe = () => () => {};
@@ -30,8 +46,6 @@ const VIEW_MODE_OPTIONS: { value: TrainingViewMode; label: string }[] = [
   { value: 'advanced', label: 'Advanced' },
 ];
 
-const VERSION_ITEMS = [{ value: 'v1', label: 'v1 — current' }];
-
 const TrainingToolbarComponent = () => {
   const dispatch = useAppDispatch();
   const viewMode = useTrainingViewMode();
@@ -42,13 +56,16 @@ const TrainingToolbarComponent = () => {
   );
   const activeTrainingJob = useAppSelector(selectActiveTrainingJob);
   const panelOpen = useAppSelector(selectPanelOpen);
+  const loadedProject = useAppSelector(selectLoadedProject);
+  const isDirty = useAppSelector(selectIsDirty);
+  const form = useAppSelector(selectForm);
 
-  // Mirror the TrainingBottomShelf fix: pick a default that makes SSR emit
-  // no `disabled` attribute, then settle on the real value post-hydration.
-  // React 19/Turbopack flags any `disabled` mismatch as a hydration error,
-  // so we have to avoid rendering `disabled={true}` during SSR.
   const hasActiveJob = isClient ? activeTrainingJob !== null : true;
   const isRunning = isClient && activeTrainingJob !== null;
+
+  const [saveAsOpen, setSaveAsOpen] = useState(false);
+  const [loadOpen, setLoadOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const handleViewModeChange = useCallback(
     (mode: TrainingViewMode) => {
@@ -57,40 +74,68 @@ const TrainingToolbarComponent = () => {
     [dispatch],
   );
 
+  const handleSave = useCallback(() => {
+    if (!loadedProject) return;
+    void dispatch(saveCurrentVersion(form));
+  }, [dispatch, form, loadedProject]);
+
+  const handleReset = useCallback(() => {
+    if (loadedProject && isDirty) {
+      dispatch(revertToBaseline());
+    } else {
+      dispatch(resetToSuggestedDefaults());
+    }
+  }, [dispatch, isDirty, loadedProject]);
+
+  const resetLabel =
+    loadedProject && isDirty ? 'Reset changes' : 'Reset to defaults';
+
   return (
     <>
-      {/* Left: version management (placeholders) */}
-      <Dropdown
-        items={VERSION_ITEMS}
-        selectedValue="v1"
-        onChange={() => console.log('Version selector (placeholder)')}
-        aria-label="Configuration version"
-      />
+      {/* Left: project + save/save-as/reset/delete */}
+      <ProjectSelector onRequestLoad={() => setLoadOpen(true)} />
 
       <ToolbarDivider />
 
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={() => console.log('Save (placeholder)')}
-      >
+      {loadedProject && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleSave}
+          disabled={!isDirty}
+          title={isDirty ? `Save changes to v${loadedProject.version}` : 'No unsaved changes'}
+        >
+          <SaveIcon className="mr-1 h-3.5 w-3.5" />
+          Save
+        </Button>
+      )}
+
+      <Button size="sm" variant="ghost" onClick={() => setSaveAsOpen(true)}>
         <SaveIcon className="mr-1 h-3.5 w-3.5" />
-        Save
+        Save As…
       </Button>
+
       <Button
         size="sm"
         variant="ghost"
-        onClick={() => console.log('Save As (placeholder)')}
+        onClick={handleReset}
+        title={resetLabel}
       >
-        Save As
+        <RotateCcwIcon className="mr-1 h-3.5 w-3.5" />
+        {resetLabel}
       </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={() => console.log('Rename (placeholder)')}
-      >
-        Rename
-      </Button>
+
+      {loadedProject && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setDeleteOpen(true)}
+          title="Delete project or version"
+          aria-label="Delete"
+        >
+          <Trash2Icon className="h-3.5 w-3.5" />
+        </Button>
+      )}
 
       {/* Spacer */}
       <div className="mr-auto!" />
@@ -120,6 +165,13 @@ const TrainingToolbarComponent = () => {
         value={viewMode}
         onChange={handleViewModeChange}
         size="toolbar"
+      />
+
+      <SaveAsModal isOpen={saveAsOpen} onClose={() => setSaveAsOpen(false)} />
+      <LoadProjectModal isOpen={loadOpen} onClose={() => setLoadOpen(false)} />
+      <DeleteProjectModal
+        isOpen={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
       />
     </>
   );

@@ -35,5 +35,5 @@ export function getModelFilePath(model: TaggerModel, fileName: string): string {
  * Check if a model is fully downloaded and ready
  */
 export function checkModelStatus(model: TaggerModel): ModelStatus {
-  return checkModelFiles(getModelDir(model), model.files);
+  return checkModelFiles(getModelDir(model), model.id, model.files);
 }

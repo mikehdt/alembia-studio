@@ -13,14 +13,17 @@ type Manifest = {
   files: { name: string; size: number }[];
 };
 
-const MANIFEST_FILE = 'manifest.json';
 // Tolerance for size estimate mismatch when no manifest exists (5%).
 // GGUF downloads from HF can differ meaningfully from hand-declared sizes.
 const SIZE_TOLERANCE = 0.05;
 
-/** Load the manifest.json written by the download engine, if present. */
-function loadManifest(modelDir: string): Manifest | null {
-  const manifestPath = path.join(modelDir, MANIFEST_FILE);
+function manifestPathFor(modelDir: string, modelId: string): string {
+  return path.join(modelDir, `${modelId}.manifest.json`);
+}
+
+/** Load the per-model manifest written by the download engine, if present. */
+function loadManifest(modelDir: string, modelId: string): Manifest | null {
+  const manifestPath = manifestPathFor(modelDir, modelId);
   if (!fs.existsSync(manifestPath)) return null;
   try {
     const raw = fs.readFileSync(manifestPath, 'utf-8');
@@ -33,7 +36,11 @@ function loadManifest(modelDir: string): Manifest | null {
 }
 
 /** Write a manifest from actual on-disk sizes. Self-heals for pre-manifest downloads. */
-function writeManifest(modelDir: string, files: ModelFile[]): void {
+function writeManifest(
+  modelDir: string,
+  modelId: string,
+  files: ModelFile[],
+): void {
   try {
     const manifest: Manifest = { files: [] };
     for (const file of files) {
@@ -46,7 +53,7 @@ function writeManifest(modelDir: string, files: ModelFile[]): void {
       }
     }
     fs.writeFileSync(
-      path.join(modelDir, MANIFEST_FILE),
+      manifestPathFor(modelDir, modelId),
       JSON.stringify(manifest, null, 2),
       'utf-8',
     );
@@ -58,13 +65,13 @@ function writeManifest(modelDir: string, files: ModelFile[]): void {
 /**
  * Check if a model is fully downloaded in `modelDir`.
  *
- * If a `manifest.json` exists it's treated as the source of truth for
- * both the file list and sizes — this matters for multi-variant models
- * where the on-disk file names differ per variant (e.g. Z-Image's int4
- * variant ships a single transformer safetensors, the bf16 variant
- * ships three sharded ones). The passed-in `files` array is only used
- * when no manifest is present (pre-manifest downloads or hand-placed
- * files), and sizes fall back to tolerance-matching.
+ * Per-model manifest lookup (`<modelId>.manifest.json`) is the source of
+ * truth when present — required because multiple models can share a
+ * `modelDir` (e.g. every SDXL checkpoint lives under `public/models/sdxl/`).
+ * A shared manifest would make each model report the neighbour's files as
+ * its own. The passed-in `files` array is only used when no manifest is
+ * present (pre-manifest downloads or hand-placed files), and sizes fall
+ * back to tolerance-matching.
  *
  * Returns:
  * - 'ready' if every expected file is present and matches its expected size
@@ -73,13 +80,14 @@ function writeManifest(modelDir: string, files: ModelFile[]): void {
  */
 export function checkModelFiles(
   modelDir: string,
+  modelId: string,
   files: ModelFile[],
 ): ModelStatus {
   if (!fs.existsSync(modelDir)) {
     return 'not_installed';
   }
 
-  const manifest = loadManifest(modelDir);
+  const manifest = loadManifest(modelDir, modelId);
 
   // Manifest wins. It records exactly what was downloaded, which may be
   // a variant with a different file layout than the registry default.
@@ -142,7 +150,7 @@ export function checkModelFiles(
     // Self-heal: persist a manifest so future checks are exact and
     // don't depend on the estimate.
     if (inferredComplete) {
-      writeManifest(modelDir, files);
+      writeManifest(modelDir, modelId, files);
     }
     return 'ready';
   }

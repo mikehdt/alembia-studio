@@ -127,12 +127,23 @@ export function DownloadRowStatus({
 export function DownloadRowButton({
   onClick,
   label = 'Download',
+  disabled,
+  title,
 }: {
   onClick: () => void;
   label?: string;
+  disabled?: boolean;
+  title?: string;
 }) {
   return (
-    <Button onClick={onClick} color="indigo" size="sm" width="md">
+    <Button
+      onClick={onClick}
+      color="indigo"
+      size="sm"
+      width="md"
+      disabled={disabled}
+      title={title}
+    >
       <DownloadIcon />
       {label}
     </Button>

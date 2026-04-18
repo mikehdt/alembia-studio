@@ -57,7 +57,7 @@ export async function GET() {
         modelDir = path.join(modelsFolder, 'other');
       }
 
-      const diskStatus = checkModelFiles(modelDir, model.files);
+      const diskStatus = checkModelFiles(modelDir, model.id, model.files);
       const status = isDownloadActive(model.id) ? 'downloading' : diskStatus;
       statuses[model.id] = {
         status,

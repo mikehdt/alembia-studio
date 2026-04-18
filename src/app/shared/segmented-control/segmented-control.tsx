@@ -93,9 +93,9 @@ export function SegmentedControl<T extends string>({
             disabled={disabled}
             onClick={() => onChange(option.value)}
             title={option.label}
-            className={`flex flex-auto cursor-pointer items-center justify-center gap-1 transition-colors ${sizes.button} ${roundedClasses} ${
+            className={`flex flex-auto cursor-pointer items-center justify-center gap-1 transition-all ${sizes.button} ${roundedClasses} ${
               isSelected
-                ? 'z-10 bg-white shadow-sm shadow-slate-300 dark:bg-slate-500 dark:inset-shadow-xs dark:shadow-slate-500 dark:inset-shadow-slate-400'
+                ? 'z-10 -translate-y-px bg-white shadow-sm shadow-slate-300 dark:bg-slate-500 dark:inset-shadow-xs dark:shadow-slate-500 dark:inset-shadow-slate-400'
                 : 'text-slate-600 hover:bg-slate-300 hover:text-slate-500 dark:text-slate-400 dark:hover:bg-slate-600 dark:hover:text-slate-300'
             }`}
           >

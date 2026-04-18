@@ -265,6 +265,13 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
+    // Clean up the per-model manifest. Other models sharing this directory
+    // have their own manifests, so this only removes the one we wrote.
+    const manifestPath = path.join(targetDir, `${downloadable.id}.manifest.json`);
+    if (fs.existsSync(manifestPath)) {
+      fs.unlinkSync(manifestPath);
+    }
+
     return Response.json({ deleted: deletedCount });
   } catch (error) {
     console.error('Delete error:', error);

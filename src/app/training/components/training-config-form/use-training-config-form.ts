@@ -1,724 +1,136 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 
-import {
-  getModelById,
-  MODEL_DEFINITIONS,
-  type ModelComponentType,
-  type ModelDefinition,
-  type TrainingDefaults,
+import type {
+  ModelComponentType,
+  ModelDefinition,
 } from '@/app/services/training/models';
 import type { TrainingProvider } from '@/app/services/training/types';
+import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
+import {
+  addDataset as addDatasetAction,
+  addExtraFolder as addExtraFolderAction,
+  addSamplePrompt as addSamplePromptAction,
+  applyAppDefaults,
+  removeDataset as removeDatasetAction,
+  removeExtraFolder as removeExtraFolderAction,
+  removeSamplePrompt as removeSamplePromptAction,
+  resetAll as resetAllAction,
+  resetSection as resetSectionAction,
+  selectAppModelDefaults,
+  selectCalculatedEpochs,
+  selectCalculatedSteps,
+  selectCurrentModel,
+  selectDatasetStats,
+  selectForm,
+  selectModelDefaults,
+  selectSectionHasChanges,
+  setAppModelDefaults as setAppModelDefaultsAction,
+  setField as setFieldAction,
+  setFolderRepeats as setFolderRepeatsAction,
+  setModel as setModelAction,
+  setModelPath as setModelPathAction,
+  setProvider as setProviderAction,
+  setSamplePrompt as setSamplePromptAction,
+  updateFolderAugment as updateFolderAugmentAction,
+} from '@/app/store/training-config';
+import { defaultFolderAugmentation } from '@/app/store/training-config/defaults';
+import type {
+  AppModelDefaults,
+  DatasetFolder,
+  DatasetSource,
+  DurationMode,
+  ExtraFolder,
+  FolderAugmentation,
+  FolderAugmentKey,
+  FormState,
+  ModelPaths,
+  SectionName,
+} from '@/app/store/training-config/types';
 
-// --- Types ---
-
-export type DatasetSource = {
-  /** Display name (title or folder name) */
-  projectName: string;
-  /** Disk folder name — unique identifier */
-  folderName: string;
-  /** Thumbnail path for display (e.g. "projectname.png") */
-  thumbnail?: string;
-  thumbnailVersion?: number;
-  /** Image dimension histogram, e.g. { "1920x1080": 15 } */
-  dimensionHistogram?: Record<string, number>;
-  folders: DatasetFolder[];
+// Re-exports for backwards compatibility with existing consumers.
+export { defaultFolderAugmentation };
+export type {
+  AppModelDefaults,
+  DatasetFolder,
+  DatasetSource,
+  DurationMode,
+  ExtraFolder,
+  FolderAugmentation,
+  FolderAugmentKey,
+  FormState,
+  ModelPaths,
+  SectionName,
 };
-
-/** Per-folder augmentation settings — shared by project folders and extras. */
-export type FolderAugmentation = {
-  captionShuffling: boolean;
-  captionDropoutRate: number;
-  keepTokens: number;
-  flipAugment: boolean;
-  flipVAugment: boolean;
-  /** Weight applied to this folder's LoRA contribution during training. */
-  loraWeight: number;
-  /** When true, this folder is treated as regularisation/class data, not training data. */
-  isRegularization: boolean;
-};
-
-export type DatasetFolder = {
-  name: string;
-  imageCount: number;
-  detectedRepeats: number;
-  overrideRepeats: number | null; // null = use detected
-} & FolderAugmentation;
-
-/** Loose folder added by path — no project/parent, no detected repeats. */
-export type ExtraFolder = {
-  path: string;
-  imageCount?: number;
-  /** null = disabled elsewhere isn't meaningful here; this is the effective repeat count (default 1). */
-  overrideRepeats: number | null;
-} & FolderAugmentation;
-
-/** Augmentation keys callers can update per folder. */
-export type FolderAugmentKey = keyof FolderAugmentation;
-
-export type DurationMode = 'epochs' | 'steps';
-
-export type ModelPaths = Partial<Record<ModelComponentType, string>>;
-
-/** Model defaults keyed by model ID (e.g. 'sdxl', 'noob-ai-xl'). */
-export type AppModelDefaults = Record<
-  string,
-  Partial<Record<ModelComponentType, string>>
->;
-
-export type FormState = {
-  // What to Train
-  modelId: string;
-  /** Selected training backend. Defaults to the first of the model's providers. */
-  selectedProvider: TrainingProvider;
-  modelPaths: ModelPaths;
-  outputName: string;
-
-  // Dataset
-  datasets: DatasetSource[];
-  extraFolders: ExtraFolder[];
-
-  // Learning
-  durationMode: DurationMode;
-  epochs: number;
-  steps: number;
-  learningRate: number;
-  optimizer: string;
-  scheduler: string;
-  warmupSteps: number;
-  numRestarts: number;
-  weightDecay: number;
-  maxGradNorm: number;
-  trainTextEncoder: boolean;
-  backboneLR: number;
-  textEncoderLR: number;
-  ema: boolean;
-  lossType: 'mse' | 'huber' | 'smooth_l1';
-  timestepType: string;
-  timestepBias: 'balanced' | 'earlier' | 'later';
-
-  // LoRA Shape
-  networkType: 'lora' | 'lokr';
-  networkDim: number;
-  networkAlpha: number;
-  /**
-   * UI-only link between Rank and Alpha. When true, editing either field
-   * updates the other. Persisted so the preference sticks across sessions.
-   */
-  networkDimAlphaLinked: boolean;
-  networkDropout: number;
-
-  // Performance
-  batchSize: number;
-  resolution: number[];
-  mixedPrecision: 'bf16' | 'fp16';
-  transformerQuantization: 'none' | 'float8';
-  textEncoderQuantization: 'none' | 'float8';
-  cacheTextEmbeddings: boolean;
-  unloadTextEncoder: boolean;
-  gradientAccumulationSteps: number;
-  gradientCheckpointing: boolean;
-  cacheLatents: boolean;
-
-  // Sampling
-  samplingEnabled: boolean;
-  samplePrompts: string[];
-  sampleMode: 'epochs' | 'steps';
-  sampleEveryEpochs: number;
-  sampleEverySteps: number;
-  sampleSteps: number;
-  seed: number;
-  guidanceScale: number;
-  noiseScheduler: string;
-
-  // Saving
-  saveEnabled: boolean;
-  saveMode: 'epochs' | 'steps';
-  saveEveryEpochs: number;
-  saveEverySteps: number;
-  saveFormat: 'fp16' | 'bf16' | 'fp32';
-  maxSavesToKeep: number;
-  saveState: boolean;
-  resumeState: string;
-};
-
-type FormAction =
-  | {
-      type: 'SET_FIELD';
-      field: keyof FormState;
-      value: FormState[keyof FormState];
-    }
-  | { type: 'SET_MODEL'; modelId: string }
-  | { type: 'SET_PROVIDER'; provider: TrainingProvider }
-  | { type: 'SET_MODEL_PATH'; component: ModelComponentType; path: string }
-  | { type: 'APPLY_APP_DEFAULTS'; paths: ModelPaths }
-  | { type: 'RESET_SECTION'; section: SectionName }
-  | { type: 'RESET_ALL' }
-  | { type: 'ADD_SAMPLE_PROMPT' }
-  | { type: 'REMOVE_SAMPLE_PROMPT'; index: number }
-  | { type: 'SET_SAMPLE_PROMPT'; index: number; value: string }
-  | {
-      type: 'ADD_DATASET';
-      folderName: string;
-      displayName: string;
-      thumbnail?: string;
-      thumbnailVersion?: number;
-      dimensionHistogram?: Record<string, number>;
-      /**
-       * Raw folder metadata from the project scan. Augmentation fields
-       * are not supplied here — the reducer injects them from the
-       * current model's defaults.
-       */
-      folders: Omit<DatasetFolder, keyof FolderAugmentation>[];
-    }
-  | { type: 'REMOVE_DATASET'; index: number }
-  | {
-      type: 'SET_FOLDER_REPEATS';
-      datasetIndex: number | null; // null = extra folder
-      folderName: string;
-      repeats: number | null;
-    }
-  | {
-      type: 'UPDATE_FOLDER_AUGMENT';
-      datasetIndex: number | null; // null = extra folder
-      folderName: string;
-      updates: Partial<FolderAugmentation>;
-    }
-  | { type: 'ADD_EXTRA_FOLDER'; path: string }
-  | { type: 'REMOVE_EXTRA_FOLDER'; index: number };
-
-export type SectionName =
-  | 'whatToTrain'
-  | 'dataset'
-  | 'learning'
-  | 'loraShape'
-  | 'performance'
-  | 'sampling'
-  | 'saving';
-
-// --- Helpers ---
-
-/** Build the per-folder augmentation defaults for a model. */
-export function defaultFolderAugmentation(
-  defaults: TrainingDefaults,
-): FolderAugmentation {
-  return {
-    captionShuffling: defaults.captionShuffling,
-    captionDropoutRate: defaults.captionDropoutRate,
-    keepTokens: defaults.keepTokens,
-    flipAugment: defaults.flipAugment,
-    flipVAugment: defaults.flipVAugment,
-    loraWeight: defaults.loraWeight,
-    isRegularization: defaults.isRegularization,
-  };
-}
-
-function defaultsToFormState(
-  defaults: TrainingDefaults,
-  modelId: string,
-): FormState {
-  const model = getModelById(modelId);
-  return {
-    modelId,
-    selectedProvider: model?.providers[0] ?? 'ai-toolkit',
-    modelPaths: {},
-    outputName: '',
-    datasets: [],
-    extraFolders: [],
-    durationMode: 'epochs',
-    epochs: defaults.epochs,
-    steps: defaults.steps,
-    learningRate: defaults.learningRate,
-    optimizer: defaults.optimizer,
-    scheduler: defaults.scheduler,
-    warmupSteps: defaults.warmupSteps,
-    numRestarts: defaults.numRestarts,
-    weightDecay: defaults.weightDecay,
-    maxGradNorm: defaults.maxGradNorm,
-    trainTextEncoder: defaults.trainTextEncoder,
-    backboneLR: defaults.backboneLR,
-    textEncoderLR: defaults.textEncoderLR,
-    ema: defaults.ema,
-    lossType: defaults.lossType,
-    timestepType: defaults.timestepType,
-    timestepBias: defaults.timestepBias,
-    networkType: 'lora',
-    networkDim: defaults.networkDim,
-    networkAlpha: defaults.networkAlpha,
-    networkDimAlphaLinked: defaults.networkDim === defaults.networkAlpha,
-    networkDropout: defaults.networkDropout,
-    batchSize: defaults.batchSize,
-    resolution: defaults.resolution,
-    mixedPrecision: defaults.mixedPrecision,
-    transformerQuantization: defaults.transformerQuantization,
-    textEncoderQuantization: defaults.textEncoderQuantization,
-    cacheTextEmbeddings: defaults.cacheTextEmbeddings,
-    unloadTextEncoder: defaults.unloadTextEncoder,
-    gradientAccumulationSteps: defaults.gradientAccumulationSteps,
-    gradientCheckpointing: defaults.gradientCheckpointing,
-    cacheLatents: defaults.cacheLatents,
-    samplingEnabled: false,
-    samplePrompts: [''],
-    sampleMode: 'steps',
-    sampleEveryEpochs: 1,
-    sampleEverySteps: defaults.sampleEvery,
-    sampleSteps: defaults.sampleSteps,
-    seed: defaults.seed,
-    guidanceScale: defaults.guidanceScale,
-    noiseScheduler: defaults.noiseScheduler,
-    saveEnabled: false,
-    saveMode: 'epochs',
-    saveEveryEpochs: defaults.saveEvery,
-    saveEverySteps: 250,
-    saveFormat: defaults.saveFormat,
-    maxSavesToKeep: defaults.maxSavesToKeep,
-    saveState: false,
-    resumeState: '',
-  };
-}
-
-function getDefaults(modelId: string): TrainingDefaults {
-  const model = getModelById(modelId);
-  return model?.defaults ?? MODEL_DEFINITIONS[0].defaults;
-}
-
-// --- Reducer ---
-
-function formReducer(state: FormState, action: FormAction): FormState {
-  switch (action.type) {
-    case 'SET_FIELD':
-      return { ...state, [action.field]: action.value };
-
-    case 'SET_MODEL': {
-      const defaults = getDefaults(action.modelId);
-      const nextModel = getModelById(action.modelId);
-      // Keep user's explicit 'mock' selection across model switches; otherwise
-      // snap to the new model's preferred (first) provider.
-      const preserveMock =
-        state.selectedProvider === 'mock' &&
-        nextModel?.providers.includes('mock');
-      return {
-        ...defaultsToFormState(defaults, action.modelId),
-        selectedProvider: preserveMock
-          ? 'mock'
-          : (nextModel?.providers[0] ?? 'ai-toolkit'),
-        // Preserve user's dataset and output choices
-        outputName: state.outputName,
-        datasets: state.datasets,
-        extraFolders: state.extraFolders,
-        samplePrompts: state.samplePrompts,
-      };
-    }
-
-    case 'SET_PROVIDER':
-      return { ...state, selectedProvider: action.provider };
-
-    case 'SET_MODEL_PATH':
-      return {
-        ...state,
-        modelPaths: { ...state.modelPaths, [action.component]: action.path },
-      };
-
-    case 'APPLY_APP_DEFAULTS': {
-      // Fill in paths that are empty, preserving user edits
-      const merged = { ...state.modelPaths };
-      for (const [key, value] of Object.entries(action.paths)) {
-        if (value && !merged[key as ModelComponentType]) {
-          merged[key as ModelComponentType] = value;
-        }
-      }
-      return { ...state, modelPaths: merged };
-    }
-
-    case 'RESET_SECTION': {
-      const defaults = getDefaults(state.modelId);
-      switch (action.section) {
-        case 'whatToTrain':
-          return { ...state, modelPaths: {} };
-        case 'dataset': {
-          // Reset each folder's per-folder augmentation to the model
-          // defaults while preserving folder identity (name, images, repeats).
-          const baseAugment = defaultFolderAugmentation(defaults);
-          return {
-            ...state,
-            datasets: state.datasets.map((ds) => ({
-              ...ds,
-              folders: ds.folders.map((f) => ({ ...f, ...baseAugment })),
-            })),
-            extraFolders: state.extraFolders.map((ef) => ({
-              ...ef,
-              ...baseAugment,
-            })),
-          };
-        }
-        case 'learning':
-          return {
-            ...state,
-            durationMode: 'epochs',
-            epochs: defaults.epochs,
-            steps: defaults.steps,
-            batchSize: defaults.batchSize,
-            learningRate: defaults.learningRate,
-            optimizer: defaults.optimizer,
-            scheduler: defaults.scheduler,
-            warmupSteps: defaults.warmupSteps,
-            numRestarts: defaults.numRestarts,
-            weightDecay: defaults.weightDecay,
-            maxGradNorm: defaults.maxGradNorm,
-            trainTextEncoder: defaults.trainTextEncoder,
-            backboneLR: defaults.backboneLR,
-            textEncoderLR: defaults.textEncoderLR,
-            ema: defaults.ema,
-            lossType: defaults.lossType,
-            timestepType: defaults.timestepType,
-            timestepBias: defaults.timestepBias,
-          };
-        case 'loraShape':
-          return {
-            ...state,
-            networkType: 'lora',
-            networkDim: defaults.networkDim,
-            networkAlpha: defaults.networkAlpha,
-            networkDimAlphaLinked:
-              defaults.networkDim === defaults.networkAlpha,
-            networkDropout: defaults.networkDropout,
-          };
-        case 'performance':
-          return {
-            ...state,
-            resolution: defaults.resolution,
-            mixedPrecision: defaults.mixedPrecision,
-            transformerQuantization: defaults.transformerQuantization,
-            textEncoderQuantization: defaults.textEncoderQuantization,
-            cacheTextEmbeddings: defaults.cacheTextEmbeddings,
-            unloadTextEncoder: defaults.unloadTextEncoder,
-            gradientAccumulationSteps: defaults.gradientAccumulationSteps,
-            gradientCheckpointing: defaults.gradientCheckpointing,
-            cacheLatents: defaults.cacheLatents,
-          };
-        case 'sampling':
-          return {
-            ...state,
-            samplingEnabled: false,
-            samplePrompts: [''],
-            sampleMode: 'steps' as const,
-            sampleEveryEpochs: 1,
-            sampleEverySteps: defaults.sampleEvery,
-            sampleSteps: defaults.sampleSteps,
-            seed: defaults.seed,
-            guidanceScale: defaults.guidanceScale,
-            noiseScheduler: defaults.noiseScheduler,
-          };
-        case 'saving':
-          return {
-            ...state,
-            saveEnabled: false,
-            saveMode: 'epochs' as const,
-            saveEveryEpochs: defaults.saveEvery,
-            saveEverySteps: 250,
-            saveFormat: defaults.saveFormat,
-            maxSavesToKeep: defaults.maxSavesToKeep,
-            saveState: false,
-            resumeState: '',
-          };
-        default:
-          return state;
-      }
-    }
-
-    case 'RESET_ALL': {
-      const defaults = getDefaults(state.modelId);
-      return defaultsToFormState(defaults, state.modelId);
-    }
-
-    case 'ADD_SAMPLE_PROMPT':
-      return {
-        ...state,
-        samplePrompts: [...state.samplePrompts, ''],
-      };
-
-    case 'REMOVE_SAMPLE_PROMPT': {
-      const prompts = state.samplePrompts.filter((_, i) => i !== action.index);
-      return {
-        ...state,
-        samplePrompts: prompts.length === 0 ? [''] : prompts,
-      };
-    }
-
-    case 'SET_SAMPLE_PROMPT': {
-      const prompts = [...state.samplePrompts];
-      prompts[action.index] = action.value;
-      return { ...state, samplePrompts: prompts };
-    }
-
-    case 'ADD_DATASET': {
-      const baseAugment = defaultFolderAugmentation(getDefaults(state.modelId));
-      return {
-        ...state,
-        datasets: [
-          ...state.datasets,
-          {
-            projectName: action.displayName,
-            folderName: action.folderName,
-            thumbnail: action.thumbnail,
-            thumbnailVersion: action.thumbnailVersion,
-            dimensionHistogram: action.dimensionHistogram,
-            folders: action.folders.map((f) => ({ ...f, ...baseAugment })),
-          },
-        ],
-      };
-    }
-
-    case 'REMOVE_DATASET':
-      return {
-        ...state,
-        datasets: state.datasets.filter((_, i) => i !== action.index),
-      };
-
-    case 'SET_FOLDER_REPEATS': {
-      if (action.datasetIndex === null) {
-        return {
-          ...state,
-          extraFolders: state.extraFolders.map((ef) =>
-            ef.path === action.folderName
-              ? { ...ef, overrideRepeats: action.repeats }
-              : ef,
-          ),
-        };
-      }
-      const newDatasets = [...state.datasets];
-      const ds = newDatasets[action.datasetIndex];
-      if (ds) {
-        newDatasets[action.datasetIndex] = {
-          ...ds,
-          folders: ds.folders.map((f) =>
-            f.name === action.folderName
-              ? { ...f, overrideRepeats: action.repeats }
-              : f,
-          ),
-        };
-      }
-      return { ...state, datasets: newDatasets };
-    }
-
-    case 'UPDATE_FOLDER_AUGMENT': {
-      if (action.datasetIndex === null) {
-        return {
-          ...state,
-          extraFolders: state.extraFolders.map((ef) =>
-            ef.path === action.folderName ? { ...ef, ...action.updates } : ef,
-          ),
-        };
-      }
-      const newDatasets = [...state.datasets];
-      const ds = newDatasets[action.datasetIndex];
-      if (ds) {
-        newDatasets[action.datasetIndex] = {
-          ...ds,
-          folders: ds.folders.map((f) =>
-            f.name === action.folderName ? { ...f, ...action.updates } : f,
-          ),
-        };
-      }
-      return { ...state, datasets: newDatasets };
-    }
-
-    case 'ADD_EXTRA_FOLDER': {
-      if (state.extraFolders.some((ef) => ef.path === action.path)) {
-        return state;
-      }
-      const baseAugment = defaultFolderAugmentation(getDefaults(state.modelId));
-      return {
-        ...state,
-        extraFolders: [
-          ...state.extraFolders,
-          { path: action.path, overrideRepeats: null, ...baseAugment },
-        ],
-      };
-    }
-
-    case 'REMOVE_EXTRA_FOLDER':
-      return {
-        ...state,
-        extraFolders: state.extraFolders.filter((_, i) => i !== action.index),
-      };
-
-    default:
-      return state;
-  }
-}
-
-// --- Hook ---
 
 export function useTrainingConfigForm() {
-  const initialModel = MODEL_DEFINITIONS[0];
-  const [state, dispatch] = useReducer(
-    formReducer,
-    defaultsToFormState(initialModel.defaults, initialModel.id),
-  );
+  const dispatch = useAppDispatch();
 
-  const currentModel = useMemo(
-    () => getModelById(state.modelId),
-    [state.modelId],
-  );
+  const state = useAppSelector(selectForm);
+  const currentModel = useAppSelector(selectCurrentModel);
+  const defaults = useAppSelector(selectModelDefaults);
+  const appModelDefaults = useAppSelector(selectAppModelDefaults);
+  const datasetStats = useAppSelector(selectDatasetStats);
+  const calculatedSteps = useAppSelector(selectCalculatedSteps);
+  const calculatedEpochs = useAppSelector(selectCalculatedEpochs);
+  const sectionHasChanges = useAppSelector(selectSectionHasChanges);
 
-  const defaults = useMemo(() => getDefaults(state.modelId), [state.modelId]);
-
-  // App-level model defaults (paths per architecture)
-  const [appModelDefaults, setAppModelDefaults] = useState<AppModelDefaults>(
-    {},
-  );
-
+  // One-time fetch of app-level model defaults (paths per architecture).
   useEffect(() => {
     fetch('/api/config/model-defaults')
       .then((r) => r.json())
-      .then(setAppModelDefaults)
+      .then((data: AppModelDefaults) => {
+        dispatch(setAppModelDefaultsAction(data));
+      })
       .catch(() => {});
-  }, []);
+  }, [dispatch]);
 
-  // Apply app defaults when model changes or defaults are first loaded
+  // Apply app defaults when model changes or defaults are first loaded.
   useEffect(() => {
     if (!currentModel) return;
     const modelDefaults = appModelDefaults[state.modelId];
     if (modelDefaults && Object.keys(modelDefaults).length > 0) {
-      dispatch({ type: 'APPLY_APP_DEFAULTS', paths: modelDefaults });
+      dispatch(applyAppDefaults(modelDefaults));
     }
-  }, [state.modelId, appModelDefaults, currentModel]);
+  }, [state.modelId, appModelDefaults, currentModel, dispatch]);
 
-  // Calculate effective dataset stats (folders with 0 repeats are excluded)
-  const datasetStats = useMemo(() => {
-    let totalImages = 0;
-    let totalEffective = 0;
-    for (const ds of state.datasets) {
-      for (const folder of ds.folders) {
-        const repeats = folder.overrideRepeats ?? folder.detectedRepeats;
-        if (repeats === 0) continue;
-        totalImages += folder.imageCount;
-        totalEffective += folder.imageCount * repeats;
-      }
-    }
-    return { totalImages, totalEffective };
-  }, [state.datasets]);
-
-  // Calculate steps from epochs or vice versa
-  const calculatedSteps = useMemo(() => {
-    if (datasetStats.totalEffective === 0) return 0;
-    if (state.durationMode === 'epochs') {
-      return Math.ceil(
-        (datasetStats.totalEffective * state.epochs) / state.batchSize,
-      );
-    }
-    return state.steps;
-  }, [
-    state.durationMode,
-    state.epochs,
-    state.steps,
-    state.batchSize,
-    datasetStats.totalEffective,
-  ]);
-
-  const calculatedEpochs = useMemo(() => {
-    if (datasetStats.totalEffective === 0) return 0;
-    if (state.durationMode === 'steps') {
-      return Math.floor(
-        (state.steps * state.batchSize) / datasetStats.totalEffective,
-      );
-    }
-    return state.epochs;
-  }, [
-    state.durationMode,
-    state.epochs,
-    state.steps,
-    state.batchSize,
-    datasetStats.totalEffective,
-  ]);
-
-  // Check which sections have been modified from defaults
-  const sectionHasChanges = useMemo(() => {
-    // A folder counts as customised when any augmentation field drifts
-    // from the current model's defaults.
-    const baseAugment = defaultFolderAugmentation(defaults);
-    const folderCustomised = (f: FolderAugmentation): boolean =>
-      f.captionShuffling !== baseAugment.captionShuffling ||
-      f.captionDropoutRate !== baseAugment.captionDropoutRate ||
-      f.keepTokens !== baseAugment.keepTokens ||
-      f.flipAugment !== baseAugment.flipAugment ||
-      f.flipVAugment !== baseAugment.flipVAugment ||
-      f.loraWeight !== baseAugment.loraWeight ||
-      f.isRegularization !== baseAugment.isRegularization;
-    const anyFolderCustomised =
-      state.datasets.some((ds) => ds.folders.some(folderCustomised)) ||
-      state.extraFolders.some(folderCustomised);
-
-    return {
-      whatToTrain: false, // Model/dataset selection is always intentional
-      dataset: anyFolderCustomised,
-      learning:
-        state.learningRate !== defaults.learningRate ||
-        state.optimizer !== defaults.optimizer ||
-        state.scheduler !== defaults.scheduler ||
-        state.epochs !== defaults.epochs ||
-        state.batchSize !== defaults.batchSize ||
-        state.warmupSteps !== defaults.warmupSteps ||
-        state.numRestarts !== defaults.numRestarts ||
-        state.weightDecay !== defaults.weightDecay ||
-        state.maxGradNorm !== defaults.maxGradNorm ||
-        state.trainTextEncoder !== defaults.trainTextEncoder ||
-        state.backboneLR !== defaults.backboneLR ||
-        state.textEncoderLR !== defaults.textEncoderLR ||
-        state.ema !== defaults.ema ||
-        state.lossType !== defaults.lossType ||
-        state.timestepType !== defaults.timestepType ||
-        state.timestepBias !== defaults.timestepBias,
-      loraShape:
-        state.networkDim !== defaults.networkDim ||
-        state.networkAlpha !== defaults.networkAlpha ||
-        state.networkType !== 'lora' ||
-        state.networkDropout !== defaults.networkDropout,
-      performance:
-        state.mixedPrecision !== defaults.mixedPrecision ||
-        state.transformerQuantization !== defaults.transformerQuantization ||
-        state.textEncoderQuantization !== defaults.textEncoderQuantization ||
-        state.cacheTextEmbeddings !== defaults.cacheTextEmbeddings ||
-        state.unloadTextEncoder !== defaults.unloadTextEncoder ||
-        state.gradientAccumulationSteps !==
-          defaults.gradientAccumulationSteps ||
-        state.gradientCheckpointing !== defaults.gradientCheckpointing ||
-        state.cacheLatents !== defaults.cacheLatents,
-      sampling: false, // Sampling is opt-in, not compared to defaults
-      saving: false, // Saving is opt-in, not compared to defaults
-    };
-  }, [state, defaults]);
-
-  // Actions
   const setField = useCallback(
     <K extends keyof FormState>(field: K, value: FormState[K]) => {
-      dispatch({ type: 'SET_FIELD', field, value });
+      dispatch(setFieldAction({ field, value }));
     },
-    [],
+    [dispatch],
   );
 
-  const setModel = useCallback((modelId: string) => {
-    dispatch({ type: 'SET_MODEL', modelId });
-  }, []);
+  const setModel = useCallback(
+    (modelId: string) => {
+      dispatch(setModelAction(modelId));
+    },
+    [dispatch],
+  );
 
-  const setProvider = useCallback((provider: TrainingProvider) => {
-    dispatch({ type: 'SET_PROVIDER', provider });
-  }, []);
+  const setProvider = useCallback(
+    (provider: TrainingProvider) => {
+      dispatch(setProviderAction(provider));
+    },
+    [dispatch],
+  );
 
   const setModelPath = useCallback(
     (component: ModelComponentType, path: string) => {
-      dispatch({ type: 'SET_MODEL_PATH', component, path });
+      dispatch(setModelPathAction({ component, path }));
     },
-    [],
+    [dispatch],
   );
 
-  const resetSection = useCallback((section: SectionName) => {
-    dispatch({ type: 'RESET_SECTION', section });
-  }, []);
+  const resetSection = useCallback(
+    (section: SectionName) => {
+      dispatch(resetSectionAction(section));
+    },
+    [dispatch],
+  );
 
   const resetAll = useCallback(() => {
-    dispatch({ type: 'RESET_ALL' });
-  }, []);
+    dispatch(resetAllAction());
+  }, [dispatch]);
 
   const addDataset = useCallback(
     (
@@ -729,22 +141,26 @@ export function useTrainingConfigForm() {
       thumbnailVersion?: number,
       dimensionHistogram?: Record<string, number>,
     ) => {
-      dispatch({
-        type: 'ADD_DATASET',
-        folderName,
-        displayName,
-        folders,
-        thumbnail,
-        thumbnailVersion,
-        dimensionHistogram,
-      });
+      dispatch(
+        addDatasetAction({
+          folderName,
+          displayName,
+          folders,
+          thumbnail,
+          thumbnailVersion,
+          dimensionHistogram,
+        }),
+      );
     },
-    [],
+    [dispatch],
   );
 
-  const removeDataset = useCallback((index: number) => {
-    dispatch({ type: 'REMOVE_DATASET', index });
-  }, []);
+  const removeDataset = useCallback(
+    (index: number) => {
+      dispatch(removeDatasetAction(index));
+    },
+    [dispatch],
+  );
 
   const setFolderRepeats = useCallback(
     (
@@ -752,23 +168,12 @@ export function useTrainingConfigForm() {
       folderName: string,
       repeats: number | null,
     ) => {
-      dispatch({
-        type: 'SET_FOLDER_REPEATS',
-        datasetIndex,
-        folderName,
-        repeats,
-      });
+      dispatch(
+        setFolderRepeatsAction({ datasetIndex, folderName, repeats }),
+      );
     },
-    [],
+    [dispatch],
   );
-
-  const addExtraFolder = useCallback((path: string) => {
-    dispatch({ type: 'ADD_EXTRA_FOLDER', path });
-  }, []);
-
-  const removeExtraFolder = useCallback((index: number) => {
-    dispatch({ type: 'REMOVE_EXTRA_FOLDER', index });
-  }, []);
 
   const updateFolderAugment = useCallback(
     (
@@ -776,27 +181,51 @@ export function useTrainingConfigForm() {
       folderName: string,
       updates: Partial<FolderAugmentation>,
     ) => {
-      dispatch({
-        type: 'UPDATE_FOLDER_AUGMENT',
-        datasetIndex,
-        folderName,
-        updates,
-      });
+      dispatch(
+        updateFolderAugmentAction({ datasetIndex, folderName, updates }),
+      );
     },
-    [],
+    [dispatch],
+  );
+
+  const addExtraFolder = useCallback(
+    (path: string) => {
+      dispatch(addExtraFolderAction(path));
+    },
+    [dispatch],
+  );
+
+  const removeExtraFolder = useCallback(
+    (index: number) => {
+      dispatch(removeExtraFolderAction(index));
+    },
+    [dispatch],
   );
 
   const addSamplePrompt = useCallback(() => {
-    dispatch({ type: 'ADD_SAMPLE_PROMPT' });
-  }, []);
+    dispatch(addSamplePromptAction());
+  }, [dispatch]);
 
-  const removeSamplePrompt = useCallback((index: number) => {
-    dispatch({ type: 'REMOVE_SAMPLE_PROMPT', index });
-  }, []);
+  const removeSamplePrompt = useCallback(
+    (index: number) => {
+      dispatch(removeSamplePromptAction(index));
+    },
+    [dispatch],
+  );
 
-  const setSamplePrompt = useCallback((index: number, value: string) => {
-    dispatch({ type: 'SET_SAMPLE_PROMPT', index, value });
-  }, []);
+  const setSamplePrompt = useCallback(
+    (index: number, value: string) => {
+      dispatch(setSamplePromptAction({ index, value }));
+    },
+    [dispatch],
+  );
+
+  const setAppModelDefaults = useCallback(
+    (defaults: AppModelDefaults) => {
+      dispatch(setAppModelDefaultsAction(defaults));
+    },
+    [dispatch],
+  );
 
   return {
     state,
