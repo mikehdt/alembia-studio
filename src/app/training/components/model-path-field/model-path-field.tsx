@@ -1,19 +1,18 @@
 'use client';
 
 import { DownloadIcon, FolderOpenIcon, RotateCcwIcon } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { getTrainingDownloadable } from '@/app/services/model-manager/registries/training-models';
-import { startModelDownload } from '@/app/services/model-manager/start-download';
 import { Button } from '@/app/shared/button';
-import { Dropdown } from '@/app/shared/dropdown';
 import { Input } from '@/app/shared/input/input';
 import { InputTray } from '@/app/shared/input-tray/input-tray';
 import { ToolbarDivider } from '@/app/shared/toolbar-divider';
-import { useHfTokenStatus } from '@/app/shared/use-hf-token-status';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
-import { openPanel } from '@/app/store/jobs';
+import { openModelManagerModal } from '@/app/store/model-manager';
 import { selectAllModelStatuses } from '@/app/store/model-manager';
+
+import { useModelDefaultsModal } from '../model-defaults-modal/use-model-defaults-modal';
 
 import { resolveDownloadedPath } from './resolve-downloaded-path';
 
@@ -47,15 +46,12 @@ export function ModelPathField({
 }: ModelPathFieldProps) {
   const dispatch = useAppDispatch();
   const statuses = useAppSelector(selectAllModelStatuses);
-  const hasHfToken = useHfTokenStatus();
-  const [variantId, setVariantId] = useState<string | undefined>(undefined);
+  const { closeModal: closeDefaultsModal } = useModelDefaultsModal();
 
   const downloadable = useMemo(
     () => (downloadId ? getTrainingDownloadable(downloadId) : undefined),
     [downloadId],
   );
-  const variants = downloadable?.variants;
-  const selectedVariant = variantId ?? variants?.[0]?.id;
 
   const entry = downloadId ? statuses[downloadId] : undefined;
 
@@ -84,8 +80,6 @@ export function ModelPathField({
     trimmedValue === '' &&
     !canReset;
   const isDownloading = entry?.status === 'downloading';
-  // Gate downloads of gated models until a HF token is configured.
-  const needsToken = !!downloadable?.requiresLicense && hasHfToken === false;
 
   const handleBrowse = useCallback(async () => {
     try {
@@ -105,16 +99,15 @@ export function ModelPathField({
     if (resetTarget) onChange(resetTarget);
   }, [resetTarget, onChange]);
 
-  const handleDownload = useCallback(() => {
-    if (!downloadable) return;
-    dispatch(openPanel());
-    startModelDownload({
-      modelId: downloadable.id,
-      modelName: downloadable.name,
-      variantId: selectedVariant,
-      dispatch,
-    });
-  }, [downloadable, selectedVariant, dispatch]);
+  // Hand download off to the Model Manager rather than kicking off the
+  // download inline — gives the user variant/precision choice, progress
+  // visibility, and a single canonical place to reason about downloads.
+  // The defaults modal closes since both are full-screen modals; the user
+  // can reopen it to set paths once the download finishes.
+  const handleOpenManager = useCallback(() => {
+    closeDefaultsModal();
+    dispatch(openModelManagerModal('training'));
+  }, [closeDefaultsModal, dispatch]);
 
   const hasExtra = canReset || (canDownload && !isDownloading);
 
@@ -158,35 +151,16 @@ export function ModelPathField({
       )}
 
       {canDownload && !isDownloading && (
-        <>
-          {variants && variants.length > 1 && (
-            <Dropdown
-              variant="ghost"
-              items={variants.map((v) => ({ value: v.id, label: v.label }))}
-              selectedValue={selectedVariant ?? ''}
-              onChange={setVariantId}
-              selectedValueRenderer={(item) => (
-                <span className="text-xs">{item.value.toUpperCase()}</span>
-              )}
-              size="md"
-              aria-label={`${browseTitle} precision`}
-            />
-          )}
-          <Button
-            onClick={handleDownload}
-            variant="ghost"
-            size="md"
-            color="indigo"
-            disabled={needsToken}
-            title={
-              needsToken
-                ? `Set a HuggingFace token in the Model Manager Settings tab to download ${browseTitle}`
-                : `Download ${browseTitle}…`
-            }
-          >
-            <DownloadIcon />
-          </Button>
-        </>
+        <Button
+          onClick={handleOpenManager}
+          variant="ghost"
+          size="md"
+          color="indigo"
+          title={`Download ${browseTitle} in Model Manager`}
+        >
+          <DownloadIcon />
+          Download…
+        </Button>
       )}
     </InputTray>
   );

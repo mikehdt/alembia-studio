@@ -45,11 +45,16 @@ const VIEW_MODE_OPTIONS: { value: TrainingViewMode; label: string }[] = [
 const TrainingToolbarComponent = () => {
   const dispatch = useAppDispatch();
   const viewMode = useTrainingViewMode();
+  // Defer Redux-derived values until after hydration so server + initial
+  // client render always agree on the `disabled` shape. Explicit Boolean()
+  // coercion guarantees the prop is a concrete boolean — never null — so
+  // the hydration diff can't flag shape drift on the button element.
   const isClient = useSyncExternalStore(
     subscribe,
     getSnapshot,
     getServerSnapshot,
   );
+
   const activeTrainingJob = useAppSelector(selectActiveTrainingJob);
   const panelOpen = useAppSelector(selectPanelOpen);
   const loadedProject = useAppSelector(selectLoadedProject);
@@ -59,6 +64,8 @@ const TrainingToolbarComponent = () => {
 
   const hasActiveJob = isClient ? activeTrainingJob !== null : true;
   const isRunning = isClient && activeTrainingJob !== null;
+  const effectiveCanReset = isClient ? Boolean(canReset) : false;
+  const effectiveIsDirty = isClient ? Boolean(isDirty) : false;
 
   const [saveAsOpen, setSaveAsOpen] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false);
@@ -85,7 +92,7 @@ const TrainingToolbarComponent = () => {
   }, [dispatch, isDirty, loadedProject]);
 
   const resetLabel =
-    loadedProject && isDirty ? 'Reset changes' : 'Reset to defaults';
+    loadedProject && effectiveIsDirty ? 'Reset changes' : 'Reset to defaults';
 
   return (
     <>
@@ -103,8 +110,12 @@ const TrainingToolbarComponent = () => {
           size="sm"
           variant="ghost"
           onClick={handleSave}
-          disabled={!isDirty}
-          title={isDirty ? `Save changes to v${loadedProject.version}` : 'No unsaved changes'}
+          disabled={effectiveIsDirty === false}
+          title={
+            effectiveIsDirty
+              ? `Save changes to v${loadedProject.version}`
+              : 'No unsaved changes'
+          }
         >
           <SaveIcon className="mr-1 h-3.5 w-3.5" />
           Save
@@ -115,9 +126,9 @@ const TrainingToolbarComponent = () => {
         size="sm"
         variant="ghost"
         onClick={handleReset}
-        disabled={!canReset}
+        disabled={effectiveCanReset === false}
         title={
-          canReset
+          effectiveCanReset
             ? resetLabel
             : loadedProject
               ? 'No unsaved changes to reset'
@@ -135,7 +146,7 @@ const TrainingToolbarComponent = () => {
       <Button
         size="sm"
         variant="ghost"
-        disabled={!hasActiveJob}
+        disabled={hasActiveJob === false}
         isPressed={panelOpen}
         onClick={() => dispatch(togglePanel())}
         className="relative"
