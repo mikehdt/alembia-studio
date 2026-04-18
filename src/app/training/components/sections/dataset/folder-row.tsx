@@ -78,11 +78,7 @@ export function FolderRow({
           </Button>
           <Button
             onClick={() =>
-              onSetRepeats(
-                datasetIndex,
-                folderName,
-                isDisabled ? null : 0,
-              )
+              onSetRepeats(datasetIndex, folderName, isDisabled ? null : 0)
             }
             variant="toggle"
             size="sm"
@@ -94,10 +90,7 @@ export function FolderRow({
               <EyeIcon className="h-3 w-3" />
             )}
           </Button>
-          <span
-            className="flex min-w-0 items-center truncate"
-            title={label}
-          >
+          <span className="flex min-w-0 items-center truncate" title={label}>
             {isRoot ? (
               <HomeIcon className="mr-2 h-4 w-4 shrink-0 text-slate-400 dark:text-slate-600" />
             ) : (
@@ -194,8 +187,7 @@ export function FolderRow({
             />
             <p className="mt-0.5 text-xs text-slate-400">
               Protects first N tags from shuffling
-              {!augmentation.captionShuffling &&
-                ' (requires Shuffle Captions)'}
+              {!augmentation.captionShuffling && ' (requires Shuffle Captions)'}
             </p>
           </div>
 

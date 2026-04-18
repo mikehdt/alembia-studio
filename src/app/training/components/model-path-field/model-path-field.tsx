@@ -75,9 +75,7 @@ export function ModelPathField({
   // so the button still works for downloadable models with no saved default.
   const resetTarget = trimmedResetTo !== '' ? trimmedResetTo : downloadedPath;
   const canReset =
-    resetTarget !== null &&
-    resetTarget !== '' &&
-    trimmedValue !== resetTarget;
+    resetTarget !== null && resetTarget !== '' && trimmedValue !== resetTarget;
   const canDownload =
     downloadable !== undefined &&
     downloadedPath === null &&

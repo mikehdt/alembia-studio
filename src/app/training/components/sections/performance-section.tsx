@@ -199,9 +199,7 @@ const PerformanceSectionComponent = ({
         )}
 
         {/* Cache Text Embeddings */}
-        {visibleFields.has(
-          'cacheTextEmbeddings' satisfies keyof FormState,
-        ) && (
+        {visibleFields.has('cacheTextEmbeddings' satisfies keyof FormState) && (
           <div className="flex items-center gap-2">
             <Checkbox
               isSelected={cacheTextEmbeddings}
@@ -218,9 +216,7 @@ const PerformanceSectionComponent = ({
         )}
 
         {/* Unload Text Encoder */}
-        {visibleFields.has(
-          'unloadTextEncoder' satisfies keyof FormState,
-        ) && (
+        {visibleFields.has('unloadTextEncoder' satisfies keyof FormState) && (
           <div className="flex items-center gap-2">
             <Checkbox
               isSelected={unloadTextEncoder}

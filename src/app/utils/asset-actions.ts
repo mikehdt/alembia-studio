@@ -267,7 +267,10 @@ export const getMultipleImageAssetDetails = async (
 
 const BLUR_MAX_DIMENSION = 10;
 
-const VIDEO_FALLBACK_DIMENSIONS: ImageDimensions = { width: 1920, height: 1080 };
+const VIDEO_FALLBACK_DIMENSIONS: ImageDimensions = {
+  width: 1920,
+  height: 1080,
+};
 const POSTER_FRAME_FRACTION = 0.1; // 10% into the video
 let warnedMissingFfprobe = false;
 let warnedMissingFfmpeg = false;

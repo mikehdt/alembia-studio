@@ -9,6 +9,7 @@ dependencies = [
     "websockets>=14,<15",
     "pydantic>=2.10,<3",
     "pyyaml>=6,<7",
+    "httpx>=0.27,<1",
     # VLM captioning backend — install on demand via the "vlm" extra once
     # we're ready to swap the mock provider. Keeping it optional means the
     # sidecar can run without a CUDA toolchain.

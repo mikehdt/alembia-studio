@@ -230,8 +230,7 @@ function snapshotClientConfig(
       sampleEveryNSteps: (config.sampleEverySteps as number) ?? 250,
       gradientAccumulationSteps:
         (config.gradientAccumulationSteps as number) ?? 1,
-      mixedPrecision:
-        ((config.mixedPrecision as 'bf16' | 'fp16') ?? 'bf16'),
+      mixedPrecision: (config.mixedPrecision as 'bf16' | 'fp16') ?? 'bf16',
       extra: {},
     },
     samplePrompts: (config.samplePrompts as string[]) ?? [],

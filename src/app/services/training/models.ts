@@ -668,9 +668,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     architecture: 'wan',
     description: 'Video/image generation, last open-weights release',
     providers: ['ai-toolkit', 'mock'],
-    components: [
-      { type: 'checkpoint', label: 'Model File', required: true },
-    ],
+    components: [{ type: 'checkpoint', label: 'Model File', required: true }],
     tips: [
       'Higher rank (32) and learning rate (2e-4) suit this larger model',
       'Supports image-only training via single-frame clips',
@@ -730,9 +728,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     architecture: 'ltx',
     description: 'Actively evolving open video model',
     providers: ['ai-toolkit', 'mock'],
-    components: [
-      { type: 'checkpoint', label: 'Model File', required: true },
-    ],
+    components: [{ type: 'checkpoint', label: 'Model File', required: true }],
     tips: [
       'Higher rank (32) recommended for video model capacity',
       'Supports image-only training via single-frame clips',
@@ -792,9 +788,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
     architecture: 'ltx',
     description: 'Latest LTX with improved motion and quality',
     providers: ['ai-toolkit', 'mock'],
-    components: [
-      { type: 'checkpoint', label: 'Model File', required: true },
-    ],
+    components: [{ type: 'checkpoint', label: 'Model File', required: true }],
     tips: [
       'Higher rank (32) recommended for video model capacity',
       'Supports image-only training via single-frame clips',

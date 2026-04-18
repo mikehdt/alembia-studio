@@ -12,10 +12,7 @@ import { createListenerMiddleware, isAnyOf } from '@reduxjs/toolkit';
 import { updateModelStatus as updateAutoTaggerModelStatus } from '../auto-tagger';
 import type { RootState } from '../index';
 import { addJob, openPanel } from '../jobs';
-import {
-  persistDownloadJobs,
-  persistTrainingJobs,
-} from '../jobs/persistence';
+import { persistDownloadJobs, persistTrainingJobs } from '../jobs/persistence';
 import { setModelStatus } from '../model-manager';
 
 export const jobPersistenceMiddleware = createListenerMiddleware();

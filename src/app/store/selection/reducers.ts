@@ -94,7 +94,6 @@ export const {
   trackAssetClick,
   clearClickTracking,
   setShiftHoverAssetId,
-  
 } = selectionSlice.actions;
 
 export const selectionReducer = selectionSlice.reducer;

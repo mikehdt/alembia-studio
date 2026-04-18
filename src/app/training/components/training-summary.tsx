@@ -202,9 +202,7 @@ const TrainingSummaryComponent = ({
             </>
           )}
           <SummaryRow label="Batch size">{batchSize}</SummaryRow>
-          <SummaryRow label="Seed">
-            {seed === -1 ? 'Random' : seed}
-          </SummaryRow>
+          <SummaryRow label="Seed">{seed === -1 ? 'Random' : seed}</SummaryRow>
           {saveEnabled && checkpointCount > 0 && (
             <SummaryRow label="Checkpoints">~{checkpointCount}</SummaryRow>
           )}

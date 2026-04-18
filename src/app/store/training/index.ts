@@ -43,7 +43,7 @@ const trainingSlice = createSlice({
   },
 });
 
-export const {   } = trainingSlice.actions;
+export const {} = trainingSlice.actions;
 
 export const trainingReducer = trainingSlice.reducer;
 
@@ -56,7 +56,4 @@ const selectSidecarStatus = createSelector(
   (t) => t.sidecarStatus,
 );
 
-const selectWsConnected = createSelector(
-  selectTraining,
-  (t) => t.wsConnected,
-);
+const selectWsConnected = createSelector(selectTraining, (t) => t.wsConnected);

@@ -378,7 +378,8 @@ function formReducer(state: FormState, action: FormAction): FormState {
             networkType: 'lora',
             networkDim: defaults.networkDim,
             networkAlpha: defaults.networkAlpha,
-            networkDimAlphaLinked: defaults.networkDim === defaults.networkAlpha,
+            networkDimAlphaLinked:
+              defaults.networkDim === defaults.networkAlpha,
             networkDropout: defaults.networkDropout,
           };
         case 'performance':
@@ -450,9 +451,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
     }
 
     case 'ADD_DATASET': {
-      const baseAugment = defaultFolderAugmentation(
-        getDefaults(state.modelId),
-      );
+      const baseAugment = defaultFolderAugmentation(getDefaults(state.modelId));
       return {
         ...state,
         datasets: [
@@ -527,9 +526,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
       if (state.extraFolders.some((ef) => ef.path === action.path)) {
         return state;
       }
-      const baseAugment = defaultFolderAugmentation(
-        getDefaults(state.modelId),
-      );
+      const baseAugment = defaultFolderAugmentation(getDefaults(state.modelId));
       return {
         ...state,
         extraFolders: [

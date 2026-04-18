@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
             //       the model can integrate freely without feeling it has
             //       to spend a paragraph on the phrases.
             positionInstruction =
-              'Evaluate each phrase on its own. As you write the caption, watch for natural points where a phrase fits into the description — weave it into the prose at that point rather than saving it for later. The trigger phrases above do not count toward the caption\'s paragraph or word budget. Phrases that genuinely have no natural home in the prose go on their own lines at the very end, after the caption itself is complete. Treat the phrases independently — different phrases may end up in different places.';
+              "Evaluate each phrase on its own. As you write the caption, watch for natural points where a phrase fits into the description — weave it into the prose at that point rather than saving it for later. The trigger phrases above do not count toward the caption's paragraph or word budget. Phrases that genuinely have no natural home in the prose go on their own lines at the very end, after the caption itself is complete. Treat the phrases independently — different phrases may end up in different places.";
             break;
           case 'append':
           default:
@@ -460,7 +460,8 @@ export async function POST(request: NextRequest) {
 
           // Map the sidecar's per-image event back to the user-facing asset
           // via the surviving-index mapping (skips dropped videos).
-          const sidecarIndex = completed - (assets.length - sidecarIndexToAsset.length);
+          const sidecarIndex =
+            completed - (assets.length - sidecarIndexToAsset.length);
           const asset = sidecarIndexToAsset[sidecarIndex];
           if ('error' in event) {
             sendEvent({

@@ -263,10 +263,7 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
   resumeState: { tier: 'advanced', group: 'saving', defaultKey: null },
 };
 
-const GROUP_META: Record<
-  ConceptualGroup,
-  { label: string; order: number }
-> = {
+const GROUP_META: Record<ConceptualGroup, { label: string; order: number }> = {
   whatToTrain: { label: 'What to Train', order: 0 },
   dataset: { label: 'Dataset', order: 1 },
   learning: { label: 'Learning', order: 2 },

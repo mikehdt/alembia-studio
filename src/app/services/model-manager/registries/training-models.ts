@@ -442,9 +442,7 @@ export function getTrainingDownloadable(
 /**
  * Get the shared component definition by its sharedId.
  */
-function getSharedComponent(
-  sharedId: string,
-): DownloadableModel | undefined {
+function getSharedComponent(sharedId: string): DownloadableModel | undefined {
   return SHARED_COMPONENTS.find((m) => m.sharedId === sharedId);
 }
 

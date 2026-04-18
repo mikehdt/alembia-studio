@@ -203,7 +203,8 @@ const LoraShapeSectionComponent = ({
               className="w-20 tabular-nums"
             />
             <p className="mt-1 text-xs text-slate-400">
-              Randomly drop LoRA activations during training (0 = disabled, 0.1–0.3 typical)
+              Randomly drop LoRA activations during training (0 = disabled,
+              0.1–0.3 typical)
             </p>
           </div>
         )}

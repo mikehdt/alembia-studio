@@ -5,6 +5,7 @@ import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,7 +24,8 @@ from models import (
     HealthResponse,
     StartJobRequest,
 )
-from providers.ai_toolkit import AiToolkitProvider
+from ai_toolkit_server import AiToolkitServer
+from providers.ai_toolkit_ui import AiToolkitUiProvider
 from providers.mock import MockProvider
 from ws_manager import WebSocketManager
 
@@ -33,20 +35,31 @@ caption_ws_manager = WebSocketManager()
 job_manager: JobManager
 caption_manager: CaptionBatchManager
 sidecar_config: SidecarConfig
+# Tracks any ai-toolkit UI server we spawn so we can stop it on shutdown.
+aitk_server: Optional["AiToolkitServer"] = None
 
 
 def _register_providers(jm: JobManager, config: SidecarConfig):
     """Register available training providers based on config."""
+    global aitk_server
     backends = config.backends
 
-    # ai-toolkit
+    # ai-toolkit — driven via its bundled UI server's HTTP API.
+    # The server is spawned lazily on first training request (via
+    # AiToolkitServer.ensure_running) — we just register the provider here.
     aitk_path = backends.get("ai-toolkit")
     if aitk_path:
-        provider = AiToolkitProvider(aitk_path)
+        log_path = config.training_dir / "aitk-server.log"
+        aitk_server = AiToolkitServer(Path(aitk_path), log_path=log_path)
+        provider = AiToolkitUiProvider(aitk_path, aitk_server)
         jm.register_provider("ai-toolkit", provider)
-        print(f"[sidecar] Registered ai-toolkit provider at {aitk_path}")
+        print(
+            f"[sidecar] Registered ai-toolkit provider at {aitk_path} "
+            f"(server logs -> {log_path})"
+        )
 
-    # TODO Phase 6: Kohya provider
+    # TODO Phase 6: Kohya provider (will use the stderr-scraping pattern
+    # in providers/ai_toolkit.py since sd-scripts has no equivalent UI/API)
     # kohya_path = backends.get("kohya")
     # if kohya_path:
     #     provider = KohyaProvider(kohya_path)
@@ -91,6 +104,8 @@ async def lifespan(app: FastAPI):
     # Cleanup on shutdown
     if pid_path.exists():
         pid_path.unlink()
+    if aitk_server is not None:
+        await aitk_server.stop()
 
 
 app = FastAPI(title="Training Sidecar", version="0.1.0", lifespan=lifespan)
