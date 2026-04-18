@@ -58,22 +58,6 @@ export type ModelFile = {
   size: number;
 };
 
-type ModelStatus =
-  | 'not_installed'
-  | 'downloading'
-  | 'ready'
-  | 'error'
-  | 'checking';
-
-type DownloadProgress = {
-  modelId: string;
-  status: ModelStatus;
-  currentFile?: string;
-  bytesDownloaded: number;
-  totalBytes: number;
-  error?: string;
-};
-
 export type TagResult = {
   tag: string;
   confidence: number;

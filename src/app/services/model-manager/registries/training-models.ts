@@ -369,13 +369,6 @@ export function getTrainingDownloadable(
 }
 
 /**
- * Get the shared component definition by its sharedId.
- */
-function getSharedComponent(sharedId: string): DownloadableModel | undefined {
-  return SHARED_COMPONENTS.find((m) => m.sharedId === sharedId);
-}
-
-/**
  * Get all downloadable models (checkpoint + dependencies) needed for a
  * given training model architecture.
  */

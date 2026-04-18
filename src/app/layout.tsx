@@ -19,7 +19,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: 'Image Tagger',
+  title: 'Alembia Studio',
   description: 'Tag images with text to identify things',
   icons: {
     icon: [

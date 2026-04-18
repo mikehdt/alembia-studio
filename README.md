@@ -1,4 +1,4 @@
-# img-tagger
+# Alembia Studio
 
 A local, browser-based workbench for organising and tagging image (and video) collections — primarily aimed at preparing training datasets for image generation models, but useful for any bulk tagging workflow.
 
