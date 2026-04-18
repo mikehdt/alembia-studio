@@ -21,7 +21,7 @@ export function InputTray({
 }: InputTrayProps) {
   return (
     <div
-      className={`flex items-center bg-slate-200 inset-shadow-xs inset-shadow-slate-300 dark:bg-slate-800 dark:inset-shadow-slate-900 ${sizeClasses[size]} ${className}`}
+      className={`inline-flex items-center bg-slate-200 inset-shadow-xs inset-shadow-slate-300 dark:bg-slate-800 dark:inset-shadow-slate-900 ${sizeClasses[size]} ${className}`}
     >
       {children}
     </div>

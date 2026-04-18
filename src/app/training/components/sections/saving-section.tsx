@@ -156,25 +156,27 @@ const SavingSectionComponent = ({
                       Save Every
                     </label>
                   </div>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={activeValue}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      if (val > 0) onFieldChange(activeField, val);
-                    }}
-                    className="w-20"
-                  />
-                  <SegmentedControl
-                    options={[
-                      { value: 'epochs', label: 'Epochs' },
-                      { value: 'steps', label: 'Steps' },
-                    ]}
-                    value={saveMode}
-                    onChange={(val) => onFieldChange('saveMode', val)}
-                    size="sm"
-                  />
+                  <InputTray size="md">
+                    <Input
+                      type="number"
+                      min={1}
+                      value={activeValue}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (val > 0) onFieldChange(activeField, val);
+                      }}
+                      className="mr-1 w-20"
+                    />
+                    <SegmentedControl
+                      options={[
+                        { value: 'epochs', label: 'Epochs' },
+                        { value: 'steps', label: 'Steps' },
+                      ]}
+                      value={saveMode}
+                      onChange={(val) => onFieldChange('saveMode', val)}
+                      size="md"
+                    />
+                  </InputTray>
                 </div>
 
                 {visibleFields.has(
