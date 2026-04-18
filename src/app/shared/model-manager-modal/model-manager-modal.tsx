@@ -21,7 +21,7 @@ export function ModelManagerModal() {
         <SegmentedControl
           options={[
             { value: 'auto-tagger' as const, label: 'Image Tagging' },
-            { value: 'training' as const, label: 'Image Training' },
+            { value: 'training' as const, label: 'Image Training (WIP)' },
             { value: 'settings' as const, label: 'Settings' },
           ]}
           value={activeTab}
