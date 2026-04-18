@@ -9,12 +9,12 @@ import fs from 'fs';
 import { NextRequest } from 'next/server';
 import path from 'path';
 
+import { getModel } from '@/app/services/auto-tagger';
+import { getHfToken } from '@/app/services/config/server-config';
 import {
   markDownloadActive,
   markDownloadInactive,
 } from '@/app/services/model-manager/active-downloads';
-import { getModel } from '@/app/services/auto-tagger';
-import { getHfToken } from '@/app/services/config/server-config';
 import { downloadModelFiles } from '@/app/services/model-manager/download-engine';
 import { taggerModelToDownloadable } from '@/app/services/model-manager/registries/auto-tagger-models';
 import { getTrainingDownloadable } from '@/app/services/model-manager/registries/training-models';

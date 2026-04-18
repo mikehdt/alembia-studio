@@ -156,7 +156,7 @@ const TrainingConfigFormComponent = ({
       sampleEverySteps: state.sampleEverySteps,
       samplePrompts: state.samplePrompts.map((s) => s.trim()).filter(Boolean),
     });
-  }, [state, currentModel, calculatedSteps, onStartTraining]);
+  }, [state, calculatedSteps, onStartTraining]);
 
   const hasAllRequiredComponents = currentModel.components
     .filter((c) => c.required)

@@ -1,8 +1,8 @@
 import { ListPlusIcon, PlayIcon } from 'lucide-react';
 import { useSyncExternalStore } from 'react';
 
-import { BottomShelfFrame } from '@/app/shared/shelf';
 import { Button } from '@/app/shared/button';
+import { BottomShelfFrame } from '@/app/shared/shelf';
 import { useAppSelector } from '@/app/store/hooks';
 import { selectIsTraining } from '@/app/store/jobs';
 

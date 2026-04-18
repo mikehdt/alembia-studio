@@ -47,8 +47,6 @@ const KohyaBucketPreviewComponent = ({
     return counts;
   }, [datasets, baseResolution]);
 
-  if (buckets.length === 0) return null;
-
   const hasImageData = bucketCounts.size > 0;
 
   // Expand buckets to include their portrait mirrors (non-square only), so the
@@ -73,6 +71,8 @@ const KohyaBucketPreviewComponent = ({
     }
     return rows;
   }, [buckets, bucketCounts]);
+
+  if (buckets.length === 0) return null;
 
   const visibleRows = hasImageData
     ? expandedBuckets.filter((r) => r.count > 0)
