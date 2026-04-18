@@ -5,6 +5,8 @@ import {
   CircleIcon,
   FolderOpenIcon,
   PencilIcon,
+  SaveIcon,
+  Trash2Icon,
 } from 'lucide-react';
 import { memo, useCallback, useEffect, useId, useRef, useState } from 'react';
 
@@ -28,9 +30,15 @@ import type { LoadedProject } from '@/app/store/training-config/types';
 
 type ProjectSelectorProps = {
   onRequestLoad: () => void;
+  onRequestSaveAs: () => void;
+  onRequestDelete: () => void;
 };
 
-const ProjectSelectorComponent = ({ onRequestLoad }: ProjectSelectorProps) => {
+const ProjectSelectorComponent = ({
+  onRequestLoad,
+  onRequestSaveAs,
+  onRequestDelete,
+}: ProjectSelectorProps) => {
   const loadedProject = useAppSelector(selectLoadedProject);
   const isDirty = useAppSelector(selectIsDirty);
 
@@ -103,6 +111,14 @@ const ProjectSelectorComponent = ({ onRequestLoad }: ProjectSelectorProps) => {
             handleClose();
             onRequestLoad();
           }}
+          onRequestSaveAs={() => {
+            handleClose();
+            onRequestSaveAs();
+          }}
+          onRequestDelete={() => {
+            handleClose();
+            onRequestDelete();
+          }}
           onClose={handleClose}
         />
       </Popup>
@@ -121,12 +137,16 @@ export const ProjectSelector = memo(ProjectSelectorComponent);
 type PopupContentProps = {
   loadedProject: LoadedProject | null;
   onRequestLoad: () => void;
+  onRequestSaveAs: () => void;
+  onRequestDelete: () => void;
   onClose: () => void;
 };
 
 const PopupContent = ({
   loadedProject,
   onRequestLoad,
+  onRequestSaveAs,
+  onRequestDelete,
   onClose,
 }: PopupContentProps) => {
   const dispatch = useAppDispatch();
@@ -304,6 +324,14 @@ const PopupContent = ({
       <div className="flex flex-col">
         <button
           type="button"
+          onClick={onRequestSaveAs}
+          className="flex cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+        >
+          <SaveIcon className="h-4 w-4" />
+          Save As…
+        </button>
+        <button
+          type="button"
           onClick={onRequestLoad}
           className="flex cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
         >
@@ -311,13 +339,23 @@ const PopupContent = ({
           {loadedProject ? 'Load other project…' : 'Load project…'}
         </button>
         {loadedProject && (
-          <button
-            type="button"
-            onClick={handleGoEphemeral}
-            className="flex cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
-          >
-            Close project (reset to defaults)
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={onRequestDelete}
+              className="flex cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+            >
+              <Trash2Icon className="h-4 w-4" />
+              Delete project or version…
+            </button>
+            <button
+              type="button"
+              onClick={handleGoEphemeral}
+              className="flex cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+            >
+              Close project (reset to defaults)
+            </button>
+          </>
         )}
       </div>
     </div>

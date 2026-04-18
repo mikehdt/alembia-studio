@@ -104,90 +104,113 @@ const trainingConfigSlice = createSlice({
     },
 
     resetSection: (state, action: PayloadAction<SectionName>) => {
-      const defaults = getDefaults(state.form.modelId);
+      // Reset target depends on whether a project is loaded:
+      //   - Loaded: revert this section's fields to the baseline snapshot,
+      //     so per-section reset matches the loaded version rather than
+      //     the model's generic defaults.
+      //   - Ephemeral: fall back to suggested defaults for the model.
+      const ref =
+        state.baselineSnapshot ??
+        defaultsToFormState(getDefaults(state.form.modelId), state.form.modelId);
       const { form } = state;
 
       switch (action.payload) {
         case 'whatToTrain':
-          form.modelPaths = {};
+          form.modelPaths = { ...ref.modelPaths };
           break;
 
         case 'dataset': {
-          const baseAugment = defaultFolderAugmentation(defaults);
+          // For each folder in the current form, apply baseline augments
+          // when the folder exists in the reference; otherwise apply the
+          // model's default augments. Datasets/folders themselves aren't
+          // added or removed by section reset.
+          const fallback = defaultFolderAugmentation(
+            getDefaults(state.form.modelId),
+          );
+          const refFolderMap = new Map<string, FolderAugmentation>();
+          for (const ds of ref.datasets) {
+            for (const f of ds.folders) {
+              refFolderMap.set(`${ds.folderName}/${f.name}`, extractAugment(f));
+            }
+          }
+          const refExtraMap = new Map<string, FolderAugmentation>();
+          for (const ef of ref.extraFolders) {
+            refExtraMap.set(ef.path, extractAugment(ef));
+          }
           for (const ds of form.datasets) {
             for (const f of ds.folders) {
-              Object.assign(f, baseAugment);
+              const key = `${ds.folderName}/${f.name}`;
+              Object.assign(f, refFolderMap.get(key) ?? fallback);
             }
           }
           for (const ef of form.extraFolders) {
-            Object.assign(ef, baseAugment);
+            Object.assign(ef, refExtraMap.get(ef.path) ?? fallback);
           }
           break;
         }
 
         case 'learning':
-          form.durationMode = 'epochs';
-          form.epochs = defaults.epochs;
-          form.steps = defaults.steps;
-          form.batchSize = defaults.batchSize;
-          form.learningRate = defaults.learningRate;
-          form.optimizer = defaults.optimizer;
-          form.scheduler = defaults.scheduler;
-          form.warmupSteps = defaults.warmupSteps;
-          form.numRestarts = defaults.numRestarts;
-          form.weightDecay = defaults.weightDecay;
-          form.maxGradNorm = defaults.maxGradNorm;
-          form.trainTextEncoder = defaults.trainTextEncoder;
-          form.backboneLR = defaults.backboneLR;
-          form.textEncoderLR = defaults.textEncoderLR;
-          form.ema = defaults.ema;
-          form.lossType = defaults.lossType;
-          form.timestepType = defaults.timestepType;
-          form.timestepBias = defaults.timestepBias;
+          form.durationMode = ref.durationMode;
+          form.epochs = ref.epochs;
+          form.steps = ref.steps;
+          form.batchSize = ref.batchSize;
+          form.learningRate = ref.learningRate;
+          form.optimizer = ref.optimizer;
+          form.scheduler = ref.scheduler;
+          form.warmupSteps = ref.warmupSteps;
+          form.numRestarts = ref.numRestarts;
+          form.weightDecay = ref.weightDecay;
+          form.maxGradNorm = ref.maxGradNorm;
+          form.trainTextEncoder = ref.trainTextEncoder;
+          form.backboneLR = ref.backboneLR;
+          form.textEncoderLR = ref.textEncoderLR;
+          form.ema = ref.ema;
+          form.lossType = ref.lossType;
+          form.timestepType = ref.timestepType;
+          form.timestepBias = ref.timestepBias;
           break;
 
         case 'loraShape':
-          form.networkType = 'lora';
-          form.networkDim = defaults.networkDim;
-          form.networkAlpha = defaults.networkAlpha;
-          form.networkDimAlphaLinked =
-            defaults.networkDim === defaults.networkAlpha;
-          form.networkDropout = defaults.networkDropout;
+          form.networkType = ref.networkType;
+          form.networkDim = ref.networkDim;
+          form.networkAlpha = ref.networkAlpha;
+          form.networkDimAlphaLinked = ref.networkDimAlphaLinked;
+          form.networkDropout = ref.networkDropout;
           break;
 
         case 'performance':
-          form.resolution = defaults.resolution;
-          form.mixedPrecision = defaults.mixedPrecision;
-          form.transformerQuantization = defaults.transformerQuantization;
-          form.textEncoderQuantization = defaults.textEncoderQuantization;
-          form.cacheTextEmbeddings = defaults.cacheTextEmbeddings;
-          form.unloadTextEncoder = defaults.unloadTextEncoder;
-          form.gradientAccumulationSteps = defaults.gradientAccumulationSteps;
-          form.gradientCheckpointing = defaults.gradientCheckpointing;
-          form.cacheLatents = defaults.cacheLatents;
+          form.resolution = [...ref.resolution];
+          form.mixedPrecision = ref.mixedPrecision;
+          form.transformerQuantization = ref.transformerQuantization;
+          form.textEncoderQuantization = ref.textEncoderQuantization;
+          form.cacheTextEmbeddings = ref.cacheTextEmbeddings;
+          form.unloadTextEncoder = ref.unloadTextEncoder;
+          form.gradientAccumulationSteps = ref.gradientAccumulationSteps;
+          form.gradientCheckpointing = ref.gradientCheckpointing;
+          form.cacheLatents = ref.cacheLatents;
           break;
 
         case 'sampling':
-          form.samplingEnabled = false;
-          form.samplePrompts = [''];
-          form.sampleMode = 'steps';
-          form.sampleEveryEpochs = 1;
-          form.sampleEverySteps = defaults.sampleEvery;
-          form.sampleSteps = defaults.sampleSteps;
-          form.seed = defaults.seed;
-          form.guidanceScale = defaults.guidanceScale;
-          form.noiseScheduler = defaults.noiseScheduler;
+          form.samplingEnabled = ref.samplingEnabled;
+          form.samplePrompts = [...ref.samplePrompts];
+          form.sampleMode = ref.sampleMode;
+          form.sampleEveryEpochs = ref.sampleEveryEpochs;
+          form.sampleEverySteps = ref.sampleEverySteps;
+          form.sampleSteps = ref.sampleSteps;
+          form.seed = ref.seed;
+          form.guidanceScale = ref.guidanceScale;
+          form.noiseScheduler = ref.noiseScheduler;
           break;
 
         case 'saving':
-          form.saveEnabled = false;
-          form.saveMode = 'epochs';
-          form.saveEveryEpochs = defaults.saveEvery;
-          form.saveEverySteps = 250;
-          form.saveFormat = defaults.saveFormat;
-          form.maxSavesToKeep = defaults.maxSavesToKeep;
-          form.saveState = false;
-          form.resumeState = '';
+          form.saveEnabled = ref.saveEnabled;
+          form.saveMode = ref.saveMode;
+          form.saveEveryEpochs = ref.saveEveryEpochs;
+          form.saveEverySteps = ref.saveEverySteps;
+          form.saveFormat = ref.saveFormat;
+          form.maxSavesToKeep = ref.maxSavesToKeep;
+          form.saveState = ref.saveState;
+          form.resumeState = ref.resumeState;
           break;
       }
     },
@@ -441,58 +464,108 @@ export const selectCalculatedEpochs = createSelector(
 );
 
 export const selectSectionHasChanges = createSelector(
-  selectForm,
-  selectModelDefaults,
-  (form, defaults) => {
-    const baseAugment = defaultFolderAugmentation(defaults);
-    const folderCustomised = (f: FolderAugmentation): boolean =>
-      f.captionShuffling !== baseAugment.captionShuffling ||
-      f.captionDropoutRate !== baseAugment.captionDropoutRate ||
-      f.keepTokens !== baseAugment.keepTokens ||
-      f.flipAugment !== baseAugment.flipAugment ||
-      f.flipVAugment !== baseAugment.flipVAugment ||
-      f.loraWeight !== baseAugment.loraWeight ||
-      f.isRegularization !== baseAugment.isRegularization;
-    const anyFolderCustomised =
-      form.datasets.some((ds) => ds.folders.some(folderCustomised)) ||
-      form.extraFolders.some(folderCustomised);
+  selectSlice,
+  (slice) => {
+    const { form, baselineSnapshot } = slice;
+    const isLoaded = baselineSnapshot !== null;
+    // Compare against the loaded baseline when present; otherwise against
+    // the pristine defaults for the current model.
+    const ref =
+      baselineSnapshot ??
+      defaultsToFormState(getDefaults(form.modelId), form.modelId);
+
+    const refFolderMap = new Map<string, FolderAugmentation>();
+    for (const ds of ref.datasets) {
+      for (const f of ds.folders) {
+        refFolderMap.set(`${ds.folderName}/${f.name}`, extractAugment(f));
+      }
+    }
+    const refExtraMap = new Map<string, FolderAugmentation>();
+    for (const ef of ref.extraFolders) {
+      refExtraMap.set(ef.path, extractAugment(ef));
+    }
+    const fallbackAugment = defaultFolderAugmentation(
+      getDefaults(form.modelId),
+    );
+
+    const folderChanged = (
+      f: FolderAugmentation,
+      refAugment: FolderAugmentation,
+    ): boolean => !augmentEqual(f, refAugment);
+
+    const anyFolderChanged =
+      form.datasets.some((ds) =>
+        ds.folders.some((f) => {
+          const refAugment =
+            refFolderMap.get(`${ds.folderName}/${f.name}`) ?? fallbackAugment;
+          return folderChanged(f, refAugment);
+        }),
+      ) ||
+      form.extraFolders.some((ef) => {
+        const refAugment = refExtraMap.get(ef.path) ?? fallbackAugment;
+        return folderChanged(ef, refAugment);
+      });
+
+    const samplingDiffers =
+      form.samplingEnabled !== ref.samplingEnabled ||
+      form.sampleMode !== ref.sampleMode ||
+      form.sampleEveryEpochs !== ref.sampleEveryEpochs ||
+      form.sampleEverySteps !== ref.sampleEverySteps ||
+      form.sampleSteps !== ref.sampleSteps ||
+      form.seed !== ref.seed ||
+      form.guidanceScale !== ref.guidanceScale ||
+      form.noiseScheduler !== ref.noiseScheduler ||
+      JSON.stringify(form.samplePrompts) !== JSON.stringify(ref.samplePrompts);
+
+    const savingDiffers =
+      form.saveEnabled !== ref.saveEnabled ||
+      form.saveMode !== ref.saveMode ||
+      form.saveEveryEpochs !== ref.saveEveryEpochs ||
+      form.saveEverySteps !== ref.saveEverySteps ||
+      form.saveFormat !== ref.saveFormat ||
+      form.maxSavesToKeep !== ref.maxSavesToKeep ||
+      form.saveState !== ref.saveState ||
+      form.resumeState !== ref.resumeState;
 
     return {
       whatToTrain: false,
-      dataset: anyFolderCustomised,
+      dataset: anyFolderChanged,
       learning:
-        form.learningRate !== defaults.learningRate ||
-        form.optimizer !== defaults.optimizer ||
-        form.scheduler !== defaults.scheduler ||
-        form.epochs !== defaults.epochs ||
-        form.batchSize !== defaults.batchSize ||
-        form.warmupSteps !== defaults.warmupSteps ||
-        form.numRestarts !== defaults.numRestarts ||
-        form.weightDecay !== defaults.weightDecay ||
-        form.maxGradNorm !== defaults.maxGradNorm ||
-        form.trainTextEncoder !== defaults.trainTextEncoder ||
-        form.backboneLR !== defaults.backboneLR ||
-        form.textEncoderLR !== defaults.textEncoderLR ||
-        form.ema !== defaults.ema ||
-        form.lossType !== defaults.lossType ||
-        form.timestepType !== defaults.timestepType ||
-        form.timestepBias !== defaults.timestepBias,
+        form.learningRate !== ref.learningRate ||
+        form.optimizer !== ref.optimizer ||
+        form.scheduler !== ref.scheduler ||
+        form.epochs !== ref.epochs ||
+        form.batchSize !== ref.batchSize ||
+        form.warmupSteps !== ref.warmupSteps ||
+        form.numRestarts !== ref.numRestarts ||
+        form.weightDecay !== ref.weightDecay ||
+        form.maxGradNorm !== ref.maxGradNorm ||
+        form.trainTextEncoder !== ref.trainTextEncoder ||
+        form.backboneLR !== ref.backboneLR ||
+        form.textEncoderLR !== ref.textEncoderLR ||
+        form.ema !== ref.ema ||
+        form.lossType !== ref.lossType ||
+        form.timestepType !== ref.timestepType ||
+        form.timestepBias !== ref.timestepBias,
       loraShape:
-        form.networkDim !== defaults.networkDim ||
-        form.networkAlpha !== defaults.networkAlpha ||
-        form.networkType !== 'lora' ||
-        form.networkDropout !== defaults.networkDropout,
+        form.networkDim !== ref.networkDim ||
+        form.networkAlpha !== ref.networkAlpha ||
+        form.networkType !== ref.networkType ||
+        form.networkDropout !== ref.networkDropout,
       performance:
-        form.mixedPrecision !== defaults.mixedPrecision ||
-        form.transformerQuantization !== defaults.transformerQuantization ||
-        form.textEncoderQuantization !== defaults.textEncoderQuantization ||
-        form.cacheTextEmbeddings !== defaults.cacheTextEmbeddings ||
-        form.unloadTextEncoder !== defaults.unloadTextEncoder ||
-        form.gradientAccumulationSteps !== defaults.gradientAccumulationSteps ||
-        form.gradientCheckpointing !== defaults.gradientCheckpointing ||
-        form.cacheLatents !== defaults.cacheLatents,
-      sampling: false,
-      saving: false,
+        form.mixedPrecision !== ref.mixedPrecision ||
+        form.transformerQuantization !== ref.transformerQuantization ||
+        form.textEncoderQuantization !== ref.textEncoderQuantization ||
+        form.cacheTextEmbeddings !== ref.cacheTextEmbeddings ||
+        form.unloadTextEncoder !== ref.unloadTextEncoder ||
+        form.gradientAccumulationSteps !== ref.gradientAccumulationSteps ||
+        form.gradientCheckpointing !== ref.gradientCheckpointing ||
+        form.cacheLatents !== ref.cacheLatents,
+      // Sampling and saving are opt-in for ephemeral configs (no "has changes"
+      // indicator when the user just hasn't touched them). Once a project is
+      // loaded, any deviation from the baseline does count.
+      sampling: isLoaded && samplingDiffers,
+      saving: isLoaded && savingDiffers,
     };
   },
 );
@@ -510,7 +583,50 @@ export const selectIsDirty = createSelector(
   },
 );
 
+/**
+ * Whether the current form can be reset. Two cases:
+ *  - Loaded + dirty: can revert to the loaded version's baseline.
+ *  - Ephemeral: can revert to suggested defaults if the form differs from
+ *    the pristine default state for the selected model.
+ * When loaded + clean, or ephemeral + already-default, the reset button
+ * has nothing to do and should be disabled.
+ */
+export const selectCanReset = createSelector(selectSlice, (slice) => {
+  if (slice.baselineSnapshot) {
+    return !formsEqual(slice.form, slice.baselineSnapshot);
+  }
+  const pristine = defaultsToFormState(
+    getDefaults(slice.form.modelId),
+    slice.form.modelId,
+  );
+  return !formsEqual(slice.form, pristine);
+});
+
 // --- Helpers ---
+
+function extractAugment(f: FolderAugmentation): FolderAugmentation {
+  return {
+    captionShuffling: f.captionShuffling,
+    captionDropoutRate: f.captionDropoutRate,
+    keepTokens: f.keepTokens,
+    flipAugment: f.flipAugment,
+    flipVAugment: f.flipVAugment,
+    loraWeight: f.loraWeight,
+    isRegularization: f.isRegularization,
+  };
+}
+
+function augmentEqual(a: FolderAugmentation, b: FolderAugmentation): boolean {
+  return (
+    a.captionShuffling === b.captionShuffling &&
+    a.captionDropoutRate === b.captionDropoutRate &&
+    a.keepTokens === b.keepTokens &&
+    a.flipAugment === b.flipAugment &&
+    a.flipVAugment === b.flipVAugment &&
+    a.loraWeight === b.loraWeight &&
+    a.isRegularization === b.isRegularization
+  );
+}
 
 function formsEqual(a: FormState, b: FormState): boolean {
   // Cheap pre-check: same reference = clean.

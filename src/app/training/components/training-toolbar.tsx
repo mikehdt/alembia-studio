@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  ListIcon,
-  RotateCcwIcon,
-  SaveIcon,
-  Trash2Icon,
-} from 'lucide-react';
+import { ListIcon, RotateCcwIcon, SaveIcon } from 'lucide-react';
 import { memo, useCallback, useState, useSyncExternalStore } from 'react';
 
 import { Button } from '@/app/shared/button';
@@ -24,6 +19,7 @@ import {
 import {
   resetToSuggestedDefaults,
   revertToBaseline,
+  selectCanReset,
   selectForm,
   selectIsDirty,
   selectLoadedProject,
@@ -58,6 +54,7 @@ const TrainingToolbarComponent = () => {
   const panelOpen = useAppSelector(selectPanelOpen);
   const loadedProject = useAppSelector(selectLoadedProject);
   const isDirty = useAppSelector(selectIsDirty);
+  const canReset = useAppSelector(selectCanReset);
   const form = useAppSelector(selectForm);
 
   const hasActiveJob = isClient ? activeTrainingJob !== null : true;
@@ -92,8 +89,12 @@ const TrainingToolbarComponent = () => {
 
   return (
     <>
-      {/* Left: project + save/save-as/reset/delete */}
-      <ProjectSelector onRequestLoad={() => setLoadOpen(true)} />
+      {/* Left: project menu + save + reset */}
+      <ProjectSelector
+        onRequestLoad={() => setLoadOpen(true)}
+        onRequestSaveAs={() => setSaveAsOpen(true)}
+        onRequestDelete={() => setDeleteOpen(true)}
+      />
 
       <ToolbarDivider />
 
@@ -110,32 +111,22 @@ const TrainingToolbarComponent = () => {
         </Button>
       )}
 
-      <Button size="sm" variant="ghost" onClick={() => setSaveAsOpen(true)}>
-        <SaveIcon className="mr-1 h-3.5 w-3.5" />
-        Save As…
-      </Button>
-
       <Button
         size="sm"
         variant="ghost"
         onClick={handleReset}
-        title={resetLabel}
+        disabled={!canReset}
+        title={
+          canReset
+            ? resetLabel
+            : loadedProject
+              ? 'No unsaved changes to reset'
+              : 'Already at defaults'
+        }
       >
         <RotateCcwIcon className="mr-1 h-3.5 w-3.5" />
         {resetLabel}
       </Button>
-
-      {loadedProject && (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setDeleteOpen(true)}
-          title="Delete project or version"
-          aria-label="Delete"
-        >
-          <Trash2Icon className="h-3.5 w-3.5" />
-        </Button>
-      )}
 
       {/* Spacer */}
       <div className="mr-auto!" />
