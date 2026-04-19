@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from captioning.provider import CaptionCancelled, get_provider
+from job_registry import JobKind, JobRegistry, LifecycleStatus
 from models import CaptionBatchProgress, CaptionBatchRequest
 from ws_manager import WebSocketManager
 
@@ -31,8 +32,11 @@ class BatchState:
 class CaptionBatchManager:
     """Manages active caption batches and broadcasts progress."""
 
-    def __init__(self, ws_manager: WebSocketManager) -> None:
+    def __init__(
+        self, ws_manager: WebSocketManager, registry: JobRegistry
+    ) -> None:
         self.ws_manager = ws_manager
+        self.registry = registry
         self.batches: dict[str, BatchState] = {}
 
     def get_batch(self, batch_id: str) -> Optional[BatchState]:
@@ -43,9 +47,10 @@ class CaptionBatchManager:
         return any(b.status == "running" for b in self.batches.values())
 
     async def start_batch(self, request: CaptionBatchRequest) -> None:
-        """
-        Kick off a batch caption run as a background task.
-        Progress is broadcast via the WebSocket manager.
+        """Enqueue a batch caption run.
+
+        The batch starts in QUEUED lifecycle status. When a worker picks it up,
+        the runner loads the model and streams per-image progress.
         """
         if request.batch_id in self.batches:
             raise RuntimeError(f"Batch {request.batch_id} already exists")
@@ -55,8 +60,17 @@ class CaptionBatchManager:
             total=len(request.image_paths),
         )
         self.batches[request.batch_id] = state
+        self.registry.create(
+            request.batch_id,
+            JobKind.CAPTION_BATCH,
+            status=LifecycleStatus.QUEUED,
+            metadata={"total": state.total, "runtime": request.runtime},
+        )
 
-        state.task = asyncio.create_task(self._run_batch(request, state))
+        async def runner() -> None:
+            await self._run_batch(request, state)
+
+        self.registry.enqueue(request.batch_id, runner)
 
     async def _run_batch(
         self, request: CaptionBatchRequest, state: BatchState
@@ -93,6 +107,7 @@ class CaptionBatchManager:
 
         async def broadcast_cancelled() -> None:
             state.status = "cancelled"
+            self.registry.finish(state.batch_id, LifecycleStatus.CANCELLED)
             await self._broadcast(
                 CaptionBatchProgress(
                     batch_id=state.batch_id,
@@ -179,6 +194,7 @@ class CaptionBatchManager:
                     )
 
             state.status = "completed"
+            self.registry.finish(state.batch_id, LifecycleStatus.COMPLETED)
             await self._broadcast(
                 CaptionBatchProgress(
                     batch_id=state.batch_id,
@@ -193,6 +209,7 @@ class CaptionBatchManager:
 
             traceback.print_exc()
             state.status = "failed"
+            self.registry.finish(state.batch_id, LifecycleStatus.FAILED)
             await self._broadcast(
                 CaptionBatchProgress(
                     batch_id=state.batch_id,
@@ -204,10 +221,18 @@ class CaptionBatchManager:
             )
 
     def cancel_batch(self, batch_id: str) -> bool:
-        """Request cancellation of a running batch."""
+        """Request cancellation of a queued or running batch."""
         state = self.batches.get(batch_id)
         if state is None or state.status != "running":
             return False
+
+        record = self.registry.get(batch_id)
+        if record and record.status == LifecycleStatus.QUEUED:
+            # Not yet picked up — remove from the queue immediately.
+            self.registry.cancel_queued(batch_id)
+            state.status = "cancelled"
+            return True
+
         state.cancel_requested = True
         return True
 
@@ -219,6 +244,7 @@ class CaptionBatchManager:
         if state.status == "running":
             return False
         del self.batches[batch_id]
+        self.registry.remove(batch_id)
         return True
 
     async def _broadcast(self, progress: CaptionBatchProgress) -> None:

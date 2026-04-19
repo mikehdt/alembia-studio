@@ -65,7 +65,7 @@ class AiToolkitUiProvider(TrainingProvider):
         return ""
 
     async def start_training(
-        self, request: StartJobRequest, config_path: str
+        self, request: StartJobRequest, config_path: str, gpu_id: int = 0
     ) -> AsyncGenerator[JobProgress, None]:
         # The local job_id used by the parent JobManager is opaque to us;
         # ai-toolkit assigns its own id when we POST /api/jobs. We use
@@ -91,7 +91,7 @@ class AiToolkitUiProvider(TrainingProvider):
         await self._server.ensure_running()
         yield _emit("ai-toolkit server ready")
 
-        config_dict = _build_config_dict(request)
+        config_dict = _build_config_dict(request, gpu_id)
         # Unique name — ai-toolkit's `name` column is a unique key, so a
         # second run with the same output_name would 409. Append a short
         # suffix; the user-facing label still comes from request.output_name.
@@ -100,13 +100,13 @@ class AiToolkitUiProvider(TrainingProvider):
         async with httpx.AsyncClient(
             base_url=self._server.base_url, timeout=30.0
         ) as client:
-            yield _emit("Submitting job to ai-toolkit...")
+            yield _emit(f"Submitting job to ai-toolkit (gpu {gpu_id})...")
             # 1. Create the job row
             create_res = await client.post(
                 "/api/jobs",
                 json={
                     "name": unique_name,
-                    "gpu_ids": "0",
+                    "gpu_ids": str(gpu_id),
                     "job_config": config_dict,
                 },
             )
@@ -134,10 +134,10 @@ class AiToolkitUiProvider(TrainingProvider):
             # ignores queued jobs forever ("Queue Stopped" in their UI).
             # /api/queue/<gpu_ids>/start flips it to true (or creates the
             # row already-running).
-            queue_res = await client.get("/api/queue/0/start")
+            queue_res = await client.get(f"/api/queue/{gpu_id}/start")
             if queue_res.status_code >= 400:
                 raise RuntimeError(
-                    f"ai-toolkit /api/queue/0/start returned "
+                    f"ai-toolkit /api/queue/{gpu_id}/start returned "
                     f"{queue_res.status_code}: {queue_res.text[:300]}"
                 )
 
@@ -250,7 +250,7 @@ class AiToolkitUiProvider(TrainingProvider):
 # ---------------------------------------------------------------------------
 
 
-def _build_config_dict(request: StartJobRequest) -> dict:
+def _build_config_dict(request: StartJobRequest, gpu_id: int = 0) -> dict:
     """Build the ai-toolkit job_config dict — same shape as the YAML the
     CLI provider emits, but with `process[0].type = ui_trainer` so
     UITrainer is selected and writes step/info to the DB.
@@ -273,7 +273,7 @@ def _build_config_dict(request: StartJobRequest) -> dict:
                 {
                     "type": "ui_trainer",
                     "training_folder": request.output_path,
-                    "device": "cuda:0",
+                    "device": f"cuda:{gpu_id}",
                     "network": {
                         "type": hp.get("network_type", "lora"),
                         "linear": hp.get("network_dim", 16),

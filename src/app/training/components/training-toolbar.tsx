@@ -91,8 +91,7 @@ const TrainingToolbarComponent = () => {
     }
   }, [dispatch, isDirty, loadedProject]);
 
-  const resetLabel =
-    loadedProject && effectiveIsDirty ? 'Reset changes' : 'Reset to defaults';
+  const resetLabel = loadedProject ? 'Reset to saved' : 'Reset to defaults';
 
   return (
     <>

@@ -1,6 +1,7 @@
 """Training sidecar — FastAPI server for managing LoRA training jobs."""
 
 import argparse
+import asyncio
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -16,6 +17,7 @@ from captioning.provider import get_provider as get_caption_provider
 from captioning.provider import unload_provider as unload_caption_provider
 from config import SidecarConfig, load_config
 from job_manager import JobManager
+from job_registry import JobRegistry, run_worker
 from models import (
     CaptionBatchRequest,
     CaptionBatchResponse,
@@ -32,11 +34,14 @@ from ws_manager import WebSocketManager
 # --- Globals initialised at startup ---
 ws_manager = WebSocketManager()
 caption_ws_manager = WebSocketManager()
+job_registry = JobRegistry()
 job_manager: JobManager
 caption_manager: CaptionBatchManager
 sidecar_config: SidecarConfig
 # Tracks any ai-toolkit UI server we spawn so we can stop it on shutdown.
 aitk_server: Optional["AiToolkitServer"] = None
+# Worker task(s) that pull jobs from the registry queue. Phase 2 runs one.
+worker_tasks: list[asyncio.Task] = []
 
 
 def _register_providers(jm: JobManager, config: SidecarConfig):
@@ -88,13 +93,33 @@ async def lifespan(app: FastAPI):
     job_manager = JobManager(
         jobs_dir=sidecar_config.training_dir / "jobs",
         ws_manager=ws_manager,
+        registry=job_registry,
     )
-    caption_manager = CaptionBatchManager(ws_manager=caption_ws_manager)
+    caption_manager = CaptionBatchManager(
+        ws_manager=caption_ws_manager, registry=job_registry
+    )
     _register_providers(job_manager, sidecar_config)
 
     # Write PID file so Node.js can find us after a restart
     pid_path = sidecar_config.training_dir / "sidecar.pid"
     pid_path.write_text(str(os.getpid()), encoding="utf-8")
+
+    # Start the queue worker(s) — one per `sidecarWorkers` entry in
+    # config.json, each pinned to its assigned GPU.
+    #
+    # Caveat: VLM captioning runs in-process inside this sidecar, so its
+    # CUDA context is shared with whichever GPU torch picked at process
+    # startup (usually GPU 0). Caption jobs assigned to a non-zero worker
+    # slot will still execute on the sidecar's GPU, not on the worker's
+    # `gpu_id`. Isolating captioning would require spawning it as a
+    # subprocess with its own `CUDA_VISIBLE_DEVICES` — deferred.
+    for i, wc in enumerate(sidecar_config.workers):
+        worker_tasks.append(
+            asyncio.create_task(
+                run_worker(job_registry, worker_id=i, gpu_id=wc.gpu_id)
+            )
+        )
+        print(f"[sidecar] Worker {i} pinned to GPU {wc.gpu_id}")
 
     # Signal to the Node.js process manager that we're ready
     print(f"SIDECAR_READY port={sidecar_config.port}", flush=True)
@@ -102,6 +127,15 @@ async def lifespan(app: FastAPI):
     yield
 
     # Cleanup on shutdown
+    for task in worker_tasks:
+        task.cancel()
+    for task in worker_tasks:
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    worker_tasks.clear()
+
     if pid_path.exists():
         pid_path.unlink()
     if aitk_server is not None:
@@ -167,8 +201,10 @@ async def start_job(request: StartJobRequest):
 
 
 @app.post("/jobs/cancel")
-async def cancel_job():
-    success = await job_manager.cancel_job()
+async def cancel_job(job_id: Optional[str] = None):
+    """Cancel a training job. If `job_id` is omitted, cancels the focus job
+    (running training job if any, else oldest queued)."""
+    success = await job_manager.cancel_job(job_id)
     if not success:
         return JSONResponse({"error": "No active job to cancel"}, status_code=404)
     return {"status": "cancelled"}
@@ -183,9 +219,9 @@ async def job_status():
 
 
 @app.post("/jobs/clear")
-async def clear_job():
-    """Clear a completed/failed/cancelled job from active state."""
-    job_manager.clear_completed()
+async def clear_job(job_id: Optional[str] = None):
+    """Clear terminal training jobs. If `job_id` is omitted, clears all of them."""
+    job_manager.clear_completed(job_id)
     return {"status": "cleared"}
 
 
@@ -217,10 +253,10 @@ async def ws_progress(websocket: WebSocket):
 @app.post("/caption", response_model=CaptionResponse)
 async def caption_single(request: CaptionRequest):
     """Caption a single image synchronously. Used for testing or small jobs."""
-    # GPU guard — don't run captioning while training is active
-    if job_manager.active_job_id is not None:
+    # GPU guard — don't run captioning while another GPU job is active
+    if job_registry.has_running():
         return JSONResponse(
-            {"error": "Cannot caption while training is active"},
+            {"error": "Cannot caption while another GPU job is running"},
             status_code=409,
         )
 
@@ -240,24 +276,16 @@ async def caption_single(request: CaptionRequest):
 
 @app.post("/caption/batch", response_model=CaptionBatchResponse)
 async def caption_batch(request: CaptionBatchRequest):
-    """Start a batch caption run — progress streams via /ws/caption."""
-    if job_manager.active_job_id is not None:
-        return JSONResponse(
-            {"error": "Cannot caption while training is active"},
-            status_code=409,
-        )
+    """Enqueue a batch caption run — progress streams via /ws/caption.
 
-    if caption_manager.has_active:
-        return JSONResponse(
-            {"error": "Another caption batch is already running"},
-            status_code=409,
-        )
-
+    Always enqueues; the worker picks it up when no other GPU-bound job is
+    running. The 409 path only fires on duplicate batch IDs.
+    """
     try:
         await caption_manager.start_batch(request)
         return CaptionBatchResponse(
             batch_id=request.batch_id,
-            status="started",
+            status="queued",
             total=len(request.image_paths),
         )
     except RuntimeError as err:

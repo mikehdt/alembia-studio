@@ -8,6 +8,14 @@ from typing import Optional
 
 
 @dataclass
+class WorkerConfig:
+    """Per-worker settings. Each worker pulls jobs from the shared queue and
+    runs them on the assigned GPU. One worker = one GPU slot."""
+
+    gpu_id: int = 0
+
+
+@dataclass
 class SidecarConfig:
     """Configuration for the training sidecar server."""
 
@@ -16,6 +24,11 @@ class SidecarConfig:
     app_root: Path = field(default_factory=lambda: Path.cwd())
     training_dir: Path = field(default_factory=lambda: Path.cwd() / ".training")
     backends: dict[str, str] = field(default_factory=dict)
+    # Default: a single worker on GPU 0. Multi-GPU users can add a second
+    # entry (e.g. `{gpu_id: 1}`) in config.json under `sidecarWorkers`.
+    workers: list[WorkerConfig] = field(
+        default_factory=lambda: [WorkerConfig(gpu_id=0)]
+    )
 
     def __post_init__(self):
         # Ensure training directory exists
@@ -32,6 +45,7 @@ def load_config(app_root: Optional[Path] = None) -> SidecarConfig:
     config_path = app_root / "config.json"
     port = 9733
     backends: dict[str, str] = {}
+    workers: list[WorkerConfig] = [WorkerConfig(gpu_id=0)]
 
     if config_path.exists():
         try:
@@ -45,6 +59,21 @@ def load_config(app_root: Optional[Path] = None) -> SidecarConfig:
                     backends[key] = value
 
             port = data.get("sidecarPort", 9733)
+
+            # Optional: per-worker GPU assignments. Shape in config.json:
+            #   "sidecarWorkers": [{"gpuId": 0}, {"gpuId": 1}]
+            raw_workers = data.get("sidecarWorkers")
+            if isinstance(raw_workers, list) and raw_workers:
+                parsed: list[WorkerConfig] = []
+                for entry in raw_workers:
+                    if isinstance(entry, dict):
+                        gpu = entry.get("gpuId", entry.get("gpu_id", 0))
+                        try:
+                            parsed.append(WorkerConfig(gpu_id=int(gpu)))
+                        except (TypeError, ValueError):
+                            continue
+                if parsed:
+                    workers = parsed
         except (json.JSONDecodeError, OSError) as e:
             print(f"Warning: Failed to read config.json: {e}", file=sys.stderr)
 
@@ -53,4 +82,5 @@ def load_config(app_root: Optional[Path] = None) -> SidecarConfig:
         app_root=app_root,
         training_dir=app_root / ".training",
         backends=backends,
+        workers=workers,
     )

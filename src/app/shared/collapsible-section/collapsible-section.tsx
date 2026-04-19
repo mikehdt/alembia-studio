@@ -51,7 +51,7 @@ const CollapsibleSectionComponent = ({
         <div className="flex items-center gap-1">
           {actions}
           <ChevronDownIcon
-            className={`h-4 w-4 text-(--unselected-text) transition-transform ${
+            className={`my-1 ml-2 h-4 w-4 text-(--unselected-text) transition-transform ${
               isExpanded ? 'rotate-180' : ''
             }`}
           />

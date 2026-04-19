@@ -1,6 +1,8 @@
 import { RotateCcwIcon } from 'lucide-react';
 import { useCallback } from 'react';
 
+import { Button } from '@/app/shared/button';
+
 type SectionResetButtonProps = {
   onClick: () => void;
 };
@@ -15,14 +17,15 @@ export const SectionResetButton = ({ onClick }: SectionResetButtonProps) => {
   );
 
   return (
-    <button
-      type="button"
+    <Button
       onClick={handleClick}
-      className="mr-2 flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
+      size="xs"
+      width="lg"
+      variant="ghost"
       title="Reset to defaults"
     >
-      <RotateCcwIcon className="h-3 w-3" />
+      <RotateCcwIcon />
       Reset
-    </button>
+    </Button>
   );
 };

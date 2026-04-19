@@ -32,12 +32,17 @@ class TrainingProvider(ABC):
 
     @abstractmethod
     async def start_training(
-        self, request: StartJobRequest, config_path: str
+        self, request: StartJobRequest, config_path: str, gpu_id: int = 0
     ) -> AsyncGenerator[JobProgress, None]:
         """Start training and yield progress updates.
 
         This method spawns the training subprocess and parses its output,
         yielding JobProgress objects as training proceeds.
+
+        `gpu_id` selects which GPU the training job should use. Providers
+        either pass this to their underlying backend (ai-toolkit's
+        `gpu_ids` / `device` fields) or export `CUDA_VISIBLE_DEVICES` when
+        spawning a subprocess.
         """
         ...
 

@@ -350,7 +350,7 @@ class AiToolkitProvider(TrainingProvider):
         return config_path
 
     async def start_training(
-        self, request: StartJobRequest, config_path: str
+        self, request: StartJobRequest, config_path: str, gpu_id: int = 0
     ) -> AsyncGenerator[JobProgress, None]:
         job_id = request.output_name  # Will be overridden by caller with real job ID
 
@@ -366,7 +366,11 @@ class AiToolkitProvider(TrainingProvider):
             cwd=str(self._toolkit_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+            env={
+                **os.environ,
+                "PYTHONUNBUFFERED": "1",
+                "CUDA_VISIBLE_DEVICES": str(gpu_id),
+            },
         )
 
         # Yield preparing status

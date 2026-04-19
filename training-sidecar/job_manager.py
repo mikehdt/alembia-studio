@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from job_registry import JobKind, JobRegistry, LifecycleStatus
 from models import (
     JobProgress,
     JobState,
@@ -18,14 +19,46 @@ from providers.base import TrainingProvider
 from ws_manager import WebSocketManager
 
 
-class JobManager:
-    """Manages training job lifecycle, state persistence, and progress broadcasting."""
+_TERMINAL_TRAINING_STATUSES = (
+    JobStatus.COMPLETED,
+    JobStatus.FAILED,
+    JobStatus.CANCELLED,
+)
 
-    def __init__(self, jobs_dir: Path, ws_manager: WebSocketManager):
+
+def _lifecycle_from_training(status: JobStatus) -> LifecycleStatus:
+    """Map the training-specific JobStatus onto the shared lifecycle vocabulary.
+
+    PENDING / PREPARING / TRAINING all collapse to RUNNING — the sub-phase
+    detail stays in the progress payload.
+    """
+    if status == JobStatus.COMPLETED:
+        return LifecycleStatus.COMPLETED
+    if status == JobStatus.FAILED:
+        return LifecycleStatus.FAILED
+    if status == JobStatus.CANCELLED:
+        return LifecycleStatus.CANCELLED
+    return LifecycleStatus.RUNNING
+
+
+class JobManager:
+    """Manages training job lifecycle, state persistence, and progress broadcasting.
+
+    Training jobs are enqueued via the shared JobRegistry; a worker loop picks
+    them up and invokes the runner. Multiple jobs may be tracked simultaneously
+    (queued + running + terminal), keyed by job_id in `_jobs`.
+    """
+
+    def __init__(
+        self,
+        jobs_dir: Path,
+        ws_manager: WebSocketManager,
+        registry: JobRegistry,
+    ):
         self._jobs_dir = jobs_dir
         self._ws = ws_manager
-        self._active_job: Optional[JobState] = None
-        self._training_task: Optional[asyncio.Task] = None
+        self._registry = registry
+        self._jobs: dict[str, JobState] = {}
         self._providers: dict[str, TrainingProvider] = {}
 
         # Try to recover state from a previous run
@@ -36,36 +69,59 @@ class JobManager:
         self._providers[name] = provider
 
     @property
-    def active_job_id(self) -> Optional[str]:
-        return self._active_job.job_id if self._active_job else None
-
-    @property
-    def active_job(self) -> Optional[JobState]:
-        return self._active_job
-
-    @property
     def providers(self) -> dict[str, TrainingProvider]:
         return self._providers
 
+    @property
+    def active_job_id(self) -> Optional[str]:
+        """ID of the currently running training job, if any."""
+        for rec in self._registry.running_jobs():
+            if rec.kind == JobKind.TRAINING:
+                return rec.id
+        return None
+
+    def _focus_job(self) -> Optional[JobState]:
+        """Pick the most relevant job for the single-job status view.
+
+        Priority: running training job, else oldest queued training job, else
+        newest terminal training job. Mirrors the pre-queue behaviour where
+        the status endpoint returned a single training job state.
+        """
+        for rec in self._registry.running_jobs():
+            if rec.kind == JobKind.TRAINING and rec.id in self._jobs:
+                return self._jobs[rec.id]
+        for rec in self._registry.queued_jobs():
+            if rec.kind == JobKind.TRAINING and rec.id in self._jobs:
+                return self._jobs[rec.id]
+        terminal = [
+            j for j in self._jobs.values() if j.status in _TERMINAL_TRAINING_STATUSES
+        ]
+        if terminal:
+            terminal.sort(key=lambda j: j.completed_at or "", reverse=True)
+            return terminal[0]
+        return None
+
     def get_status(self) -> Optional[dict]:
-        """Get current job state as a dict, or None if no active job."""
-        if self._active_job is None:
+        """Get the focus job's state as a dict, or None if no training jobs tracked.
+
+        Includes the registry's queue position for queued jobs so the client
+        can show placement.
+        """
+        job = self._focus_job()
+        if job is None:
             return None
-        return self._active_job.model_dump()
+        data = job.model_dump()
+        position = self._registry.queue_position(job.job_id)
+        if position > 0:
+            data["queue_position"] = position
+        return data
 
     async def start_job(self, request: StartJobRequest) -> StartJobResponse:
-        """Create and start a training job. Returns immediately; training runs in background."""
-        if self._active_job and self._active_job.status in (
-            JobStatus.PENDING,
-            JobStatus.PREPARING,
-            JobStatus.TRAINING,
-        ):
-            raise RuntimeError(
-                f"Job {self._active_job.job_id} is already active "
-                f"(status: {self._active_job.status})"
-            )
+        """Create a training job and enqueue it. Returns immediately.
 
-        # Validate provider
+        The job starts in QUEUED lifecycle status; when a worker picks it up,
+        it transitions to RUNNING and the provider's training loop begins.
+        """
         provider = self._providers.get(request.provider.value)
         if provider is None:
             raise RuntimeError(
@@ -73,12 +129,11 @@ class JobManager:
                 f"Available: {list(self._providers.keys())}"
             )
 
-        # Create job state
         job_id = uuid.uuid4().hex[:12]
         now = datetime.now(timezone.utc).isoformat()
         progress = JobProgress(job_id=job_id, status=JobStatus.PENDING)
 
-        self._active_job = JobState(
+        self._jobs[job_id] = JobState(
             job_id=job_id,
             status=JobStatus.PENDING,
             provider=request.provider,
@@ -87,33 +142,72 @@ class JobManager:
             started_at=now,
             progress=progress,
         )
-        self._persist_state()
-
-        # Launch training in the background
-        self._training_task = asyncio.create_task(
-            self._run_training(job_id, request, provider)
+        self._registry.create(
+            job_id,
+            JobKind.TRAINING,
+            status=LifecycleStatus.QUEUED,
+            metadata={
+                "provider": request.provider.value,
+                "project_path": request.project_path,
+            },
         )
+        self._persist_state(job_id)
+
+        # Runner invoked by the worker when it's this job's turn. The worker
+        # calls set_running() before invoking us, so the record carries the
+        # assigned gpu_id by the time the runner body executes.
+        async def runner() -> None:
+            record = self._registry.get(job_id)
+            gpu_id = record.gpu_id if record and record.gpu_id is not None else 0
+            await self._run_training(job_id, request, provider, gpu_id=gpu_id)
+
+        self._registry.enqueue(job_id, runner)
 
         return StartJobResponse(job_id=job_id, status=JobStatus.PENDING)
 
-    async def cancel_job(self) -> bool:
-        """Cancel the active training job."""
-        if self._active_job is None:
+    async def cancel_job(self, job_id: Optional[str] = None) -> bool:
+        """Cancel a training job — queued or running.
+
+        If `job_id` is omitted, cancels the focus job (running one, else oldest
+        queued). Returns True if a job was cancelled.
+        """
+        if job_id is None:
+            focus = self._focus_job()
+            if focus is None or focus.status in _TERMINAL_TRAINING_STATUSES:
+                return False
+            job_id = focus.job_id
+
+        job = self._jobs.get(job_id)
+        if job is None:
             return False
 
-        provider = self._providers.get(self._active_job.provider.value)
+        record = self._registry.get(job_id)
+        if record is None:
+            return False
+
+        # Cancelled while still queued — no subprocess to kill.
+        if record.status == LifecycleStatus.QUEUED:
+            self._registry.cancel_queued(job_id)
+            job.status = JobStatus.CANCELLED
+            job.progress.status = JobStatus.CANCELLED
+            job.progress.error = "Cancelled before start"
+            job.completed_at = datetime.now(timezone.utc).isoformat()
+            self._persist_state(job_id)
+            await self._ws.broadcast(job.progress.model_dump())
+            return True
+
+        # Running — ask the provider to stop; the runner's exception handler
+        # will emit the CANCELLED progress update.
+        provider = self._providers.get(job.provider.value)
         if provider:
             await provider.cancel_training()
 
-        if self._training_task and not self._training_task.done():
-            self._training_task.cancel()
-
         await self._update_progress(
             JobProgress(
-                job_id=self._active_job.job_id,
+                job_id=job_id,
                 status=JobStatus.CANCELLED,
-                current_step=self._active_job.progress.current_step,
-                total_steps=self._active_job.progress.total_steps,
+                current_step=job.progress.current_step,
+                total_steps=job.progress.total_steps,
                 error="Cancelled by user",
             )
         )
@@ -124,23 +218,24 @@ class JobManager:
         job_id: str,
         request: StartJobRequest,
         provider: TrainingProvider,
+        gpu_id: int = 0,
     ):
-        """Background task that runs the full training pipeline."""
+        """Runner invoked by the worker when this job reaches the front of the queue."""
         try:
-            # Generate config
             config_dir = str(self._jobs_dir / job_id)
             Path(config_dir).mkdir(parents=True, exist_ok=True)
             config_path = await provider.generate_config(request, config_dir)
 
-            # Stream progress from provider
-            async for progress in provider.start_training(request, config_path):
-                # Override the job_id to match ours (provider may not know it)
+            async for progress in provider.start_training(
+                request, config_path, gpu_id=gpu_id
+            ):
                 progress.job_id = job_id
                 await self._update_progress(progress)
 
         except asyncio.CancelledError:
-            # Job was cancelled — state already updated by cancel_job
-            pass
+            # Cancellation path: the cancel_job caller already emitted the
+            # CANCELLED progress update and updated state.
+            raise
         except Exception as e:
             await self._update_progress(
                 JobProgress(
@@ -151,106 +246,118 @@ class JobManager:
             )
 
     async def _update_progress(self, progress: JobProgress):
-        """Update job progress and broadcast to WebSocket clients."""
-        if self._active_job is None:
+        """Update the referenced job's progress and broadcast to WebSocket clients."""
+        job = self._jobs.get(progress.job_id)
+        if job is None:
             return
 
-        self._active_job.progress = progress
-        self._active_job.status = progress.status
+        job.progress = progress
+        job.status = progress.status
 
-        if progress.status in (
-            JobStatus.COMPLETED,
-            JobStatus.FAILED,
-            JobStatus.CANCELLED,
-        ):
-            self._active_job.completed_at = datetime.now(timezone.utc).isoformat()
+        if progress.status in _TERMINAL_TRAINING_STATUSES:
+            job.completed_at = datetime.now(timezone.utc).isoformat()
+            self._registry.finish(
+                job.job_id, _lifecycle_from_training(progress.status)
+            )
 
-        self._persist_state()
+        self._persist_state(job.job_id)
         await self._ws.broadcast(progress.model_dump())
 
-    def mark_failed(self, error: str):
-        """Mark the active job as failed with an error message."""
-        if self._active_job is None:
+    def mark_failed(self, job_id: str, error: str):
+        """Mark a specific job as failed with an error message."""
+        job = self._jobs.get(job_id)
+        if job is None:
             return
 
-        self._active_job.status = JobStatus.FAILED
-        self._active_job.progress.status = JobStatus.FAILED
-        self._active_job.progress.error = error
-        self._active_job.completed_at = datetime.now(timezone.utc).isoformat()
-        self._persist_state()
+        job.status = JobStatus.FAILED
+        job.progress.status = JobStatus.FAILED
+        job.progress.error = error
+        job.completed_at = datetime.now(timezone.utc).isoformat()
+        self._registry.finish(job_id, LifecycleStatus.FAILED)
+        self._persist_state(job_id)
 
-    def clear_completed(self):
-        """Clear a completed/failed/cancelled job from active state.
+    def clear_completed(self, job_id: Optional[str] = None):
+        """Clear terminal training jobs from active state and disk.
 
-        Also deletes the persisted state file so the job doesn't come
-        back via `_recover_state()` the next time the sidecar starts.
+        If `job_id` is given, clears only that job (if terminal). Otherwise,
+        sweeps all terminal training jobs.
         """
-        if self._active_job and self._active_job.status in (
-            JobStatus.COMPLETED,
-            JobStatus.FAILED,
-            JobStatus.CANCELLED,
-        ):
-            path = self._jobs_dir / f"{self._active_job.job_id}.json"
+        targets = (
+            [job_id]
+            if job_id is not None
+            else [
+                jid
+                for jid, j in self._jobs.items()
+                if j.status in _TERMINAL_TRAINING_STATUSES
+            ]
+        )
+        for jid in targets:
+            job = self._jobs.get(jid)
+            if job is None or job.status not in _TERMINAL_TRAINING_STATUSES:
+                continue
+            path = self._jobs_dir / f"{jid}.json"
             try:
                 path.unlink(missing_ok=True)
             except OSError as e:
                 print(f"Warning: Failed to delete cleared job file: {e}")
-            self._active_job = None
+            self._registry.remove(jid)
+            del self._jobs[jid]
 
-    def _persist_state(self):
-        """Write current job state to disk for crash recovery."""
-        if self._active_job is None:
+    def _persist_state(self, job_id: str):
+        """Write a job's state to disk for crash recovery."""
+        job = self._jobs.get(job_id)
+        if job is None:
             return
 
-        path = self._jobs_dir / f"{self._active_job.job_id}.json"
+        path = self._jobs_dir / f"{job_id}.json"
         try:
             path.write_text(
-                json.dumps(self._active_job.model_dump(), indent=2),
+                json.dumps(job.model_dump(), indent=2),
                 encoding="utf-8",
             )
         except OSError as e:
             print(f"Warning: Failed to persist job state: {e}")
 
     def _recover_state(self):
-        """Attempt to recover an in-flight job from disk after a restart.
+        """Attempt to recover in-flight jobs from disk after a restart.
 
-        Terminal jobs (completed/failed/cancelled) are NOT recovered — the
-        client owns terminal training history via localStorage, so there's
-        no reason to resurface them here. Stale terminal files are cleaned
-        up opportunistically.
+        Each in-flight file (PENDING/PREPARING/TRAINING) is marked FAILED since
+        the training subprocess did not survive the restart. Terminal files
+        from prior sessions are cleaned up opportunistically — the client
+        owns terminal training history via localStorage.
         """
         if not self._jobs_dir.exists():
             return
 
-        latest: Optional[tuple[float, Path]] = None
         for path in self._jobs_dir.glob("*.json"):
-            mtime = path.stat().st_mtime
-            if latest is None or mtime > latest[0]:
-                latest = (mtime, path)
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                job = JobState(**data)
 
-        if latest is None:
-            return
-
-        try:
-            data = json.loads(latest[1].read_text(encoding="utf-8"))
-            job = JobState(**data)
-
-            if job.status in (
-                JobStatus.PENDING,
-                JobStatus.PREPARING,
-                JobStatus.TRAINING,
-            ):
-                # Sidecar restarted while this job was running — mark failed.
-                job.status = JobStatus.FAILED
-                job.progress.status = JobStatus.FAILED
-                job.progress.error = "Training interrupted — sidecar restarted"
-                job.completed_at = datetime.now(timezone.utc).isoformat()
-                self._active_job = job
-            else:
-                # Terminal job left over from a previous session — drop it.
-                try:
-                    latest[1].unlink(missing_ok=True)
-                except OSError:
-                    pass
-        except (json.JSONDecodeError, OSError, ValueError) as e:
-            print(f"Warning: Failed to recover job state: {e}")
+                if job.status in (
+                    JobStatus.PENDING,
+                    JobStatus.PREPARING,
+                    JobStatus.TRAINING,
+                ):
+                    job.status = JobStatus.FAILED
+                    job.progress.status = JobStatus.FAILED
+                    job.progress.error = "Training interrupted — sidecar restarted"
+                    job.completed_at = datetime.now(timezone.utc).isoformat()
+                    self._jobs[job.job_id] = job
+                    self._registry.create(
+                        job.job_id,
+                        JobKind.TRAINING,
+                        status=LifecycleStatus.FAILED,
+                        metadata={
+                            "provider": job.provider.value,
+                            "project_path": job.project_path,
+                        },
+                    )
+                    self._persist_state(job.job_id)
+                else:
+                    try:
+                        path.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+            except (json.JSONDecodeError, OSError, ValueError) as e:
+                print(f"Warning: Failed to recover job state from {path.name}: {e}")
