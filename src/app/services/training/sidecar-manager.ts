@@ -198,6 +198,9 @@ async function spawnSidecar(): Promise<void> {
     detached: process.platform !== 'win32',
     // Use shell on Windows so `uv` resolves via PATH (uv is a .exe/.cmd shim)
     shell: process.platform === 'win32' && command === 'uv',
+    // Prevent a console window flashing/stealing focus on Windows when we
+    // spawn through a .cmd shim — stdio pipes still work without a console.
+    windowsHide: true,
   });
 
   state.process = proc;

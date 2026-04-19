@@ -24,7 +24,6 @@ import {
   addJob,
   openPanel,
   removeJob,
-  selectGpuBusyReason,
   updateTrainingProgress,
 } from '../jobs';
 import type { TrainingJob } from '../jobs/types';
@@ -242,21 +241,10 @@ function snapshotClientConfig(
 // ---------------------------------------------------------------------------
 
 export function startTraining(config: Record<string, unknown>): AppThunk {
-  return async (dispatch, getState) => {
-    const state = getState() as RootState;
-    const busy = selectGpuBusyReason(state);
-    if (busy) {
-      dispatch(
-        addToast({
-          variant: 'error',
-          children:
-            busy === 'training'
-              ? 'A training job is already running — cancel it before starting another.'
-              : 'Tagging is currently using the GPU — wait for it to finish before starting training.',
-        }),
-      );
-      return;
-    }
+  return async (dispatch) => {
+    // No client-side GPU-busy gate — the sidecar owns a shared queue
+    // across training + tagging, so additional jobs enqueue behind whatever
+    // is currently running rather than being rejected.
 
     // Ensure the sidecar is running before we POST /api/training/start.
     let sidecarPort = 9733;

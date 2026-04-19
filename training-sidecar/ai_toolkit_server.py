@@ -91,6 +91,14 @@ class AiToolkitServer:
                 f"(this may take a moment on first run)..."
             )
 
+        # Prevent npm.cmd from opening a visible console that steals focus
+        # on Windows; stdio is piped to our log file either way.
+        creationflags = 0
+        if sys.platform == "win32":
+            import subprocess
+
+            creationflags = subprocess.CREATE_NO_WINDOW
+
         self._process = await asyncio.create_subprocess_exec(
             npm,
             "run",
@@ -101,6 +109,7 @@ class AiToolkitServer:
             stderr=asyncio.subprocess.STDOUT
             if self._log_handle
             else asyncio.subprocess.DEVNULL,
+            creationflags=creationflags,
         )
         self._owns_process = True
 
