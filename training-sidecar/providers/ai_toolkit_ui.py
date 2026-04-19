@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 import uuid
 from collections.abc import AsyncGenerator
 from pathlib import Path
@@ -38,6 +39,71 @@ from providers.base import TrainingProvider
 
 POLL_INTERVAL_SECONDS = 1.0
 TERMINAL_STATUSES = {"completed", "stopped", "error"}
+
+# After ai-toolkit flips a job to a terminal status, we wait for its
+# subprocess PID to actually exit before releasing the GPU back to the
+# queue. ai-toolkit's DiffusionTrainer.done_hook updates status BEFORE
+# running wait_for_all_async / thread_pool.shutdown(wait=True), so the
+# Python process can still be finalising (saving, sampling, async flushes)
+# for a while after the DB says "completed". Handing the GPU to the next
+# queued job during that window puts two training processes on the same
+# GPU.
+PID_EXIT_TIMEOUT_SECONDS = 180.0
+PID_EXIT_POLL_INTERVAL = 0.5
+# Fallback if the row has no pid (shouldn't happen in normal operation, but
+# we don't want to hang the worker indefinitely on a weird DB state).
+PID_UNKNOWN_SETTLE_SECONDS = 5.0
+
+
+def _pid_alive(pid: int) -> bool:
+    """Cross-platform: is a process with this PID currently running?"""
+    if pid <= 0:
+        return False
+    if sys.platform == "win32":
+        import ctypes
+
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        STILL_ACTIVE = 259
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION, False, pid
+        )
+        if not handle:
+            # Process gone (or access denied — treat the same way; we can't
+            # distinguish, and "we can't see it" is as good as "it's gone"
+            # for our purposes of deciding it's safe to release the GPU).
+            return False
+        try:
+            exit_code = ctypes.c_ulong()
+            ok = kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
+            return ok != 0 and exit_code.value == STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, PermissionError):
+        return False
+
+
+async def _wait_for_pid_exit(
+    pid: Optional[int],
+    timeout: float = PID_EXIT_TIMEOUT_SECONDS,
+    poll_interval: float = PID_EXIT_POLL_INTERVAL,
+) -> bool:
+    """Wait for `pid` to exit. Returns True if it did, False on timeout.
+
+    Falls back to a short settle delay when pid is missing/invalid.
+    """
+    if pid is None or pid <= 0:
+        await asyncio.sleep(PID_UNKNOWN_SETTLE_SECONDS)
+        return True
+    deadline = asyncio.get_event_loop().time() + timeout
+    while asyncio.get_event_loop().time() < deadline:
+        if not _pid_alive(pid):
+            return True
+        await asyncio.sleep(poll_interval)
+    return False
 
 
 class AiToolkitUiProvider(TrainingProvider):
@@ -215,6 +281,34 @@ class AiToolkitUiProvider(TrainingProvider):
                         if aitk_status == "stopped"
                         else JobStatus.FAILED
                     )
+
+                    # Wait for ai-toolkit's Python subprocess to actually exit
+                    # before yielding terminal — the DB status flips before
+                    # shutdown finishes (see PID_EXIT_* notes above). Until
+                    # that process is gone, it may still be touching the GPU.
+                    pid = row.get("pid")
+                    if pid and _pid_alive(int(pid)):
+                        log_tail.append("Finalizing...")
+                        del log_tail[:-50]
+                        # Keep the job appearing active in the UI while we
+                        # wait, with a clearly distinct "Finalizing" log
+                        # line so it doesn't look frozen.
+                        yield JobProgress(
+                            job_id=local_job_id,
+                            status=JobStatus.TRAINING,
+                            current_step=step,
+                            total_steps=total_steps,
+                            log_lines=log_tail,
+                        )
+                        exited = await _wait_for_pid_exit(int(pid))
+                        if not exited:
+                            print(
+                                f"[ai-toolkit-ui] Warning: aitk job {aitk_id} "
+                                f"pid {pid} did not exit within "
+                                f"{PID_EXIT_TIMEOUT_SECONDS:.0f}s; releasing "
+                                "GPU anyway"
+                            )
+
                     yield JobProgress(
                         job_id=local_job_id,
                         status=final_status,

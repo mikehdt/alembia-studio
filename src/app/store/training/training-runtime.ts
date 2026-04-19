@@ -59,22 +59,28 @@ type SidecarJobProgress = {
 // ---------------------------------------------------------------------------
 // WebSocket singleton
 // ---------------------------------------------------------------------------
+//
+// One socket per sidecar, shared by all training jobs — the sidecar now
+// queues multiple training jobs and broadcasts progress for whichever is
+// active. We route each inbound message to its `msg.job_id` rather than
+// filtering to a single tracked job, so a just-completed job can still
+// receive its terminal event while a freshly-dequeued job starts streaming.
 
 type WsState = {
   socket: WebSocket | null;
-  /** Job ID we're currently streaming progress for. */
-  jobId: string | null;
-  /** Checkpoint step positions pre-computed from the form config. */
-  allCheckpointSteps: number[];
-  /** When the job was seeded locally — used for progress.startedAt. */
-  startedAt: number;
+  /** Port we connected to — used to detect when a reconnect needs a fresh URL. */
+  port: number | null;
+  /** Per-job checkpoint step positions, keyed by job_id. */
+  checkpointStepsByJob: Map<string, number[]>;
+  /** Per-job "seen locally at" timestamp, keyed by job_id. */
+  startedAtByJob: Map<string, number>;
 };
 
 const ws: WsState = {
   socket: null,
-  jobId: null,
-  allCheckpointSteps: [],
-  startedAt: 0,
+  port: null,
+  checkpointStepsByJob: new Map(),
+  startedAtByJob: new Map(),
 };
 
 function closeSocket() {
@@ -86,6 +92,7 @@ function closeSocket() {
     }
   }
   ws.socket = null;
+  ws.port = null;
 }
 
 function mapStatus(s: SidecarJobStatus): TrainingJobStatus {
@@ -99,7 +106,8 @@ function buildProgress(
   msg: SidecarJobProgress,
 ): TrainingProgress {
   const currentStep = msg.current_step ?? 0;
-  const checkpointSteps = ws.allCheckpointSteps.filter((s) => s <= currentStep);
+  const allCheckpoints = ws.checkpointStepsByJob.get(jobId) ?? [];
+  const checkpointSteps = allCheckpoints.filter((s) => s <= currentStep);
   const status = mapStatus(msg.status);
   const terminal =
     status === 'completed' || status === 'failed' || status === 'cancelled';
@@ -107,7 +115,7 @@ function buildProgress(
   return {
     jobId,
     status,
-    startedAt: ws.startedAt || Date.now(),
+    startedAt: ws.startedAtByJob.get(jobId) ?? Date.now(),
     completedAt: terminal ? Date.now() : null,
     currentStep,
     totalSteps: msg.total_steps ?? 0,
@@ -123,13 +131,19 @@ function buildProgress(
   };
 }
 
-function openProgressSocket(
-  dispatch: ThunkDispatch,
-  jobId: string,
-  port: number,
-) {
+function ensureProgressSocket(dispatch: ThunkDispatch, port: number) {
+  // If we already have a live socket on the same port, reuse it. Only
+  // reopen when the port changed or the socket dropped.
+  if (
+    ws.socket &&
+    ws.port === port &&
+    ws.socket.readyState <= WebSocket.OPEN
+  ) {
+    return;
+  }
+
   closeSocket();
-  ws.jobId = jobId;
+  ws.port = port;
 
   const url = `ws://127.0.0.1:${port}/ws/progress`;
   const socket = new WebSocket(url);
@@ -138,20 +152,12 @@ function openProgressSocket(
   socket.addEventListener('message', (event) => {
     try {
       const msg = JSON.parse(event.data as string) as SidecarJobProgress;
-      // The sidecar currently broadcasts a single active job at a time,
-      // but filter defensively in case that changes.
-      if (ws.jobId && msg.job_id && msg.job_id !== ws.jobId) return;
-
-      const progress = buildProgress(jobId, msg);
-      dispatch(updateTrainingProgress({ id: jobId, progress }));
-
-      if (
-        progress.status === 'completed' ||
-        progress.status === 'failed' ||
-        progress.status === 'cancelled'
-      ) {
-        closeSocket();
-      }
+      // Route by msg.job_id — the sidecar can broadcast progress for any
+      // of its queued/running training jobs on this single channel. A job
+      // whose id we don't recognise is a no-op in the reducer.
+      if (!msg.job_id) return;
+      const progress = buildProgress(msg.job_id, msg);
+      dispatch(updateTrainingProgress({ id: msg.job_id, progress }));
     } catch (err) {
       console.warn('[training-ws] Failed to parse message:', err);
     }
@@ -309,9 +315,9 @@ export function startTraining(config: Record<string, unknown>): AppThunk {
       return;
     }
 
-    // Seed Redux and open the progress socket.
-    ws.allCheckpointSteps = deriveCheckpointSteps(config);
-    ws.startedAt = Date.now();
+    // Stash per-job metadata used by the WS progress router.
+    ws.checkpointStepsByJob.set(jobId, deriveCheckpointSteps(config));
+    ws.startedAtByJob.set(jobId, Date.now());
 
     const job: TrainingJob = {
       id: jobId,
@@ -327,7 +333,7 @@ export function startTraining(config: Record<string, unknown>): AppThunk {
     dispatch(addJob(job));
     dispatch(openPanel());
 
-    openProgressSocket(dispatch, jobId, sidecarPort);
+    ensureProgressSocket(dispatch, sidecarPort);
   };
 }
 
@@ -419,10 +425,11 @@ export function hydrateActiveTraining(): AppThunk {
     // Don't re-seed if this job is already in Redux — the middleware may
     // have persisted it, in which case we only need to reattach the WS.
     const existing = (getState() as RootState).jobs.jobs[active.job_id];
+    const seededAt = active.started_at
+      ? Date.parse(active.started_at)
+      : Date.now();
+    ws.startedAtByJob.set(active.job_id, seededAt);
     if (!existing) {
-      ws.startedAt = active.started_at
-        ? Date.parse(active.started_at)
-        : Date.now();
       // Reconstruct a minimal TrainingJob. Sidecar config is snake_case —
       // pick out the fields used for rendering the job card.
       const cfg = active.config ?? {};
@@ -437,8 +444,8 @@ export function hydrateActiveTraining(): AppThunk {
           active.status === 'training' || active.status === 'preparing'
             ? 'running'
             : active.status,
-        createdAt: ws.startedAt,
-        startedAt: ws.startedAt,
+        createdAt: seededAt,
+        startedAt: seededAt,
         completedAt: null,
         error: active.progress?.error ?? null,
         config: {
@@ -486,13 +493,13 @@ export function hydrateActiveTraining(): AppThunk {
           : null,
       };
       dispatch(addJob(job));
-    } else {
-      ws.startedAt = existing.startedAt ?? Date.now();
+    } else if (existing.startedAt) {
+      ws.startedAtByJob.set(active.job_id, existing.startedAt);
     }
 
     // Only attach a WS if the job is still in-flight.
     if (active.status === 'training' || active.status === 'preparing') {
-      openProgressSocket(dispatch, active.job_id, sidecarPort);
+      ensureProgressSocket(dispatch, sidecarPort);
       // Surface the activity panel so the refresh doesn't silently drop it.
       dispatch(openPanel());
     }
