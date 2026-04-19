@@ -157,7 +157,7 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
               </span>
             )}
           </div>
-          <div className="mt-1 rounded bg-slate-100 p-1 dark:bg-slate-800">
+          <div className="mt-1 rounded border border-slate-300 bg-slate-200 p-1 dark:border-slate-600 dark:bg-slate-800">
             <SchedulerSparkline
               curve={schedulerCurve}
               width={264}

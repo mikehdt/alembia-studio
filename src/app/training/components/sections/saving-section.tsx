@@ -36,9 +36,9 @@ type SavingSectionProps = {
 };
 
 const SAVE_FORMAT_ITEMS: DropdownItem<string>[] = [
-  { value: 'fp16', label: 'float16 (most compatible)' },
-  { value: 'bf16', label: 'bfloat16' },
-  { value: 'fp32', label: 'float32 (largest)' },
+  { value: 'fp16', label: 'Most Compatible (FP16)' },
+  { value: 'bf16', label: 'Newer/Specific Models (BF16)' },
+  { value: 'fp32', label: 'Higher Quality, Larger File (FP32)' },
 ];
 
 const SavingSectionComponent = ({
@@ -230,7 +230,7 @@ const SavingSectionComponent = ({
             <label className="mb-1 block text-xs font-medium text-(--foreground)/70">
               Resume From State
             </label>
-            <InputTray size="md">
+            <InputTray size="md" width="full">
               <Input
                 type="text"
                 value={resumeState}
