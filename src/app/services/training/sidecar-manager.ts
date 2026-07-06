@@ -418,14 +418,19 @@ export async function connectSidecar(): Promise<{
 }
 
 /**
- * Shut down the sidecar process gracefully.
+ * Shut down the sidecar and wait until its port is free. Kills both the process
+ * we spawned and any orphan recorded in the PID file (which is all we have after
+ * reconnecting across a Node restart). Unlike {@link restartSidecar}, it does
+ * not re-spawn — the next action that needs the sidecar will start it on demand
+ * via {@link ensureSidecar}.
  */
-function shutdownSidecar(): void {
-  if (!state.process) return;
-
-  killProcessTree(state.process);
-  state.process = null;
-  state.status = 'stopped';
+export async function shutdownSidecar(): Promise<{
+  status: string;
+  port: number;
+  error: string | null;
+}> {
+  await killSidecarAndWait();
+  return getSidecarStatus();
 }
 
 /**

@@ -14,6 +14,7 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Optional
 
+from job_manager import predict_checkpoint_steps
 from models import JobProgress, JobStatus, StartJobRequest
 from providers.base import TrainingProvider
 
@@ -57,6 +58,17 @@ class MockProvider(TrainingProvider):
         total_epochs = int(hp.get("epochs", 20))
         base_lr = float(hp.get("lr", 1e-4))
 
+        # Fake checkpoint saves at the predicted step positions, so the UI can
+        # exercise both the predicted ticks and confirmed-save markers without
+        # a real backend. Any not yet reached is emitted once the step crosses
+        # it; the manager dedupes by step.
+        # Feed the prediction the resolved step count — `predict_checkpoint_steps`
+        # reads `steps` too, and returns [] when it's absent, so it must see the
+        # same default `total_steps` resolved to above.
+        pending_saves = sorted(
+            predict_checkpoint_steps({**hp, "steps": total_steps})
+        )
+
         yield JobProgress(job_id=job_id, status=JobStatus.PREPARING)
 
         # Brief "preparing" delay so the UI actually shows the preparing state.
@@ -79,6 +91,10 @@ class MockProvider(TrainingProvider):
             lr = round(base_lr * (1 - frac * 0.3), 8)
             eta = max(0, int((total_steps - current) * self._tick_interval / step_increment))
 
+            # Any predicted checkpoint the step has now reached is "written".
+            newly_saved = [s for s in pending_saves if s <= current]
+            pending_saves = [s for s in pending_saves if s > current]
+
             yield JobProgress(
                 job_id=job_id,
                 status=JobStatus.TRAINING,
@@ -89,6 +105,7 @@ class MockProvider(TrainingProvider):
                 loss=loss,
                 learning_rate=lr,
                 eta_seconds=eta,
+                saved_checkpoints=newly_saved,
                 log_lines=[f"[mock] step {current}/{total_steps}"],
             )
 
@@ -101,6 +118,9 @@ class MockProvider(TrainingProvider):
             total_steps=total_steps,
             current_epoch=total_epochs,
             total_epochs=total_epochs,
+            # Flush any remaining predicted saves (e.g. a final-step save the
+            # loop's <= check didn't emit) so the confirmed set is complete.
+            saved_checkpoints=pending_saves,
             log_lines=["[mock] training complete"],
         )
 

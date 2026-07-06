@@ -27,6 +27,9 @@ export type SidecarStatus = 'stopped' | 'starting' | 'ready' | 'error';
 
 // --- Progress (received via WebSocket) ---
 
+/** One sampled point in the loss-over-steps series. */
+export type LossPoint = { step: number; loss: number };
+
 export type TrainingProgress = {
   jobId: string;
   status: TrainingJobStatus;
@@ -37,10 +40,18 @@ export type TrainingProgress = {
   currentEpoch: number;
   totalEpochs: number;
   loss: number | null;
+  /**
+   * Downsampled {step, loss} series accumulated sidecar-side; survives page
+   * refresh via the sidecar's persisted job state.
+   */
+  lossHistory: LossPoint[];
   learningRate: number | null;
   etaSeconds: number | null;
   sampleImagePaths: string[];
+  /** Predicted checkpoint step positions derived from the save cadence. */
   checkpointSteps: number[];
+  /** Steps at which the trainer confirmed a checkpoint was actually written. */
+  savedCheckpoints: number[];
   logLines: string[];
   error: string | null;
   /**

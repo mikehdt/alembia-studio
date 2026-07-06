@@ -55,6 +55,83 @@ PID_EXIT_POLL_INTERVAL = 0.5
 PID_UNKNOWN_SETTLE_SECONDS = 5.0
 
 
+def _scan_checkpoints(output_path: str, output_name: str) -> set[str]:
+    """Return the set of checkpoint safetensors written for this job so far.
+
+    ai-toolkit's jobs API (`GET /api/jobs?id=`) surfaces only status / step /
+    info / speed_string / pid — no save event or checkpoint list — so we watch
+    the output directory instead. ai-toolkit writes intermediate LoRAs as
+    `<name>_<step>.safetensors` (plus a final `<name>.safetensors`) flat under
+    `<training_folder>/<name>/` (BaseTrainProcess sets
+    `save_root = join(training_folder, name)`), so scan that subfolder — the
+    job config's `name` is `output_name`, and `training_folder` is
+    `output_path`.
+
+    We iterate that directory non-recursively (so the ever-growing `samples/`
+    subfolder isn't re-walked every second) and match with plain string ops
+    rather than a glob — `output_name` is user-controlled free text and can
+    contain glob metacharacters (e.g. `[v2]`) that would break `rglob`.
+    """
+    root = Path(output_path) / output_name
+    if not root.exists():
+        return set()
+    try:
+        return {
+            str(p)
+            for p in root.iterdir()
+            if p.is_file()
+            and p.name.startswith(output_name)
+            and p.name.endswith(".safetensors")
+        }
+    except OSError:
+        return set()
+
+
+def _step_from_checkpoint_name(
+    filename: str, output_name: str, fallback_step: int
+) -> int:
+    """Parse the training step encoded in a checkpoint filename.
+
+    ai-toolkit writes intermediate saves as `<output_name>_<step>.safetensors`
+    and a final save as `<output_name>.safetensors` (no step suffix). Returns
+    the parsed step for intermediate saves, or `fallback_step` for the
+    suffix-less final save — and for any name that doesn't parse cleanly, so an
+    unexpected layout degrades to the polled step instead of crashing.
+    """
+    stem = filename
+    if stem.endswith(".safetensors"):
+        stem = stem[: -len(".safetensors")]
+    if stem.startswith(output_name):
+        stem = stem[len(output_name) :]
+    # Intermediate saves separate the step with `_` (defensively also `-`).
+    stem = stem.lstrip("_-")
+    # Extract a trailing run of digits; fall back when there isn't one (the
+    # no-suffix final save leaves stem empty).
+    trailing = ""
+    for ch in reversed(stem):
+        if ch.isdigit():
+            trailing = ch + trailing
+        else:
+            break
+    return int(trailing) if trailing else fallback_step
+
+
+def _steps_for_new_checkpoints(
+    new_files: set[str], output_name: str, fallback_step: int
+) -> list[int]:
+    """Map newly-appeared checkpoint paths to their training steps.
+
+    One entry per file so multiple saves that land within a single poll window
+    are each recorded (the manager dedupes by step). Intermediate saves use the
+    step parsed from their filename; the suffix-less final save (and any
+    unparseable name) falls back to `fallback_step`.
+    """
+    return [
+        _step_from_checkpoint_name(Path(p).name, output_name, fallback_step)
+        for p in new_files
+    ]
+
+
 def _pid_alive(pid: int) -> bool:
     """Cross-platform: is a process with this PID currently running?"""
     if pid <= 0:
@@ -216,6 +293,12 @@ class AiToolkitUiProvider(TrainingProvider):
             sample_paths: list[str] = []
             last_step = -1
             last_status_label = ""
+            # Confirmed-save detection via output-dir watching (the jobs API
+            # exposes no save events). Seed with whatever's already on disk so
+            # a resumed run doesn't count pre-existing files as fresh saves.
+            seen_checkpoints: set[str] = _scan_checkpoints(
+                request.output_path, request.output_name
+            )
 
             while True:
                 await asyncio.sleep(POLL_INTERVAL_SECONDS)
@@ -250,7 +333,26 @@ class AiToolkitUiProvider(TrainingProvider):
                         log_lines=log_tail[-50:],
                     )
                 elif aitk_status == "running":
-                    if step != last_step or info != last_status_label:
+                    # Watch the output dir for newly-written checkpoints. Any
+                    # new file since the last poll is a confirmed save at the
+                    # current step; the manager dedupes by step.
+                    newly_saved: list[int] = []
+                    if step > 0:
+                        current_files = _scan_checkpoints(
+                            request.output_path, request.output_name
+                        )
+                        new_files = current_files - seen_checkpoints
+                        if new_files:
+                            # Attribute each new file to the step parsed from
+                            # its own name — poll lag means `step` may have
+                            # moved past the step the file was actually saved
+                            # at, and several files can appear in one window.
+                            newly_saved = _steps_for_new_checkpoints(
+                                new_files, request.output_name, step
+                            )
+                            seen_checkpoints = current_files
+
+                    if step != last_step or info != last_status_label or newly_saved:
                         last_step = step
                         # ai-toolkit's `step` updates only after training
                         # has begun. Until then, keep emitting PREPARING.
@@ -270,6 +372,7 @@ class AiToolkitUiProvider(TrainingProvider):
                                 loss=loss,
                                 learning_rate=lr,
                                 eta_seconds=eta,
+                                saved_checkpoints=newly_saved,
                                 sample_image_paths=sample_paths,
                                 log_lines=log_tail,
                             )
@@ -309,11 +412,31 @@ class AiToolkitUiProvider(TrainingProvider):
                                 "GPU anyway"
                             )
 
+                    # One last sweep before going terminal: ai-toolkit writes
+                    # the final `<name>.safetensors` during finalisation, after
+                    # the last "running" poll — without this the run always
+                    # under-reports its save count by one.
+                    final_saved: list[int] = []
+                    current_files = _scan_checkpoints(
+                        request.output_path, request.output_name
+                    )
+                    new_files = current_files - seen_checkpoints
+                    if new_files:
+                        # The final save has no step suffix; attribute it to
+                        # total_steps when known (more reliable at completion
+                        # than the last polled step), else the polled step.
+                        fallback = total_steps if total_steps > 0 else step
+                        final_saved = _steps_for_new_checkpoints(
+                            new_files, request.output_name, fallback
+                        )
+                        seen_checkpoints = current_files
+
                     yield JobProgress(
                         job_id=local_job_id,
                         status=final_status,
                         current_step=step,
                         total_steps=total_steps,
+                        saved_checkpoints=final_saved,
                         error=info if final_status == JobStatus.FAILED else None,
                         log_lines=log_tail,
                     )

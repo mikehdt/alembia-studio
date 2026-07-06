@@ -1,3 +1,38 @@
+import type { TrainingProgress } from '@/app/services/training/types';
+
+/** Format an ETA in seconds as a compact "1h 3m" / "4m 12s" / "45s". */
+export function formatEta(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  }
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+/** Format a loss value with enough precision to be useful at typical LoRA loss magnitudes. */
+export function formatLoss(loss: number): string {
+  if (!Number.isFinite(loss)) return '—';
+  return loss < 1 ? loss.toFixed(4) : loss.toFixed(2);
+}
+
+/**
+ * Checkpoint count to display for a job. Prefers the trainer-confirmed
+ * saved list; falls back to counting predicted positions already reached,
+ * so older persisted data (and providers not yet reporting confirmed saves)
+ * still show something sensible.
+ */
+export function deriveSavedCount(progress: TrainingProgress | null): number {
+  if (!progress) return 0;
+  const saved = progress.savedCheckpoints ?? [];
+  if (saved.length > 0) return saved.length;
+  const predicted = progress.checkpointSteps ?? [];
+  return predicted.filter((s) => s <= progress.currentStep).length;
+}
+
 export function formatDuration(ms: number): string {
   const totalSeconds = Math.round(ms / 1000);
   if (totalSeconds < 60) return `${totalSeconds}s`;

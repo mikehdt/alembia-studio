@@ -536,14 +536,25 @@ class KohyaProvider(TrainingProvider):
                     # generate samples — the step bar freezes during that, so
                     # surface what it's doing as a one-line activity label.
                     activity = None
+                    # Record saves at the step the bar is frozen on. sd-scripts
+                    # prints "saving checkpoint: <file>" for every intermediate
+                    # epoch/step save (train_network.py, immediately before the
+                    # write) but "model saved." only once, for the final model —
+                    # so the intermediate line is the save signal, with "model
+                    # saved" catching the run-end save. The manager dedupes by
+                    # step, which also collapses the final-epoch save and the
+                    # end-of-run save landing on the same step.
+                    saved: list[int] = []
                     if "saving checkpoint" in lower or "saving model" in lower:
                         activity = "Saving checkpoint"
+                        saved = [current_step]
                     elif "generating sample" in lower or (
                         "sample" in lower and "generat" in lower
                     ):
                         activity = "Generating samples"
                     elif "model saved" in lower:
                         activity = "Checkpoint saved"
+                        saved = [current_step]
                     if activity is not None:
                         yield JobProgress(
                             job_id=job_id,
@@ -554,6 +565,7 @@ class KohyaProvider(TrainingProvider):
                             total_epochs=total_epochs,
                             loss=last_loss,
                             phase=activity,
+                            saved_checkpoints=saved,
                             sample_image_paths=sample_paths,
                             log_lines=log_lines[-50:],
                         )

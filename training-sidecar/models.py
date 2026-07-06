@@ -24,6 +24,13 @@ class JobStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class LossPoint(BaseModel):
+    """A single downsampled point on the training loss curve."""
+
+    step: int
+    loss: float
+
+
 class DatasetEntry(BaseModel):
     path: str
     num_repeats: int = 1
@@ -52,9 +59,20 @@ class JobProgress(BaseModel):
     current_epoch: int = 0
     total_epochs: int = 0
     loss: Optional[float] = None
+    # Downsampled loss curve accumulated centrally by the JobManager across
+    # the whole run (providers only report the latest `loss`; the manager
+    # appends and bounds the series). Survives state persistence + rehydration.
+    loss_history: list[LossPoint] = []
     learning_rate: Optional[float] = None
     eta_seconds: Optional[int] = None
     sample_image_paths: list[str] = []
+    # PREDICTED checkpoint step positions, computed once from the job's save
+    # cadence at start. Persisted so the UI's upcoming-save ticks survive a
+    # page refresh rather than being re-derived client-side.
+    checkpoint_steps: list[int] = []
+    # Steps at which a checkpoint was CONFIRMED written on disk. Deduped by
+    # the JobManager (a provider may report the same save more than once).
+    saved_checkpoints: list[int] = []
     log_lines: list[str] = []
     error: Optional[str] = None
     # Human-readable activity label. During PREPARING it names the setup phase

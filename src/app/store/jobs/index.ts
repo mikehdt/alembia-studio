@@ -271,6 +271,14 @@ const selectAllJobs = createSelector(selectJobs, (s) =>
   Object.values(s.jobs).sort((a, b) => a.createdAt - b.createdAt),
 );
 
+/**
+ * Look up a single job by ID. Used by UI that must keep reading live job
+ * state after its own parent panel has hidden itself (e.g. a detail modal
+ * that stays open while the activity panel disappears behind it).
+ */
+export const selectJobById = (id: string) =>
+  createSelector(selectJobs, (s): Job | null => s.jobs[id] ?? null);
+
 export const selectActiveJobs = createSelector(selectAllJobs, (jobs) =>
   jobs.filter((j) => j.status === 'running' || j.status === 'preparing'),
 );

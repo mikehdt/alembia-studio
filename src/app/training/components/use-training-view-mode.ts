@@ -1,29 +1,16 @@
-import { useSyncExternalStore } from 'react';
-
 import { useAppSelector } from '@/app/store/hooks';
 import {
   selectTrainingViewMode,
   type TrainingViewMode,
 } from '@/app/store/preferences';
 
-/** Default that matches the server-rendered initial state. */
-const SERVER_DEFAULT: TrainingViewMode = 'intermediate';
-
-const subscribe = () => () => {};
-const getSnapshot = () => true;
-const getServerSnapshot = () => false;
-
 /**
- * Hydration-safe accessor for the training view mode.
- * Returns the server default on first render to avoid hydration mismatch,
- * then uses the persisted Redux value on the client.
+ * Read the persisted training view mode from the store.
+ *
+ * No hydration gate is needed: the server seeds the store from the preferences
+ * cookie (see StoreProvider), so this value already matches the server-rendered
+ * HTML on the first client render.
  */
 export function useTrainingViewMode(): TrainingViewMode {
-  const storeValue = useAppSelector(selectTrainingViewMode);
-  const isClient = useSyncExternalStore(
-    subscribe,
-    getSnapshot,
-    getServerSnapshot,
-  );
-  return isClient ? storeValue : SERVER_DEFAULT;
+  return useAppSelector(selectTrainingViewMode);
 }

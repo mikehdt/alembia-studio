@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import math
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,6 +14,7 @@ from models import (
     JobProgress,
     JobState,
     JobStatus,
+    LossPoint,
     StartJobRequest,
     StartJobResponse,
 )
@@ -24,6 +27,45 @@ _TERMINAL_TRAINING_STATUSES = (
     JobStatus.FAILED,
     JobStatus.CANCELLED,
 )
+
+# Upper bound on the accumulated loss series. Once exceeded we halve the
+# series (keep every other point) and double the sampling stride, so a long
+# run stays bounded while keeping an even spread across the whole timeline.
+_MAX_LOSS_POINTS = 1000
+
+# Minimum wall-clock gap between routine (non-terminal, no-new-save) disk
+# writes of a job's JSON. Progress ticks arrive ~1/sec and the file grows to
+# ~59KB at the loss cap, so rewriting it every tick is wasteful. Terminal
+# updates, fresh checkpoint confirmations, and the first update always persist
+# immediately regardless of this throttle.
+_PERSIST_THROTTLE_SECONDS = 5.0
+
+
+def predict_checkpoint_steps(hyperparameters: dict) -> list[int]:
+    """Predict the step positions at which checkpoints will be written.
+
+    Mirrors the client-side `deriveCheckpointSteps` (see
+    src/app/store/training/training-runtime.ts) but reads the snake_case
+    hyperparameters the sidecar actually receives. The Node side collapses the
+    UI's save-mode selection into `save_every_n_epochs` (0 = saving disabled),
+    so predictions are computed from the per-epoch cadence — matching what the
+    providers pass to their backends (`--save_every_n_epochs` for Kohya,
+    `_steps_per_epoch(...)` for ai-toolkit).
+    """
+    hp = hyperparameters or {}
+    total_steps = int(hp.get("steps", 0) or 0)
+    epochs = int(hp.get("epochs", 0) or 0)
+    save_every_epochs = int(hp.get("save_every_n_epochs", 0) or 0)
+    if save_every_epochs <= 0 or total_steps <= 0 or epochs <= 0:
+        return []
+
+    steps_per_epoch = max(1, math.ceil(total_steps / epochs))
+    out: list[int] = []
+    epoch = save_every_epochs
+    while epoch <= epochs:
+        out.append(min(epoch * steps_per_epoch, total_steps))
+        epoch += save_every_epochs
+    return out
 
 
 def _lifecycle_from_training(status: JobStatus) -> LifecycleStatus:
@@ -60,6 +102,15 @@ class JobManager:
         self._registry = registry
         self._jobs: dict[str, JobState] = {}
         self._providers: dict[str, TrainingProvider] = {}
+        # Central per-job loss/checkpoint accumulator, keyed by job_id. Holds
+        # the growing loss series, downsample stride, and the confirmed-save
+        # set so providers can stay stateless (they report only the latest
+        # loss and any newly-confirmed save step). Seeded lazily from the
+        # persisted progress when missing (e.g. cancel path).
+        self._accumulators: dict[str, dict] = {}
+        # Per-job monotonic timestamp of the last disk persist, used to
+        # throttle routine progress-tick writes (see _update_progress).
+        self._last_persist_at: dict[str, float] = {}
 
         # Try to recover state from a previous run
         self._recover_state()
@@ -131,7 +182,22 @@ class JobManager:
 
         job_id = uuid.uuid4().hex[:12]
         now = datetime.now(timezone.utc).isoformat()
-        progress = JobProgress(job_id=job_id, status=JobStatus.PENDING)
+        # Predict the checkpoint step positions once, up front, so they're
+        # persisted with the job and survive a page refresh.
+        checkpoint_steps = predict_checkpoint_steps(request.hyperparameters)
+        progress = JobProgress(
+            job_id=job_id,
+            status=JobStatus.PENDING,
+            checkpoint_steps=checkpoint_steps,
+        )
+        self._accumulators[job_id] = {
+            "history": [],
+            "last_step": 0,
+            "stride": 1,
+            "raw_count": 0,
+            "checkpoint_steps": checkpoint_steps,
+            "saved": set(),
+        }
 
         self._jobs[job_id] = JobState(
             job_id=job_id,
@@ -192,6 +258,7 @@ class JobManager:
             job.progress.status = JobStatus.CANCELLED
             job.progress.error = "Cancelled before start"
             job.completed_at = datetime.now(timezone.utc).isoformat()
+            self._accumulators.pop(job_id, None)
             self._persist_state(job_id)
             await self._ws.broadcast(job.progress.model_dump())
             return True
@@ -245,22 +312,106 @@ class JobManager:
                 )
             )
 
+    def _accumulate_progress(self, job: JobState, progress: JobProgress) -> None:
+        """Fold central loss history + checkpoint tracking into `progress`.
+
+        Providers stay stateless: they report the latest `loss` and any
+        newly-confirmed save step(s) in `saved_checkpoints`. This merges those
+        into the per-job accumulator and writes the full accumulated series,
+        predicted checkpoint steps, and deduped confirmed-save set back onto
+        the outgoing progress so every WS broadcast and `/jobs/status`
+        rehydration carries them.
+
+        Called while `job.progress` still holds the PREVIOUS update, so the
+        accumulator can be seeded from persisted state when missing.
+        """
+        acc = self._accumulators.get(progress.job_id)
+        if acc is None:
+            # Seed from persisted progress — covers the cancel path and any
+            # update for a job that predates the accumulator.
+            acc = {
+                "history": list(job.progress.loss_history),
+                "last_step": job.progress.current_step,
+                "stride": 1,
+                "raw_count": len(job.progress.loss_history),
+                "checkpoint_steps": list(job.progress.checkpoint_steps),
+                "saved": {int(s) for s in job.progress.saved_checkpoints},
+            }
+            self._accumulators[progress.job_id] = acc
+
+        # Merge any confirmed saves the provider reported this tick. The set
+        # dedupes by step (e.g. Kohya prints "model saved" for both an epoch
+        # save and the final save at the same step).
+        for step in progress.saved_checkpoints:
+            acc["saved"].add(int(step))
+
+        # Append a loss point only when actively training, the loss is
+        # numeric, and the step advanced — so between-step activity events
+        # (saving/sampling) that carry the last loss don't create duplicates.
+        if (
+            progress.status == JobStatus.TRAINING
+            and progress.loss is not None
+            and progress.current_step > acc["last_step"]
+        ):
+            acc["last_step"] = progress.current_step
+            acc["raw_count"] += 1
+            if acc["raw_count"] % acc["stride"] == 0:
+                acc["history"].append(
+                    LossPoint(step=progress.current_step, loss=progress.loss)
+                )
+                if len(acc["history"]) > _MAX_LOSS_POINTS:
+                    # Halve the series and sample half as often from here on.
+                    acc["history"] = acc["history"][::2]
+                    acc["stride"] *= 2
+
+        # Write the accumulated view onto the outgoing progress.
+        progress.loss_history = list(acc["history"])
+        progress.checkpoint_steps = list(acc["checkpoint_steps"])
+        progress.saved_checkpoints = sorted(acc["saved"])
+
     async def _update_progress(self, progress: JobProgress):
         """Update the referenced job's progress and broadcast to WebSocket clients."""
         job = self._jobs.get(progress.job_id)
         if job is None:
             return
 
+        # Capture whether the provider reported fresh saves *before*
+        # accumulation rewrites saved_checkpoints to the full deduped set —
+        # a checkpoint confirmation must always be persisted immediately.
+        has_new_saves = bool(progress.saved_checkpoints)
+
+        # Fold in central loss/checkpoint accumulation before we replace
+        # job.progress (the seed path reads the previous progress).
+        self._accumulate_progress(job, progress)
+
         job.progress = progress
         job.status = progress.status
 
-        if progress.status in _TERMINAL_TRAINING_STATUSES:
+        is_terminal = progress.status in _TERMINAL_TRAINING_STATUSES
+        if is_terminal:
             job.completed_at = datetime.now(timezone.utc).isoformat()
             self._registry.finish(
                 job.job_id, _lifecycle_from_training(progress.status)
             )
+            # The run is over — drop the accumulator (its state is now fully
+            # captured in the persisted job.progress).
+            self._accumulators.pop(progress.job_id, None)
 
-        self._persist_state(job.job_id)
+        # Throttle routine per-tick writes: persist at most once every
+        # _PERSIST_THROTTLE_SECONDS while training. Always persist immediately
+        # for a terminal status, a fresh checkpoint confirmation (matters for
+        # crash recovery), or the first update seen for this job.
+        now = time.monotonic()
+        last = self._last_persist_at.get(job.job_id)
+        if (
+            is_terminal
+            or has_new_saves
+            or last is None
+            or (now - last) >= _PERSIST_THROTTLE_SECONDS
+        ):
+            self._persist_state(job.job_id)
+            self._last_persist_at[job.job_id] = now
+
         await self._ws.broadcast(progress.model_dump())
 
     def mark_failed(self, job_id: str, error: str):
@@ -274,6 +425,7 @@ class JobManager:
         job.progress.error = error
         job.completed_at = datetime.now(timezone.utc).isoformat()
         self._registry.finish(job_id, LifecycleStatus.FAILED)
+        self._accumulators.pop(job_id, None)
         self._persist_state(job_id)
 
     def clear_completed(self, job_id: Optional[str] = None):
@@ -301,6 +453,8 @@ class JobManager:
             except OSError as e:
                 print(f"Warning: Failed to delete cleared job file: {e}")
             self._registry.remove(jid)
+            self._accumulators.pop(jid, None)
+            self._last_persist_at.pop(jid, None)
             del self._jobs[jid]
 
     def _persist_state(self, job_id: str):

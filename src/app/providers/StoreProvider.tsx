@@ -9,22 +9,46 @@ import {
   subscribePreferencesPersistence,
 } from '../store/preferences';
 import { loadPreferences } from '../store/preferences/local-storage';
+import type { PreferencesState } from '../store/preferences/types';
 
-export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
-  // Use lazy initialization to create the store only once
+type StoreProviderProps = {
+  children: React.ReactNode;
+  /**
+   * Preferences read from the cookie server-side. When present, the server
+   * already rendered the user's real values, so we seed the store with them
+   * and skip the post-mount localStorage reconciliation (no flash). Absent on
+   * a first visit / cleared cookie, where we fall back to localStorage.
+   */
+  preloadedPreferences?: PreferencesState | null;
+};
+
+export const StoreProvider = ({
+  children,
+  preloadedPreferences,
+}: StoreProviderProps) => {
+  // Create the store once, seeding preferences from the server-provided
+  // cookie state so the first client render matches the server HTML.
   const [store] = useState(() => {
-    const s = makeStore();
+    const s = makeStore(
+      preloadedPreferences ? { preferences: preloadedPreferences } : undefined,
+    );
     subscribePreferencesPersistence(s);
     return s;
   });
 
-  // Apply persisted preferences after mount. The store starts from
-  // deterministic defaults so the first client render matches the server;
-  // reading localStorage into the initial state instead would diverge and
-  // cause hydration mismatches. Running here (post-hydration) is safe.
+  const hasPreloaded = preloadedPreferences != null;
+
   useEffect(() => {
-    store.dispatch(hydratePreferences(loadPreferences()));
-  }, [store]);
+    // Reconcile from localStorage only when the server DIDN'T seed us from the
+    // cookie (first visit, cleared cookie, or a pre-cookie user migrating). In
+    // that case the server rendered defaults, so applying persisted values
+    // here may flip once — the subscriber then writes the cookie so subsequent
+    // loads SSR correctly. When the cookie was present we skip this entirely to
+    // avoid a redundant flash.
+    if (!hasPreloaded) {
+      store.dispatch(hydratePreferences(loadPreferences()));
+    }
+  }, [store, hasPreloaded]);
 
   return <ReduxProvider store={store}>{children}</ReduxProvider>;
 };

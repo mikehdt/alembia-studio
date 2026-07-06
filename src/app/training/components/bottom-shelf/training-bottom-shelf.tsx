@@ -1,37 +1,27 @@
 import { ListPlusIcon, PlayIcon } from 'lucide-react';
-import { useSyncExternalStore } from 'react';
 
 import { Button } from '@/app/shared/button';
 import { BottomShelfFrame } from '@/app/shared/shelf';
 import { useAppSelector } from '@/app/store/hooks';
 import { selectIsTraining } from '@/app/store/jobs';
+import { useHydrated } from '@/app/utils/use-hydrated';
 
 type TrainingBottomShelfProps = {
   canStart: boolean;
   onStart: () => void;
 };
 
-// Defer the button's disabled state until after hydration. `canStart` is
-// derived from form state that matches SSR, but something in React 19 /
-// Turbopack is flagging the `disabled` attribute as mismatched anyway.
-// Using the server-snapshot technique guarantees the first client render
-// mirrors SSR, then the real value comes in on the mount re-render.
-const subscribe = () => () => {};
-const getSnapshot = () => true;
-const getServerSnapshot = () => false;
-
+// `canStart` derives from the training-config form, which only this page's
+// own effects mutate — safe to render ungated. `isTraining` derives from the
+// jobs slice, which layout-level effects can populate before this page chunk
+// hydrates (e.g. an active run being rehydrated), so pin it to its SSR value
+// until hydration completes — see useHydrated.
 export const TrainingBottomShelf = ({
   canStart,
   onStart,
 }: TrainingBottomShelfProps) => {
-  const isTraining = useAppSelector(selectIsTraining);
-  const isClient = useSyncExternalStore(
-    subscribe,
-    getSnapshot,
-    getServerSnapshot,
-  );
-
-  const effectiveCanStart = isClient ? canStart : true;
+  const hydrated = useHydrated();
+  const isTraining = useAppSelector(selectIsTraining) && hydrated;
 
   return (
     <BottomShelfFrame>
@@ -41,10 +31,10 @@ export const TrainingBottomShelf = ({
           onClick={onStart}
           ghostDisabled
           neutralDisabled
-          disabled={!effectiveCanStart}
+          disabled={!canStart}
           color="teal"
         >
-          {isClient && isTraining ? (
+          {isTraining ? (
             <>
               <ListPlusIcon />
               Add to Queue

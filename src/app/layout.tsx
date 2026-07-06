@@ -2,6 +2,7 @@ import './globals.css';
 
 import type { Metadata } from 'next';
 import { Geist } from 'next/font/google';
+import { cookies } from 'next/headers';
 
 import { AppProvider } from './providers/AppProvider';
 import { StoreProvider } from './providers/StoreProvider';
@@ -11,6 +12,10 @@ import { ModelManagerModal } from './shared/model-manager-modal/model-manager-mo
 import { PopupProvider } from './shared/popup';
 import { StableLayout } from './shared/stable-layout';
 import { ToastContainer } from './shared/toast';
+import {
+  parsePreferencesCookie,
+  PREFERENCES_COOKIE,
+} from './store/preferences/local-storage';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -46,27 +51,55 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Root({
+export default async function Root({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Reading the cookie opts this route into dynamic rendering. Acceptable for
+  // this local-only app — it lets the server render the user's real persisted
+  // preferences (and theme) into the first HTML, eliminating the hydration
+  // flip that fixed defaults would otherwise cause.
+  const cookieStore = await cookies();
+  const cookieValue = cookieStore.get(PREFERENCES_COOKIE)?.value;
+  // Only treat preferences as "known" when the cookie actually exists. When it
+  // is absent (first visit, or a user predating this cookie) we pass null so
+  // StoreProvider falls back to reconciling from localStorage post-mount — the
+  // one-time migration that seeds the cookie for subsequent SSR-correct loads.
+  const preferences = cookieValue ? parsePreferencesCookie(cookieValue) : null;
+
+  // Render the light/dark class directly when the theme is explicit and known
+  // from the cookie. For 'auto' (system-driven) or a missing cookie we leave
+  // it unset and let the inline script resolve it pre-hydration.
+  const serverThemeClass =
+    preferences?.theme === 'light'
+      ? 'light'
+      : preferences?.theme === 'dark'
+        ? 'dark'
+        : undefined;
+  const htmlClassName = [geistSans.className, serverThemeClass]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <html
       lang="en"
       data-scroll-behavior="smooth"
-      className={geistSans.className}
+      className={htmlClassName}
+      // Still required: for 'auto'/cookie-absent themes the inline script below
+      // resolves light/dark via matchMedia and mutates <html> before hydration,
+      // which would otherwise trip a className mismatch warning.
       suppressHydrationWarning
     >
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var p=localStorage.getItem('preferences');var t='auto';if(p){var o=JSON.parse(p);if(o&&(o.theme==='light'||o.theme==='dark'||o.theme==='auto'))t=o.theme;}var d=t==='dark'||(t==='auto'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.add(d?'dark':'light');}catch(e){}})();`,
+            __html: `(function(){try{var el=document.documentElement;if(el.classList.contains('light')||el.classList.contains('dark'))return;var p=localStorage.getItem('preferences');var t='auto';if(p){var o=JSON.parse(p);if(o&&(o.theme==='light'||o.theme==='dark'||o.theme==='auto'))t=o.theme;}var d=t==='dark'||(t==='auto'&&window.matchMedia('(prefers-color-scheme: dark)').matches);el.classList.add(d?'dark':'light');}catch(e){}})();`,
           }}
         />
       </head>
       <body>
-        <StoreProvider>
+        <StoreProvider preloadedPreferences={preferences}>
           <AppProvider>
             <ModalProvider>
               <PopupProvider>

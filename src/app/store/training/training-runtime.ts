@@ -49,9 +49,12 @@ type SidecarJobProgress = {
   current_epoch?: number;
   total_epochs?: number;
   loss?: number | null;
+  loss_history?: { step: number; loss: number }[];
   learning_rate?: number | null;
   eta_seconds?: number | null;
   sample_image_paths?: string[];
+  checkpoint_steps?: number[];
+  saved_checkpoints?: number[];
   log_lines?: string[];
   error?: string | null;
   phase?: string | null;
@@ -108,8 +111,12 @@ function buildProgress(
   msg: SidecarJobProgress,
 ): TrainingProgress {
   const currentStep = msg.current_step ?? 0;
-  const allCheckpoints = ws.checkpointStepsByJob.get(jobId) ?? [];
-  const checkpointSteps = allCheckpoints.filter((s) => s <= currentStep);
+  // Prefer sidecar-computed predictions (persisted with the job, so they
+  // survive page refresh); fall back to the locally-derived map for older
+  // sidecar payloads. Full predicted list — consumers decide how to render
+  // upcoming vs reached positions.
+  const checkpointSteps =
+    msg.checkpoint_steps ?? ws.checkpointStepsByJob.get(jobId) ?? [];
   const status = mapStatus(msg.status);
   const terminal =
     status === 'completed' || status === 'failed' || status === 'cancelled';
@@ -124,10 +131,12 @@ function buildProgress(
     currentEpoch: msg.current_epoch ?? 0,
     totalEpochs: msg.total_epochs ?? 0,
     loss: msg.loss ?? null,
+    lossHistory: msg.loss_history ?? [],
     learningRate: msg.learning_rate ?? null,
     etaSeconds: msg.eta_seconds ?? null,
     sampleImagePaths: msg.sample_image_paths ?? [],
     checkpointSteps,
+    savedCheckpoints: msg.saved_checkpoints ?? [],
     logLines: msg.log_lines ?? [],
     error: msg.error ?? null,
     phase: msg.phase ?? null,
@@ -240,7 +249,7 @@ function snapshotClientConfig(
       gradientAccumulationSteps:
         (config.gradientAccumulationSteps as number) ?? 1,
       mixedPrecision: (config.mixedPrecision as 'bf16' | 'fp16') ?? 'bf16',
-      extra: {},
+      extra: { numRestarts: (config.numRestarts as number) ?? 1 },
     },
     samplePrompts: (config.samplePrompts as string[]) ?? [],
   };
@@ -483,12 +492,18 @@ export function hydrateActiveTraining(): AppThunk {
             scheduler:
               ((cfg.hyperparameters as Record<string, unknown>)
                 ?.scheduler as string) ?? 'constant',
-            warmupSteps: 0,
+            warmupSteps:
+              ((cfg.hyperparameters as Record<string, unknown>)
+                ?.warmup_steps as number) ?? 0,
             saveEveryNEpochs: 1,
             sampleEveryNSteps: 250,
             gradientAccumulationSteps: 1,
             mixedPrecision: 'bf16',
-            extra: {},
+            extra: {
+              numRestarts:
+                ((cfg.hyperparameters as Record<string, unknown>)
+                  ?.num_restarts as number) ?? 1,
+            },
           },
           samplePrompts: [],
         },

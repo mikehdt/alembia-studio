@@ -1,5 +1,6 @@
 import {
   type Action,
+  combineReducers,
   configureStore,
   type ThunkAction,
 } from '@reduxjs/toolkit';
@@ -18,22 +19,34 @@ import { toastsReducer } from './toasts';
 import { trainingReducer } from './training';
 import { trainingConfigReducer } from './training-config';
 
-export const makeStore = () => {
+const rootReducer = combineReducers({
+  assets: assetsReducer,
+  autoTagger: autoTaggerReducer,
+  filters: filtersReducer,
+  jobs: jobsReducer,
+  modelManager: modelManagerReducer,
+  preferences: preferencesReducer,
+  project: projectReducer,
+  selection: selectionReducer,
+  toasts: toastsReducer,
+  training: trainingReducer,
+  trainingConfig: trainingConfigReducer,
+});
+
+// Root state inferred from the combined reducer so `makeStore` can accept a
+// typed partial preloaded state without a circular type reference.
+export type RootState = ReturnType<typeof rootReducer>;
+
+/**
+ * `makeStore` accepts an optional partial preloaded state. The server seeds the
+ * preferences slice from a cookie (see StoreProvider) so the first client
+ * render matches the server HTML without a post-mount hydration flip.
+ */
+export const makeStore = (preloadedState?: Partial<RootState>) => {
   return configureStore({
     devTools: true,
-    reducer: {
-      assets: assetsReducer,
-      autoTagger: autoTaggerReducer,
-      filters: filtersReducer,
-      jobs: jobsReducer,
-      modelManager: modelManagerReducer,
-      preferences: preferencesReducer,
-      project: projectReducer,
-      selection: selectionReducer,
-      toasts: toastsReducer,
-      training: trainingReducer,
-      trainingConfig: trainingConfigReducer,
-    },
+    reducer: rootReducer,
+    preloadedState,
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware()
         .concat(filterManagerMiddleware.middleware)
@@ -43,8 +56,6 @@ export const makeStore = () => {
 
 export type AppStore = ReturnType<typeof makeStore>;
 
-// Infer the `RootState` and `AppDispatch` types from the store itself
-export type RootState = ReturnType<AppStore['getState']>;
 export type AppDispatch = AppStore['dispatch'];
 
 /**

@@ -1,34 +1,59 @@
 'use client';
 
 import {
-  BoxesIcon,
   FolderClosedIcon,
   FolderOpenIcon,
   FolderXIcon,
   PencilIcon,
-  SettingsIcon,
   StarIcon,
 } from 'lucide-react';
-import { useCallback, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { Button } from '@/app/shared/button';
 import { Checkbox } from '@/app/shared/checkbox';
-import { MenuProjectsFolder } from '@/app/shared/menu-projects-folder';
-import { MenuThemeSwitcher } from '@/app/shared/menu-theme-switcher';
-import { Popup, usePopup } from '@/app/shared/popup';
-import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
-import { openModelManagerModal } from '@/app/store/model-manager';
-import { selectTheme, setTheme, type ThemeMode } from '@/app/store/preferences';
 
 import { useProjectList } from './hooks/use-project-list';
 import { ProjectItem, type ProjectItemActions } from './project-item';
 
-export const ProjectList = () => {
-  const dispatch = useAppDispatch();
-  const settingsButtonRef = useRef<HTMLButtonElement>(null);
-  const { openPopup, closePopup, getPopupState } = usePopup();
-  const settingsPopupId = useId();
+/**
+ * Browse for a folder and persist it via `onSave`. Shared by the compact
+ * Projects Folder button and the inline empty/error-state picker.
+ */
+const useFolderBrowse = (
+  onSave: (folder: string) => Promise<{ error?: string }>,
+) => {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  const browse = useCallback(async () => {
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        title: 'Select projects folder',
+        mode: 'folder',
+      });
+      const res = await fetch(`/api/filesystem/browse?${params}`);
+      const data = await res.json();
+
+      if (data.cancelled || !data.path) return;
+
+      setSaving(true);
+      const result = await onSave(data.path);
+      setSaving(false);
+
+      if (result.error) {
+        setError(result.error);
+      }
+    } catch {
+      setSaving(false);
+      setError('Failed to open folder picker');
+    }
+  }, [onSave]);
+
+  return { browse, saving, error };
+};
+
+export const ProjectList = () => {
   const {
     loading,
     error,
@@ -55,32 +80,6 @@ export const ProjectList = () => {
     handleThumbnailSelect,
     handleThumbnailRemove,
   } = useProjectList();
-
-  const theme = useAppSelector(selectTheme);
-  const isSettingsOpen = getPopupState(settingsPopupId).isOpen;
-
-  const handleSetTheme = useCallback(
-    (mode: ThemeMode) => {
-      dispatch(setTheme(mode));
-    },
-    [dispatch],
-  );
-
-  const handleOpenModelManager = useCallback(() => {
-    closePopup(settingsPopupId);
-    dispatch(openModelManagerModal(undefined));
-  }, [dispatch, closePopup, settingsPopupId]);
-
-  const handleToggleSettings = useCallback(() => {
-    if (isSettingsOpen) {
-      closePopup(settingsPopupId);
-    } else {
-      openPopup(settingsPopupId, {
-        position: 'top-right',
-        triggerRef: settingsButtonRef,
-      });
-    }
-  }, [isSettingsOpen, closePopup, openPopup, settingsPopupId]);
 
   const isAnyEditing = editingProject !== null;
 
@@ -241,45 +240,10 @@ export const ProjectList = () => {
           size="sm"
         />
 
-        <div className="relative">
-          <Button
-            ref={settingsButtonRef}
-            onClick={handleToggleSettings}
-            title="Settings"
-            size="sm"
-            width="lg"
-            variant="ghost"
-          >
-            <SettingsIcon />
-            Settings
-          </Button>
-
-          <Popup
-            id={settingsPopupId}
-            triggerRef={settingsButtonRef}
-            className="min-w-48 rounded-md border border-slate-200 bg-white shadow-lg shadow-slate-600/50 dark:border-slate-600 dark:bg-slate-800 dark:shadow-slate-950/50"
-          >
-            <div className="divide-y divide-slate-100 dark:divide-slate-700">
-              <MenuThemeSwitcher theme={theme} setTheme={handleSetTheme} />
-
-              <button
-                type="button"
-                onClick={handleOpenModelManager}
-                className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
-              >
-                <span className="h-5 w-5">
-                  <BoxesIcon className="h-5 w-5" />
-                </span>
-                Model Manager
-              </button>
-
-              <MenuProjectsFolder
-                folder={projectsFolder}
-                onSave={handleSaveProjectsFolder}
-              />
-            </div>
-          </Popup>
-        </div>
+        <ProjectsFolderButton
+          folder={projectsFolder}
+          onSave={handleSaveProjectsFolder}
+        />
       </div>
 
       <Button onClick={loadProjects} size="md" width="xl">
@@ -293,50 +257,51 @@ export const ProjectList = () => {
   );
 };
 
-// Inline folder picker for empty/error states
-type ProjectsFolderInlineProps = {
+type ProjectsFolderProps = {
   folder: string;
   onSave: (folder: string) => Promise<{ error?: string }>;
 };
 
-const ProjectsFolderInline = ({
-  folder,
-  onSave,
-}: ProjectsFolderInlineProps) => {
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+// Compact button shown alongside the project list \u2014 opens the folder picker.
+const ProjectsFolderButton = ({ folder, onSave }: ProjectsFolderProps) => {
+  const { browse, saving, error } = useFolderBrowse(onSave);
 
-  const handleBrowse = useCallback(async () => {
-    setError(null);
-    try {
-      const params = new URLSearchParams({
-        title: 'Select projects folder',
-        mode: 'folder',
-      });
-      const res = await fetch(`/api/filesystem/browse?${params}`);
-      const data = await res.json();
+  return (
+    <div className="relative">
+      <Button
+        onClick={browse}
+        disabled={saving}
+        title={folder || 'No folder configured'}
+        size="sm"
+        width="lg"
+        variant="ghost"
+      >
+        <FolderOpenIcon />
+        <span className="max-w-40 truncate">
+          {saving ? 'Saving\u2026' : 'Projects Folder'}
+        </span>
+        <PencilIcon className="ml-1" />
+      </Button>
 
-      if (data.cancelled || !data.path) return;
+      {error && (
+        <p className="absolute top-full left-0 mt-1 text-xs text-rose-500 dark:text-rose-400">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+};
 
-      setSaving(true);
-      const result = await onSave(data.path);
-      setSaving(false);
-
-      if (result.error) {
-        setError(result.error);
-      }
-    } catch {
-      setSaving(false);
-      setError('Failed to open folder picker');
-    }
-  }, [onSave]);
+// Inline folder picker for empty/error states
+const ProjectsFolderInline = ({ folder, onSave }: ProjectsFolderProps) => {
+  const { browse, saving, error } = useFolderBrowse(onSave);
 
   return (
     <div className="mt-4 flex flex-col justify-center">
       <h2 className="mb-2 font-medium">Projects Folder</h2>
 
       <Button
-        onClick={handleBrowse}
+        onClick={browse}
         disabled={saving}
         variant="ghost"
         size="md"

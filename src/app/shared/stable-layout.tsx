@@ -3,6 +3,8 @@
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
 
+import { GlobalMenu } from '@/app/shared/global-menu';
+import { ShelfInfoRow, TopShelfFrame } from '@/app/shared/shelf';
 import { TaggingBottomShelf } from '@/app/tagging/components/bottom-shelf/tagging-bottom-shelf';
 import { TaggingTopShelf } from '@/app/tagging/components/top-shelf/tagging-top-shelf';
 import { TrainingTopShelf } from '@/app/training/components/training-top-shelf';
@@ -21,6 +23,7 @@ export const StableLayout = ({ children }: { children: React.ReactNode }) => {
 
   const isTagging = pathname.startsWith('/tagging');
   const isTraining = pathname.startsWith('/training');
+  const isProjectList = pathname === '/';
   const basePath = project
     ? `/tagging/${encodeURIComponent(project)}`
     : '/tagging';
@@ -45,7 +48,9 @@ export const StableLayout = ({ children }: { children: React.ReactNode }) => {
     ? 'pt-24 pb-16'
     : isTraining
       ? 'pt-24 pb-16'
-      : '';
+      : isProjectList
+        ? 'pt-14'
+        : '';
 
   return (
     <main
@@ -53,6 +58,13 @@ export const StableLayout = ({ children }: { children: React.ReactNode }) => {
     >
       {isTagging && <TaggingTopShelf currentPage={currentPage} />}
       {isTraining && <TrainingTopShelf />}
+      {isProjectList && (
+        <TopShelfFrame>
+          <ShelfInfoRow>
+            <GlobalMenu />
+          </ShelfInfoRow>
+        </TopShelfFrame>
+      )}
       {children}
       {isTagging && (
         <TaggingBottomShelf

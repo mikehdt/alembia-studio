@@ -1,33 +1,24 @@
-import { XIcon } from 'lucide-react';
+import { Maximize2Icon, XIcon } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { SCHEDULER_OPTIONS } from '@/app/services/training/models';
 import { useAppDispatch } from '@/app/store/hooks';
 import { type TrainingJob } from '@/app/store/jobs';
 import {
   cancelTraining,
   clearTrainingJob,
 } from '@/app/store/training/training-runtime';
-import { SchedulerSparkline } from '@/app/training/components/scheduler-sparkline';
 
 import { ProgressBar } from '../progress-bar/progress-bar';
 import { ActionButton } from './action-button';
-import { formatDuration } from './helpers';
+import {
+  deriveSavedCount,
+  formatDuration,
+  formatEta,
+  formatLoss,
+} from './helpers';
+import { LossChart } from './loss-chart/loss-chart';
 
 const TQDM_RE = /(\d+)\/(\d+)\s+\[/;
-
-/** Format an ETA in seconds as a compact "1h 3m" / "4m 12s" / "45s". */
-function formatEta(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  if (seconds < 3600) {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return s > 0 ? `${m}m ${s}s` : `${m}m`;
-  }
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
-}
 
 /**
  * Turn the most recent sidecar log lines into a short, readable phase
@@ -71,7 +62,13 @@ function derivePreparingPhase(lines: string[] | undefined): string | null {
   return null;
 }
 
-export function TrainingJobCard({ job }: { job: TrainingJob }) {
+export function TrainingJobCard({
+  job,
+  onEnlarge,
+}: {
+  job: TrainingJob;
+  onEnlarge: (jobId: string) => void;
+}) {
   const dispatch = useAppDispatch();
 
   const isRunning = job.status === 'running' || job.status === 'preparing';
@@ -103,7 +100,7 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
       : null;
 
   const checkpointPositions = progress?.checkpointSteps ?? [];
-  const savedCount = checkpointPositions.length;
+  const savedCount = deriveSavedCount(progress);
 
   // Prefer the phase label the provider sends (survives rapid tqdm redraws);
   // fall back to scraping it out of the recent log lines (ai-toolkit, and
@@ -112,14 +109,6 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
     () => progress?.phase ?? derivePreparingPhase(progress?.logLines),
     [progress?.phase, progress?.logLines],
   );
-
-  const schedulerCurve = useMemo(() => {
-    const schedulerName = config?.hyperparameters?.scheduler;
-    if (!schedulerName) return null;
-    return (
-      SCHEDULER_OPTIONS.find((s) => s.value === schedulerName)?.curve ?? null
-    );
-  }, [config]);
 
   return (
     <div className="border-b border-(--border-subtle) inset-shadow-sm inset-shadow-slate-100 last:border-b-0 dark:inset-shadow-slate-900">
@@ -142,6 +131,12 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
 
         {/* Actions */}
         <div className="ml-auto flex items-center gap-1 border-t border-dashed border-(--border-subtle)">
+          {progress && (
+            <ActionButton onClick={() => onEnlarge(job.id)} title="Enlarge">
+              <Maximize2Icon className="h-2.5 w-2.5" />
+              Enlarge
+            </ActionButton>
+          )}
           {isRunning && (
             <ActionButton
               onClick={() => dispatch(cancelTraining(job.id))}
@@ -167,25 +162,27 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
         </div>
       </div>
 
-      {/* Scheduler curve */}
-      {schedulerCurve && isRunning && (
+      {/* Loss curve — live and more useful in-card than the LR schedule
+          (which moved into the enlarge modal as secondary info). */}
+      {isRunning && (
         <div className="border-t border-dashed border-(--border-subtle) px-3 py-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 uppercase">
-              LR Schedule
-            </span>
-            {progress?.learningRate != null && (
+            <span className="text-xs text-slate-400 uppercase">Loss</span>
+            {progress?.loss != null && (
               <span className="text-xs text-slate-400 tabular-nums">
-                LR {progress.learningRate}
+                {formatLoss(progress.loss)}
               </span>
             )}
           </div>
           <div className="mt-1 rounded border border-slate-300 bg-slate-200 p-1 dark:border-slate-600 dark:bg-slate-800">
-            <SchedulerSparkline
-              curve={schedulerCurve}
+            <LossChart
+              lossHistory={progress?.lossHistory ?? []}
+              totalSteps={progress?.totalSteps ?? 0}
+              currentStep={progress?.currentStep ?? 0}
+              variant="compact"
               width={264}
               height={40}
-              className="w-full text-sky-500"
+              className="w-full"
             />
           </div>
         </div>
@@ -232,7 +229,9 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
                 {preparingPhase ?? 'Preparing'}{' '}
                 {`${progress!.currentStep.toLocaleString()} / ${progress!.totalSteps.toLocaleString()}`}
               </span>
-              <span className="font-medium text-(--foreground)">{prepPct}%</span>
+              <span className="font-medium text-(--foreground)">
+                {prepPct}%
+              </span>
             </div>
           </>
         ) : isRunning ? (
@@ -256,38 +255,38 @@ export function TrainingJobCard({ job }: { job: TrainingJob }) {
           (progress.loss !== null ||
             progress.speed !== null ||
             (progress.etaSeconds !== null && progress.etaSeconds > 0)) && (
-          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-400">
-            {progress.loss !== null && (
-              <span>
-                Loss{' '}
-                <span className="font-medium text-(--foreground)">
-                  {progress.loss}
+            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-400 tabular-nums">
+              {progress.loss !== null && (
+                <span>
+                  Loss{' '}
+                  <span className="font-medium text-(--foreground)">
+                    {formatLoss(progress.loss)}
+                  </span>
                 </span>
-              </span>
-            )}
-            {progress.speed && (
-              <span>
-                Speed{' '}
-                <span className="font-medium text-(--foreground)">
-                  {progress.speed}
+              )}
+              {progress.speed && (
+                <span>
+                  Speed{' '}
+                  <span className="font-medium text-(--foreground)">
+                    {progress.speed}
+                  </span>
                 </span>
-              </span>
-            )}
-            {progress.etaSeconds !== null && progress.etaSeconds > 0 && (
-              <span>
-                ETA{' '}
-                <span className="font-medium text-(--foreground)">
-                  {formatEta(progress.etaSeconds)}
+              )}
+              {progress.etaSeconds !== null && progress.etaSeconds > 0 && (
+                <span className="ml-auto">
+                  ETA{' '}
+                  <span className="font-medium text-(--foreground)">
+                    {formatEta(progress.etaSeconds)}
+                  </span>
                 </span>
-              </span>
-            )}
-            {savedCount > 0 && (
-              <span>
-                {savedCount} checkpoint{savedCount !== 1 ? 's' : ''} saved
-              </span>
-            )}
-          </div>
-        )}
+              )}
+              {savedCount > 0 && (
+                <span className="w-full">
+                  {savedCount} checkpoint{savedCount !== 1 ? 's' : ''} saved
+                </span>
+              )}
+            </div>
+          )}
 
         {isCompleted && (
           <p className="mt-1.5 text-xs text-green-600 dark:text-green-400">

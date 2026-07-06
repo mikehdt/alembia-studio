@@ -1,7 +1,7 @@
 'use client';
 
 import { ListIcon, RotateCcwIcon, SaveIcon } from 'lucide-react';
-import { memo, useCallback, useState, useSyncExternalStore } from 'react';
+import { memo, useCallback, useState } from 'react';
 
 import { Button } from '@/app/shared/button';
 import { SegmentedControl } from '@/app/shared/segmented-control/segmented-control';
@@ -25,16 +25,13 @@ import {
   selectLoadedProject,
 } from '@/app/store/training-config';
 import { saveCurrentVersion } from '@/app/store/training-config/thunks';
+import { useHydrated } from '@/app/utils/use-hydrated';
 
 import { DeleteProjectModal } from './project-toolbar/delete-project-modal';
 import { LoadProjectModal } from './project-toolbar/load-project-modal';
 import { ProjectSelector } from './project-toolbar/project-selector';
 import { SaveAsModal } from './project-toolbar/save-as-modal';
 import { useTrainingViewMode } from './use-training-view-mode';
-
-const subscribe = () => () => {};
-const getSnapshot = () => true;
-const getServerSnapshot = () => false;
 
 const VIEW_MODE_OPTIONS: { value: TrainingViewMode; label: string }[] = [
   { value: 'simple', label: 'Simple' },
@@ -45,27 +42,24 @@ const VIEW_MODE_OPTIONS: { value: TrainingViewMode; label: string }[] = [
 const TrainingToolbarComponent = () => {
   const dispatch = useAppDispatch();
   const viewMode = useTrainingViewMode();
-  // Defer Redux-derived values until after hydration so server + initial
-  // client render always agree on the `disabled` shape. Explicit Boolean()
-  // coercion guarantees the prop is a concrete boolean — never null — so
-  // the hydration diff can't flag shape drift on the button element.
-  const isClient = useSyncExternalStore(
-    subscribe,
-    getSnapshot,
-    getServerSnapshot,
-  );
+  const hydrated = useHydrated();
 
-  const activeTrainingJob = useAppSelector(selectActiveTrainingJob);
-  const panelOpen = useAppSelector(selectPanelOpen);
+  // Jobs-slice state can be written by layout-level effects (persisted-job
+  // load, active-run hydration, WebSocket progress) before this page chunk
+  // hydrates, so pin job-derived props to their SSR values until hydration
+  // completes — see useHydrated. Form-derived state (isDirty/canReset/
+  // loadedProject) is only mutated by this page's own effects, which cannot
+  // run before it hydrates, so it needs no gate.
+  const activeTrainingJobValue = useAppSelector(selectActiveTrainingJob);
+  const panelOpenValue = useAppSelector(selectPanelOpen);
   const loadedProject = useAppSelector(selectLoadedProject);
   const isDirty = useAppSelector(selectIsDirty);
   const canReset = useAppSelector(selectCanReset);
   const form = useAppSelector(selectForm);
 
-  const hasActiveJob = isClient ? activeTrainingJob !== null : true;
-  const isRunning = isClient && activeTrainingJob !== null;
-  const effectiveCanReset = isClient ? Boolean(canReset) : false;
-  const effectiveIsDirty = isClient ? Boolean(isDirty) : false;
+  const hasActiveJob = hydrated && activeTrainingJobValue !== null;
+  const isRunning = hasActiveJob;
+  const panelOpen = hydrated && panelOpenValue;
 
   const [saveAsOpen, setSaveAsOpen] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false);
@@ -109,9 +103,9 @@ const TrainingToolbarComponent = () => {
           size="sm"
           variant="ghost"
           onClick={handleSave}
-          disabled={effectiveIsDirty === false}
+          disabled={isDirty === false}
           title={
-            effectiveIsDirty
+            isDirty
               ? `Save changes to v${loadedProject.version}`
               : 'No unsaved changes'
           }
@@ -125,9 +119,9 @@ const TrainingToolbarComponent = () => {
         size="sm"
         variant="ghost"
         onClick={handleReset}
-        disabled={effectiveCanReset === false}
+        disabled={canReset === false}
         title={
-          effectiveCanReset
+          canReset
             ? resetLabel
             : loadedProject
               ? 'No unsaved changes to reset'

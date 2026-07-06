@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 
+import { GlobalMenu } from '@/app/shared/global-menu';
 import {
   ShelfInfoRow,
   ShelfToolbarRow,
@@ -37,6 +38,8 @@ export const TaggingTopShelf = ({ currentPage = 1 }: TaggingTopShelfProps) => {
   return (
     <TopShelfFrame>
       <ShelfInfoRow>
+        <GlobalMenu />
+
         <ProjectMenu />
 
         <ToolbarDivider />

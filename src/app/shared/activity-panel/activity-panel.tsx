@@ -2,7 +2,7 @@
 
 import { ActivityIcon, ChevronDownIcon } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { memo, useCallback, useEffect, useRef } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { cancelTaggingJob } from '@/app/services/auto-tagger/tagging-controllers';
 import { useIsAnyModalOpen } from '@/app/shared/modal';
@@ -31,6 +31,7 @@ import { Button } from '../button';
 import { DownloadJobCard } from './download-job-card';
 import { PendingJobsList } from './pending-jobs-list';
 import { TaggingJobCard } from './tagging-job-card';
+import { TrainingDetailModal } from './training-detail-modal/training-detail-modal';
 import { TrainingJobCard } from './training-job-card';
 import { useDownloadActions } from './use-download-actions';
 
@@ -114,15 +115,25 @@ const ActivityPanelComponent = () => {
     fetch('/api/training/clear', { method: 'POST' }).catch(() => {});
   }, [dispatch]);
 
-  if (!hasJobs || isAnyModalOpen) return null;
+  // Which training job's enlarge modal is open, if any. Kept here — above
+  // the `isAnyModalOpen` gate below — rather than inside a job card: the
+  // panel (and every card in it) unmounts while a modal is open, so a modal
+  // rendered *inside* a card would unmount itself the instant it opened.
+  const [detailJobId, setDetailJobId] = useState<string | null>(null);
+  const handleEnlarge = useCallback((jobId: string) => {
+    setDetailJobId(jobId);
+  }, []);
+  const handleCloseDetail = useCallback(() => {
+    setDetailJobId(null);
+  }, []);
 
   const activeCount = activeJobs.length;
   const hasActive = activeCount > 0;
   const hasClearable = completedJobs.length > 0;
 
-  // Minimised: floating icon button
-  if (!panelOpen) {
-    return (
+  const panelContent =
+    !hasJobs || isAnyModalOpen ? null : !panelOpen ? (
+      // Minimised: floating icon button
       <button
         type="button"
         onClick={handleOpen}
@@ -138,87 +149,104 @@ const ActivityPanelComponent = () => {
           </span>
         )}
       </button>
-    );
-  }
-
-  // Expanded: full panel
-  return (
-    <div
-      className={`fixed right-4 ${bottomClass} z-50 w-80 overflow-hidden rounded-lg border border-slate-300 bg-(--surface) shadow-lg shadow-slate-800/20 dark:border-slate-600`}
-    >
-      {/* Panel header */}
-      <div className="flex items-center justify-between border-b border-(--border-subtle) bg-slate-200 px-3 py-2 inset-shadow-sm inset-shadow-white dark:bg-slate-700 dark:inset-shadow-slate-600">
-        <span className="text-sm text-(--foreground)">
-          Activity
-          {hasActive && (
-            <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-500 px-1 text-xs font-bold text-white">
-              {activeCount}
-            </span>
-          )}
-        </span>
-        <button
-          type="button"
-          onClick={handleClose}
-          className="cursor-pointer rounded p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-          title="Minimise"
-        >
-          <ChevronDownIcon className="h-3.5 w-3.5" />
-        </button>
-      </div>
-
-      {/* Jobs list */}
-      <div className="max-h-96 overflow-y-auto">
-        {/* Pending jobs */}
-        {pendingJobs.length > 0 && <PendingJobsList jobs={pendingJobs} />}
-
-        {/* Active jobs */}
-        {activeJobs.map((job) =>
-          job.type === 'training' ? (
-            <TrainingJobCard key={job.id} job={job} />
-          ) : job.type === 'tagging' ? (
-            <TaggingJobCard
-              key={job.id}
-              job={job}
-              onCancel={handleCancelTagging}
-            />
-          ) : (
-            <DownloadJobCard
-              key={job.id}
-              job={job}
-              onRetry={handleRetryDownload}
-              onCancel={handleCancelDownload}
-              onDelete={handleDeleteDownload}
-            />
-          ),
-        )}
-
-        {/* Completed/failed/interrupted jobs */}
-        {completedJobs.map((job) =>
-          job.type === 'training' ? (
-            <TrainingJobCard key={job.id} job={job} />
-          ) : job.type === 'tagging' ? (
-            <TaggingJobCard key={job.id} job={job} />
-          ) : (
-            <DownloadJobCard
-              key={job.id}
-              job={job}
-              onRetry={handleRetryDownload}
-              onCancel={handleCancelDownload}
-              onDelete={handleDeleteDownload}
-            />
-          ),
-        )}
-      </div>
-
-      {/* Footer with Clear All */}
-      {hasClearable && (
-        <div className="flex justify-end border-t border-(--border-subtle) px-3 py-1.5">
-          <Button onClick={handleClearAll} size="xs" width="md" variant="ghost">
-            Clear all
-          </Button>
+    ) : (
+      // Expanded: full panel
+      <div
+        className={`fixed right-4 ${bottomClass} z-50 w-80 overflow-hidden rounded-lg border border-slate-300 bg-(--surface) shadow-lg shadow-slate-800/20 dark:border-slate-600`}
+      >
+        {/* Panel header */}
+        <div className="flex items-center justify-between border-b border-(--border-subtle) bg-slate-200 px-3 py-2 inset-shadow-sm inset-shadow-white dark:bg-slate-700 dark:inset-shadow-slate-600">
+          <span className="text-sm text-(--foreground)">
+            Activity
+            {hasActive && (
+              <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-500 px-1 text-xs font-bold text-white">
+                {activeCount}
+              </span>
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="cursor-pointer rounded p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            title="Minimise"
+          >
+            <ChevronDownIcon className="h-3.5 w-3.5" />
+          </button>
         </div>
-      )}
-    </div>
+
+        {/* Jobs list */}
+        <div className="max-h-96 overflow-y-auto">
+          {/* Pending jobs */}
+          {pendingJobs.length > 0 && <PendingJobsList jobs={pendingJobs} />}
+
+          {/* Active jobs */}
+          {activeJobs.map((job) =>
+            job.type === 'training' ? (
+              <TrainingJobCard
+                key={job.id}
+                job={job}
+                onEnlarge={handleEnlarge}
+              />
+            ) : job.type === 'tagging' ? (
+              <TaggingJobCard
+                key={job.id}
+                job={job}
+                onCancel={handleCancelTagging}
+              />
+            ) : (
+              <DownloadJobCard
+                key={job.id}
+                job={job}
+                onRetry={handleRetryDownload}
+                onCancel={handleCancelDownload}
+                onDelete={handleDeleteDownload}
+              />
+            ),
+          )}
+
+          {/* Completed/failed/interrupted jobs */}
+          {completedJobs.map((job) =>
+            job.type === 'training' ? (
+              <TrainingJobCard
+                key={job.id}
+                job={job}
+                onEnlarge={handleEnlarge}
+              />
+            ) : job.type === 'tagging' ? (
+              <TaggingJobCard key={job.id} job={job} />
+            ) : (
+              <DownloadJobCard
+                key={job.id}
+                job={job}
+                onRetry={handleRetryDownload}
+                onCancel={handleCancelDownload}
+                onDelete={handleDeleteDownload}
+              />
+            ),
+          )}
+        </div>
+
+        {/* Footer with Clear All */}
+        {hasClearable && (
+          <div className="flex justify-end border-t border-(--border-subtle) px-3 py-1.5">
+            <Button
+              onClick={handleClearAll}
+              size="xs"
+              width="md"
+              variant="ghost"
+            >
+              Clear all
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+
+  return (
+    <>
+      <TrainingDetailModal jobId={detailJobId} onClose={handleCloseDetail} />
+      {panelContent}
+    </>
   );
 };
 
