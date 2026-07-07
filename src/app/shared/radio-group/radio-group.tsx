@@ -104,6 +104,8 @@ export function RadioGroup<T extends string>({
                 ? 'cursor-not-allowed text-slate-400'
                 : 'cursor-pointer text-slate-700 dark:text-slate-400'
             }`}
+            onClick={() => !disabled && onChange(option.value)}
+            tabIndex={-1} // prevent double tab stop
           >
             <div
               className={`relative flex ${currentSize.radio} items-center justify-center rounded-full border shadow-sm transition-all ${getRadioStyles(isSelected)}`}
@@ -111,23 +113,12 @@ export function RadioGroup<T extends string>({
               aria-checked={isSelected}
               tabIndex={disabled ? -1 : 0}
               onKeyDown={(e) => handleKeyDown(e, option.value)}
-              onClick={() => !disabled && onChange(option.value)}
             >
               <div
                 className={`${currentSize.dot} rounded-full transition-all ${getDotStyles(isSelected)}`}
               />
             </div>
             <span>{option.label}</span>
-            {/* Hidden native radio for form semantics */}
-            <input
-              type="radio"
-              name={name}
-              value={option.value}
-              checked={isSelected}
-              onChange={() => onChange(option.value)}
-              disabled={disabled}
-              className="sr-only"
-            />
           </label>
         );
       })}

@@ -44,7 +44,7 @@ const CollapsibleSectionComponent = ({
         className="flex w-full cursor-pointer items-center justify-between bg-(--surface) px-4 py-2 text-sm inset-shadow-sm inset-shadow-white dark:inset-shadow-slate-700"
       >
         <div className="flex items-center gap-2">
-          <h3 className="text-md font-medium text-(--foreground)">{title}</h3>
+          <h3 className="text-base font-medium text-(--foreground)">{title}</h3>
           {headerExtra}
         </div>
 

@@ -48,7 +48,6 @@ type AssetMetadataProps = {
   bucket: KohyaBucket;
   ioState: IoState;
   dimensionsComposed: string;
-  isTagEditing?: boolean; // True when either editing or adding a tag
 };
 
 const AssetMetadataComponent = ({
@@ -59,7 +58,6 @@ const AssetMetadataComponent = ({
   bucket,
   ioState,
   dimensionsComposed,
-  isTagEditing = false,
 }: AssetMetadataProps) => {
   const dispatch = useAppDispatch();
 
@@ -101,14 +99,13 @@ const AssetMetadataComponent = ({
     ? filterSubfolders.includes(subfolder)
     : false;
 
-  // Disable buttons when either individual asset is saving, a batch save is in progress, or a tag operation is in progress
+  // Disable buttons when the individual asset is saving or a batch save is in progress
   const isBatchSaveInProgress =
     saveProgress &&
     saveProgress.total > 0 &&
     saveProgress.completed < saveProgress.total;
 
-  const isSaving =
-    ioState === IoState.SAVING || isBatchSaveInProgress || isTagEditing;
+  const isSaving = ioState === IoState.SAVING || isBatchSaveInProgress;
 
   const handleToggleSize = useCallback(
     () => dispatch(toggleSizeFilter(dimensionsComposed)),
@@ -145,16 +142,14 @@ const AssetMetadataComponent = ({
   }, [displayFilename, fileExtension, showToast]);
 
   const handleCancelAction = useCallback(() => {
-    // Extra guard to prevent clicking during tag editing
-    if (isTagEditing || isSaving) {
+    if (isSaving) {
       return;
     }
     dispatch(resetTags(assetId));
-  }, [dispatch, assetId, isSaving, isTagEditing]);
+  }, [dispatch, assetId, isSaving]);
 
   const handleSaveAction = useCallback(() => {
-    // Extra guard to prevent clicking during tag editing
-    if (isTagEditing || isSaving) {
+    if (isSaving) {
       return;
     }
     dispatch(
@@ -163,7 +158,7 @@ const AssetMetadataComponent = ({
         projectPath: projectFolderName || undefined,
       }),
     );
-  }, [dispatch, assetId, isSaving, isTagEditing, projectFolderName]);
+  }, [dispatch, assetId, isSaving, projectFolderName]);
 
   return (
     <div
@@ -245,8 +240,7 @@ const AssetMetadataComponent = ({
             size="sm"
             width="lg"
             onClick={handleCancelAction}
-            disabled={isTagEditing || isSaving}
-            title={isTagEditing ? 'Finish tag operation first' : ''}
+            disabled={isSaving}
           >
             <BookmarkXIcon />
             Cancel
@@ -257,8 +251,7 @@ const AssetMetadataComponent = ({
             size="sm"
             width="lg"
             onClick={handleSaveAction}
-            disabled={isTagEditing || isSaving}
-            title={isTagEditing ? 'Finish tag operation first' : ''}
+            disabled={isSaving}
           >
             <BookmarkCheckIcon />
             Save

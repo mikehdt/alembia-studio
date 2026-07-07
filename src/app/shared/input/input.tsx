@@ -10,7 +10,7 @@ const sizeClasses: Record<InputSize, string> = {
   xs: 'px-1 py-0.5 text-xs',
   sm: 'px-2 py-1 text-sm',
   md: 'px-3 py-1.5 text-sm',
-  lg: 'px-4 py-2 text-md',
+  lg: 'px-4 py-2 text-base',
   toolbar: 'px-2 py-1 text-sm',
 };
 

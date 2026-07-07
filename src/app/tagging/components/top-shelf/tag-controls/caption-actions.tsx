@@ -47,26 +47,35 @@ const AutoTaggerButton = () => {
 
   // Initialise auto-tagger models (same logic as TagActionsMenu)
   useEffect(() => {
-    if (!isAutoTaggerInitialised) {
-      const fetchModels = (isRetry: boolean) => {
-        fetch('/api/auto-tagger/models')
-          .then((res) => {
-            if (!res.ok) throw new Error(`${res.status}`);
-            return res.json();
-          })
-          .then((data) => {
-            dispatch(setModelsAndProviders(data));
-          })
-          .catch((err) => {
-            if (!isRetry) {
-              setTimeout(() => fetchModels(true), 3000);
-            } else {
-              console.error('Failed to fetch auto-tagger models:', err);
-            }
-          });
-      };
-      fetchModels(false);
-    }
+    if (isAutoTaggerInitialised) return;
+
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const fetchModels = (isRetry: boolean) => {
+      fetch('/api/auto-tagger/models')
+        .then((res) => {
+          if (!res.ok) throw new Error(`${res.status}`);
+          return res.json();
+        })
+        .then((data) => {
+          if (!cancelled) dispatch(setModelsAndProviders(data));
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          if (!isRetry) {
+            retryTimer = setTimeout(() => fetchModels(true), 3000);
+          } else {
+            console.error('Failed to fetch auto-tagger models:', err);
+          }
+        });
+    };
+    fetchModels(false);
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [isAutoTaggerInitialised, dispatch]);
 
   const hasAssetsForTagger =

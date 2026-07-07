@@ -70,6 +70,7 @@ const InputTagComponent = ({
   onMultipleTagsSubmit,
 }: InputTagProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isFocused, setIsFocused] = useState(mode === 'edit');
   const inputWidth = useInputWidth(value.length);
 
@@ -176,9 +177,21 @@ const InputTagComponent = ({
   const handleFocus = useCallback(() => setIsFocused(true), []);
   const handleBlur = useCallback(() => {
     if (mode === 'add') {
-      setTimeout(() => setIsFocused(false), 100);
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current);
+      }
+      blurTimeoutRef.current = setTimeout(() => setIsFocused(false), 100);
     }
   }, [mode]);
+
+  // Clear any pending blur timeout on unmount to avoid setState after unmount
+  useEffect(() => {
+    return () => {
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Styling
   const borderColor =

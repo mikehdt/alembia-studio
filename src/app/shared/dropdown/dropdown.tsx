@@ -107,7 +107,7 @@ interface DropdownProps<T> {
 const sizeStyles: Record<DropdownSize, string> = {
   sm: 'px-2 py-1 text-sm',
   md: 'px-2.5 py-1.5 text-sm',
-  lg: 'px-4 py-2 text-md',
+  lg: 'px-4 py-2 text-base',
   toolbar: 'px-2 py-1 text-sm',
 };
 

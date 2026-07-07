@@ -7,31 +7,33 @@ import { useEffect } from 'react';
  */
 export const useAnchorScrolling = () => {
   useEffect(() => {
+    // Owned by the effect so it can be cleared on unmount — returning a cleanup
+    // from `handleHashChange` (an event-listener callback) never runs.
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
     const handleHashChange = () => {
       const hash = window.location.hash;
-      if (hash) {
-        // Small delay to ensure DOM is ready after navigation
-        const timeoutId = setTimeout(() => {
-          const element = document.getElementById(hash.substring(1));
-          if (element) {
-            // Try to find the parent container (asset-group) for better positioning
-            const container = element.parentElement;
-            const targetElement = container || element;
+      if (!hash) return;
 
-            const headerOffset = 96; // 6rem = 96px (matching top-24)
-            const elementPosition =
-              targetElement.getBoundingClientRect().top + window.pageYOffset;
-            const offsetPosition = elementPosition - headerOffset;
+      // Small delay to ensure DOM is ready after navigation
+      timeoutId = setTimeout(() => {
+        const element = document.getElementById(hash.substring(1));
+        if (element) {
+          // Try to find the parent container (asset-group) for better positioning
+          const container = element.parentElement;
+          const targetElement = container || element;
 
-            window.scrollTo({
-              top: offsetPosition,
-              behavior: 'smooth',
-            });
-          }
-        }, 100);
+          const headerOffset = 96; // 6rem = 96px (matching top-24)
+          const elementPosition =
+            targetElement.getBoundingClientRect().top + window.scrollY;
+          const offsetPosition = elementPosition - headerOffset;
 
-        return () => clearTimeout(timeoutId);
-      }
+          window.scrollTo({
+            top: offsetPosition,
+            behavior: 'smooth',
+          });
+        }
+      }, 100);
     };
 
     // Check hash on component mount/route change
@@ -42,6 +44,7 @@ export const useAnchorScrolling = () => {
 
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, []);
 };

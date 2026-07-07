@@ -43,7 +43,7 @@ const sizeClasses: Record<
     button: 'px-4 py-1.5 [&_svg]:w-4',
   },
   xl: {
-    container: 'text-md shadow-md inset-shadow-sm',
+    container: 'text-base shadow-md inset-shadow-sm',
     button: 'px-4 py-2 [&_svg]:w-4',
   },
   toolbar: {

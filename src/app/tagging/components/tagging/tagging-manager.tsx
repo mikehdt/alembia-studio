@@ -39,7 +39,6 @@ import { TagList } from './tag-list';
 
 type TaggingManagerProps = {
   assetId: string;
-  onTagEditingChange?: (isEditing: boolean) => void; // Placeholder for future use
 };
 
 const TaggingManagerComponent = ({ assetId }: TaggingManagerProps) => {

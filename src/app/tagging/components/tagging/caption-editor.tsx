@@ -59,7 +59,9 @@ const CaptionEditorComponent = ({
     textarea.style.height = `${textarea.scrollHeight}px`;
   }, []);
 
-  // Adjust height when textarea mounts, text changes, or container resizes
+  // Adjust height when the textarea mounts and observe the container for
+  // resizes. Deliberately excludes captionText so the observer isn't torn
+  // down and recreated on every keystroke.
   useEffect(() => {
     if (!isActive) return;
     adjustHeight();
@@ -70,7 +72,13 @@ const CaptionEditorComponent = ({
     const observer = new ResizeObserver(() => adjustHeight());
     observer.observe(container);
     return () => observer.disconnect();
-  }, [isActive, adjustHeight, captionText]);
+  }, [isActive, adjustHeight]);
+
+  // Re-measure height whenever the caption text changes
+  useEffect(() => {
+    if (!isActive) return;
+    adjustHeight();
+  }, [captionText, isActive, adjustHeight]);
 
   // Sync scroll position from textarea to backdrop
   const handleScroll = useCallback(() => {
@@ -110,7 +118,7 @@ const CaptionEditorComponent = ({
 
   // Shared text styles — must be identical on backdrop and textarea
   const textStyles =
-    'text-md leading-relaxed whitespace-pre-wrap break-words font-[inherit]';
+    'text-base leading-relaxed whitespace-pre-wrap break-words font-[inherit]';
 
   return (
     <div className="flex h-full w-full flex-col">

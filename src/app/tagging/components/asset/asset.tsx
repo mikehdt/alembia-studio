@@ -54,8 +54,6 @@ const AssetComponent = ({
   onHover,
 }: AssetProps) => {
   const [imageZoom, setImageZoom] = useState<boolean>(false);
-  // Track if any tag is currently being edited or added
-  const [isTagInteracting, setIsTagInteracting] = useState<boolean>(false);
   // Local override for crop visualization - resets when global state changes
   const [localCropOverride, setLocalCropOverride] = useState<boolean | null>(
     null,
@@ -258,10 +256,7 @@ const AssetComponent = ({
           {captionMode === 'caption' ? (
             <CaptionManager assetId={assetId} />
           ) : (
-            <TaggingManager
-              assetId={assetId}
-              onTagEditingChange={setIsTagInteracting}
-            />
+            <TaggingManager assetId={assetId} />
           )}
         </div>
 
@@ -273,7 +268,6 @@ const AssetComponent = ({
           bucket={bucket}
           ioState={ioState}
           dimensionsComposed={dimensionsComposed}
-          isTagEditing={isTagInteracting}
         />
       </div>
     </div>
