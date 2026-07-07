@@ -42,6 +42,7 @@ export function AutoTaggerTab() {
 
   useEffect(() => {
     if (models.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional data fetch on mount; setState runs after the fetch resolves
       fetchModels();
     }
   }, [models.length, fetchModels]);

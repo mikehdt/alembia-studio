@@ -56,6 +56,7 @@ export const SaveAsModal = ({ isOpen, onClose }: SaveAsModalProps) => {
   // Load the project list whenever the modal opens.
   useEffect(() => {
     if (!isOpen) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional form reset and data fetch on modal open
     setIsLoading(true);
     fetchProjectList()
       .then(setProjects)

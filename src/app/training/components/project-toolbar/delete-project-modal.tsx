@@ -39,6 +39,7 @@ export const DeleteProjectModal = ({
 
   useEffect(() => {
     if (!isOpen || !loadedProject) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional form reset and data fetch on modal open
     setIsLoading(true);
     setTarget('project');
     setConfirmed(false);

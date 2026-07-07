@@ -29,12 +29,28 @@ export function SettingsTab() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [showSavedPing, setShowSavedPing] = useState(false);
 
   // GPU memory release
   const [unloading, setUnloading] = useState(false);
-  const [unloadedAt, setUnloadedAt] = useState<number | null>(null);
+  const [showUnloadedPing, setShowUnloadedPing] = useState(false);
   const [unloadError, setUnloadError] = useState<string | null>(null);
+
+  // Auto-clear the transient "saved" / "unloaded" confirmation pings a
+  // couple of seconds after they're triggered. The timestamp itself is
+  // never read during render — the ping is just a boolean flipped by the
+  // handler and cleared by a timer, so render only ever reads state.
+  useEffect(() => {
+    if (!showSavedPing) return;
+    const timeout = window.setTimeout(() => setShowSavedPing(false), 2500);
+    return () => window.clearTimeout(timeout);
+  }, [showSavedPing]);
+
+  useEffect(() => {
+    if (!showUnloadedPing) return;
+    const timeout = window.setTimeout(() => setShowUnloadedPing(false), 2500);
+    return () => window.clearTimeout(timeout);
+  }, [showUnloadedPing]);
 
   const handleUnload = useCallback(async () => {
     setUnloading(true);
@@ -45,7 +61,7 @@ export function SettingsTab() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to release GPU memory');
       }
-      setUnloadedAt(Date.now());
+      setShowUnloadedPing(true);
     } catch (err) {
       setUnloadError(
         err instanceof Error ? err.message : 'Failed to release GPU memory',
@@ -54,9 +70,6 @@ export function SettingsTab() {
       setUnloading(false);
     }
   }, []);
-
-  const showUnloadedPing =
-    unloadedAt !== null && Date.now() - unloadedAt < 2500;
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
@@ -75,6 +88,7 @@ export function SettingsTab() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional data fetch on mount; setState runs after the fetch resolves
     loadConfig();
   }, [loadConfig]);
 
@@ -95,7 +109,7 @@ export function SettingsTab() {
       setHasToken(!!data.hasHfToken);
       setMaskedToken(data.hfTokenMasked);
       setDraft('');
-      setSavedAt(Date.now());
+      setShowSavedPing(true);
       // Notify other components (training tab, ModelPathField) that the
       // token state changed so their Download buttons re-enable immediately.
       refreshHfTokenStatus();
@@ -115,8 +129,6 @@ export function SettingsTab() {
   const handleClear = useCallback(() => {
     saveToken('');
   }, [saveToken]);
-
-  const showSavedPing = savedAt !== null && Date.now() - savedAt < 2500;
 
   return (
     <div className="flex flex-col gap-5 px-1">

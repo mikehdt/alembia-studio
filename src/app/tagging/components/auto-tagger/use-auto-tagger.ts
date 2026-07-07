@@ -177,6 +177,7 @@ export function useAutoTagger({
   // Fetch models if not already loaded
   useEffect(() => {
     if (isOpen && models.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional data fetch on modal open; setState runs after the fetch resolves
       fetchModels();
     }
   }, [isOpen, models.length, fetchModels]);

@@ -264,6 +264,7 @@ export const useMoveToFolderModal = ({
   // Reset form when modal opens/closes
   useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional form reset on modal open
       setSelectedDestination('');
       setNewRepeatCount(1);
       setNewLabel('');
@@ -278,6 +279,7 @@ export const useMoveToFolderModal = ({
 
   // Clear collision error when destination changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional error reset when destination selection changes
     setCollisionError(null);
     setMoveErrors(null);
   }, [selectedDestination, newRepeatCount, newLabel]);

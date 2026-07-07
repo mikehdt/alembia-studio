@@ -86,6 +86,7 @@ export const useProjectList = () => {
     clearSelectorCaches();
 
     // Then load the project list
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional data fetch on mount; setState runs after the fetch resolves
     loadProjects();
   }, [loadProjects, dispatch]);
 
