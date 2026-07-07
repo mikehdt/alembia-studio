@@ -28,6 +28,12 @@ const getServerConfig = () => {
   };
 };
 
+/** True if `target` resolves to a path at or below `root`. */
+const isWithin = (root: string, target: string): boolean => {
+  const rel = path.relative(root, target);
+  return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
+};
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
@@ -36,56 +42,36 @@ export async function GET(
     // Await params before using its properties
     const { path: pathSegments } = await params;
 
-    // Get parameters from query params - support both old (projectPath) and new (projectName) formats
-    const searchParams = request.nextUrl.searchParams;
-    const projectPath = searchParams.get('projectPath');
-    const projectName = searchParams.get('projectName');
-
-    let fullProjectPath: string;
-
-    if (projectName) {
-      // New format: reconstruct full path from project name and config
-      const config = getServerConfig();
-      const fullPath = path.join(config.projectsFolder, projectName);
-
-      // Protect against edge case: if projects folder is default but constructed path doesn't exist,
-      // fall back to just the default path
-      if (
-        config.projectsFolder === 'public/assets' &&
-        !fs.existsSync(fullPath)
-      ) {
-        console.warn(
-          `Project path ${fullPath} does not exist, falling back to default assets folder`,
-        );
-        fullProjectPath = 'public/assets';
-      } else {
-        fullProjectPath = fullPath;
-      }
-    } else if (projectPath) {
-      // Legacy format: use the full path directly
-      fullProjectPath = projectPath;
-    } else {
-      return new NextResponse('Project name or path required', { status: 400 });
+    const projectName = request.nextUrl.searchParams.get('projectName');
+    if (!projectName) {
+      return new NextResponse('Project name required', { status: 400 });
     }
 
-    // Reconstruct the file path for regular assets
-    const imagePath = path.join(fullProjectPath, ...pathSegments);
+    // Confine everything to the configured projects root. Both `projectName`
+    // (query) and the asset path segments (URL) are untrusted, so resolve the
+    // final path and verify it stays within the projects root *before* touching
+    // disk. Without this, a `..`-laden segment or an absolute `projectName`
+    // would let any file on the machine be read.
+    const { projectsFolder } = getServerConfig();
+    const projectsRoot = path.resolve(projectsFolder);
+    const resolvedPath = path.resolve(
+      projectsRoot,
+      projectName,
+      ...pathSegments,
+    );
 
-    // Security check: ensure the path is within allowed directories
-    const resolvedPath = path.resolve(imagePath);
-    const resolvedBasePath = path.resolve(fullProjectPath);
-
-    if (!resolvedPath.startsWith(resolvedBasePath)) {
+    if (!isWithin(projectsRoot, resolvedPath)) {
       return new NextResponse('Access denied', { status: 403 });
     }
 
-    // Check if file exists
     if (!fs.existsSync(resolvedPath)) {
       return new NextResponse('Image not found', { status: 404 });
     }
 
-    // Get file stats for content length
     const stats = fs.statSync(resolvedPath);
+    if (!stats.isFile()) {
+      return new NextResponse('Not found', { status: 404 });
+    }
 
     // Determine content type based on file extension
     const ext = path.extname(resolvedPath).toLowerCase();

@@ -122,15 +122,13 @@ export async function* downloadModelFiles(
       continue;
     }
 
-    // Larger than expected (corrupted / wrong file) — start fresh.
-    if (file.size > 0 && existingSize > file.size) {
-      try {
-        fs.unlinkSync(filePath);
-      } catch {
-        // Best-effort; createWriteStream below will overwrite anyway.
-      }
-      existingSize = 0;
-    }
+    // NOTE: exceeding the manifest's expected size does NOT mean the file is
+    // corrupt. Several registry sizes are deliberate *estimates*, and a fully
+    // downloaded file can legitimately be larger — eagerly unlinking here used
+    // to throw away good multi-gigabyte downloads. Instead we keep the file and
+    // let the resume path below decide: a Range request from `existingSize`
+    // returns 416 when the file is already complete (handled as done) or
+    // 206/200 when there genuinely is more/different data to fetch.
 
     // If file.size is 0 the manifest doesn't know the expected size,
     // so we can't safely resume — start fresh.

@@ -43,7 +43,25 @@ export function getTrainingProjectsRoot(): string {
   return path.join(base, '.training', 'projects');
 }
 
+/**
+ * Guard against path traversal. Project ids are minted as UUIDs, so a valid id
+ * is always a single safe path segment. Anything else (slashes, `..`, absolute
+ * paths, null bytes) must never reach the fs.rm / unlink calls below.
+ */
+function assertSafeId(id: string): void {
+  if (
+    !id ||
+    id === '.' ||
+    id === '..' ||
+    id !== path.basename(id) ||
+    !/^[A-Za-z0-9._-]+$/.test(id)
+  ) {
+    throw new Error(`Invalid training project id: ${JSON.stringify(id)}`);
+  }
+}
+
 function projectDir(id: string): string {
+  assertSafeId(id);
   return path.join(getTrainingProjectsRoot(), id);
 }
 
