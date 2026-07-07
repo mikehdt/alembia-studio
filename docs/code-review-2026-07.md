@@ -41,8 +41,8 @@ This review was carried out on branch `codebase-health-review` as a six-lane par
 *(Deferred unless noted.)*
 
 - Terminal training runs are triple-stored: once in the `jobs` slice, once across two separate `localStorage` keys, and again in the newer `trainingHistory` slice — three sources of truth for the same terminal-run data with no single reconciliation point.
-- `src/app/store/middleware/job-persistence.ts` writes to `localStorage` on every `jobs/*` action, including high-frequency progress ticks during an active training run, rather than debouncing or only persisting on terminal transitions.
-- `config.json` is parsed ad hoc in five-to-six separate places despite a dedicated `src/app/services/config/server-config.ts` existing: `src/app/services/sidecar-manager.ts:70`, `src/app/services/training/build-sidecar-request.ts:35`, `src/app/services/training-projects/fs.ts:27`, `src/app/api/model-manager/download/route.ts`, and the images route.
+- ✅ **Fixed this pass** — `src/app/store/middleware/job-persistence.ts` now skips high-frequency progress ticks and panel toggles (fail-safe denylist), so it only writes `localStorage` on actions that change persisted data. (The triple-store consolidation above is still open.)
+- ✅ **Fixed this pass** — `config.json` ad-hoc parsing: `getProjectsFolder()`/`getModelsFolder()` added to `src/app/services/config/server-config.ts`; all projectsFolder (5) + modelsFolder (3) call sites now delegate to it. `sidecar-manager.getPythonPath` is intentionally left — it resolves against the sidecar app-root (not cwd) with venv fallback, so it isn't a plain config read.
 - `src/app/training/components/model-defaults-modal/model-defaults-modal.tsx` — a ~60-field model-defaults object is copied 11 times with drift between copies, rather than derived from one source of truth.
 - `src/app/services/auto-tagger/use-auto-tagger.ts` — a ~1,060-line god-hook with duplicated SSE streaming loops that could be consolidated into one shared streaming helper.
 - Fourfold duplication of `view-*` filter hooks, plus a global `document`-level event bus for cross-component signalling (e.g. `src/app/tagging/components/top-shelf/filter-list/use-keyboard-navigation.ts:29` dispatches a `CustomEvent('filterlist:keyboardselect')` on `document` rather than lifting state or using a ref callback).
@@ -68,8 +68,8 @@ This review was carried out on branch `codebase-health-review` as a six-lane par
 
 ## Recommended follow-up order
 
-1. **Save-by-steps fix** — `src/app/services/training/build-sidecar-request.ts:144-151`; small, high-value, and currently silently discards a user-configured setting.
-2. **Consolidate the triple-stored training runs and debounce `job-persistence`** — do this while the history feature is still fresh, before more code grows around the three separate stores.
-3. **Config + model-defaults dedup** — collapse the 5-6 ad hoc `config.json` parse sites onto `services/config/server-config.ts`, and derive the 11-copy model-defaults object from one source.
+1. **Save-by-steps** — `build-sidecar-request.ts:144-151` sends only `save_every_n_epochs`; the sidecar has no `save_every_n_steps` concept, so a user's "save every N steps" choice is silently dropped. Completing it is a **cross-language feature** (client + `ai_toolkit.py`, `ai_toolkit_ui.py`, `kohya.py`, and the `job_manager.py` checkpoint predictor), best verified with a real training run — not the quick fix first assumed.
+2. **Consolidate the triple-stored training runs** — while the history feature is still fresh. (The `job-persistence` write-frequency half of this is now done.)
+3. **Model-defaults dedup** — derive the 11-copy ~60-field defaults object from one source. (The `config.json` half of this is now done.)
 4. **Modal focus management** — focus trap, focus restoration, and stack-aware Escape handling in `shared/modal/modal.tsx`.
 5. **The god-hook / filter-hook refactors** — tackle `use-auto-tagger.ts` and the fourfold `view-*` filter hook duplication opportunistically, next time either area is touched for a feature change.
