@@ -17,6 +17,8 @@
  * - Position changes animate via FLIP in SortableTag (animateLayoutChanges).
  */
 import {
+  ClientRect,
+  CollisionDetection,
   DndContext,
   DragOverEvent,
   DragOverlay,
@@ -24,6 +26,7 @@ import {
   getClientRect,
   MeasuringStrategy,
   pointerWithin,
+  UniqueIdentifier,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -59,6 +62,42 @@ const measuringConfig = {
 };
 
 const noop = () => {};
+
+// pointerWithin only hits actual chips, so the empty region after the last
+// chip (the sparse end of the final row, or below all rows) is a dead zone —
+// dragging there should mean "move to the end". When no chip is hit, find the
+// flow-last chip and, if the pointer is past it, report it as the target:
+// handleDragOver's arrayMove to its index places the dragged tag at the end.
+const collisionWithEndZone: CollisionDetection = (args) => {
+  const within = pointerWithin(args);
+  if (within.length > 0) return within;
+
+  const { pointerCoordinates, droppableRects, droppableContainers } = args;
+  if (!pointerCoordinates) return [];
+
+  let lastId: UniqueIdentifier | null = null;
+  let lastRect: ClientRect | null = null;
+  for (const container of droppableContainers) {
+    const rect = droppableRects.get(container.id);
+    if (!rect) continue;
+    const lowerRow = lastRect === null || rect.top > lastRect.top + 1;
+    const laterInRow =
+      lastRect !== null &&
+      Math.abs(rect.top - lastRect.top) <= 1 &&
+      rect.left > lastRect.left;
+    if (lowerRow || laterInRow) {
+      lastId = container.id;
+      lastRect = rect;
+    }
+  }
+  if (lastId === null || lastRect === null) return [];
+
+  const { x, y } = pointerCoordinates;
+  const belowAllRows = y > lastRect.bottom;
+  const pastEndOfLastRow =
+    y >= lastRect.top && y <= lastRect.bottom && x > lastRect.right;
+  return belowAllRows || pastEndOfLastRow ? [{ id: lastId }] : [];
+};
 
 type TagData = {
   name: string;
@@ -309,7 +348,7 @@ const TagsDisplayComponent = ({
       {dndEnabled ? (
         <DndContext
           sensors={sensors}
-          collisionDetection={pointerWithin}
+          collisionDetection={collisionWithEndZone}
           measuring={measuringConfig}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
