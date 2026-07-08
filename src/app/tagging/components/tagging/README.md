@@ -45,8 +45,17 @@ Tags have uneven widths, so transform-based dnd-kit strategies
   target until the pointer actually moves
 - `pointerWithin`-based collision detection — its no-op states (pointer over
   the placeholder or in a gap) let the layout settle between swaps — extended
-  with an end zone: a pointer past the flow-last chip targets the end of the
-  list, since the empty space after the last chip hits no chip directly
+  with edge zones: a pointer before the flow-first chip or past the flow-last
+  chip targets the start/end of the list, since the empty space there hits no
+  chip directly. The zone decision is made inside the collision detector
+  (which receives exact pointer coordinates) and shared with the drag
+  handlers via a module-level flag; placement runs on `onDragMove` as well as
+  `onDragOver`, because `onDragOver` doesn't re-fire when the pointer moves
+  into a zone while the target id stays the same
+- A dragged chip much taller than the hovered one (a wrapped multi-line tag
+  in a narrow window) can't sit beside it, so instead of taking the target's
+  spot it slots in directly after (below) the hovered chip, regardless of
+  drag direction
 - Redux is only updated once, on drop (`onReorder(oldIndex, newIndex)`);
   Escape cancels and restores the original order
 

@@ -20,6 +20,7 @@ import {
   ClientRect,
   CollisionDetection,
   DndContext,
+  DragMoveEvent,
   DragOverEvent,
   DragOverlay,
   DragStartEvent,
@@ -63,23 +64,43 @@ const measuringConfig = {
 
 const noop = () => {};
 
-// pointerWithin only hits actual chips, so the empty region after the last
-// chip (the sparse end of the final row, or below all rows) is a dead zone —
-// dragging there should mean "move to the end". When no chip is hit, find the
-// flow-last chip and, if the pointer is past it, report it as the target:
-// handleDragOver's arrayMove to its index places the dragged tag at the end.
-const collisionWithEndZone: CollisionDetection = (args) => {
+// Which edge zone the pointer is in, written by collisionWithEdgeZones and
+// read by the drag handlers. dnd-kit events don't expose current pointer
+// coordinates (activatorEvent + delta drifts), but the collision detector
+// receives them exactly — so the zone decision is made there. Module-level is
+// safe: only one drag (one pointer) can be active at a time across all lists.
+let pointerEdgeZone: 'start' | 'end' | null = null;
+
+// pointerWithin only hits actual chips, so the empty regions before the first
+// chip and after the last chip are dead zones — dragging there should mean
+// "move to the start/end". When no chip is hit, find the flow-first and
+// flow-last chips and, if the pointer is past either, report that chip as the
+// target and record which zone fired; handleDragUpdate turns it into a
+// start/end placement.
+const collisionWithEdgeZones: CollisionDetection = (args) => {
+  pointerEdgeZone = null;
   const within = pointerWithin(args);
   if (within.length > 0) return within;
 
   const { pointerCoordinates, droppableRects, droppableContainers } = args;
   if (!pointerCoordinates) return [];
 
+  let firstId: UniqueIdentifier | null = null;
+  let firstRect: ClientRect | null = null;
   let lastId: UniqueIdentifier | null = null;
   let lastRect: ClientRect | null = null;
   for (const container of droppableContainers) {
     const rect = droppableRects.get(container.id);
     if (!rect) continue;
+    const higherRow = firstRect === null || rect.top < firstRect.top - 1;
+    const earlierInRow =
+      firstRect !== null &&
+      Math.abs(rect.top - firstRect.top) <= 1 &&
+      rect.left < firstRect.left;
+    if (higherRow || earlierInRow) {
+      firstId = container.id;
+      firstRect = rect;
+    }
     const lowerRow = lastRect === null || rect.top > lastRect.top + 1;
     const laterInRow =
       lastRect !== null &&
@@ -90,13 +111,27 @@ const collisionWithEndZone: CollisionDetection = (args) => {
       lastRect = rect;
     }
   }
-  if (lastId === null || lastRect === null) return [];
+  if (firstId === null || firstRect === null || !lastId || !lastRect) {
+    return [];
+  }
 
   const { x, y } = pointerCoordinates;
+  const aboveAllRows = y < firstRect.top;
+  const beforeStartOfFirstRow =
+    y >= firstRect.top && y <= firstRect.bottom && x < firstRect.left;
+  if (aboveAllRows || beforeStartOfFirstRow) {
+    pointerEdgeZone = 'start';
+    return [{ id: firstId }];
+  }
+
   const belowAllRows = y > lastRect.bottom;
   const pastEndOfLastRow =
     y >= lastRect.top && y <= lastRect.bottom && x > lastRect.right;
-  return belowAllRows || pastEndOfLastRow ? [{ id: lastId }] : [];
+  if (belowAllRows || pastEndOfLastRow) {
+    pointerEdgeZone = 'end';
+    return [{ id: lastId }];
+  }
+  return [];
 };
 
 type TagData = {
@@ -200,44 +235,82 @@ const TagsDisplayComponent = ({
     (event: DragStartEvent) => {
       isDraggingRef.current = true;
       lastSwapRef.current = null;
+      pointerEdgeZone = null;
       setActiveId(event.active.id as string);
       setDragOrder(tagNames);
     },
     [tagNames],
   );
 
-  const handleDragOver = useCallback((event: DragOverEvent) => {
-    const { active, over, delta, activatorEvent } = event;
-    if (!over || active.id === over.id) return;
+  // Handles both onDragOver and onDragMove. onDragOver only fires when the
+  // target changes, which misses pointer moves into an edge zone while the
+  // target id stays the same (e.g. from inside the first chip to above it) —
+  // onDragMove fires continuously and covers those. Zone placements are
+  // idempotent, so double-processing is harmless.
+  const handleDragUpdate = useCallback(
+    (event: DragMoveEvent | DragOverEvent) => {
+      const { active, over, delta, activatorEvent } = event;
+      const zone = pointerEdgeZone;
+      if (!over || (!zone && active.id === over.id)) return;
 
-    const pointer =
-      activatorEvent instanceof PointerEvent ||
-      activatorEvent instanceof MouseEvent
-        ? {
-            x: activatorEvent.clientX + delta.x,
-            y: activatorEvent.clientY + delta.y,
-          }
-        : { x: delta.x, y: delta.y };
+      if (!zone) {
+        // Approximate pointer, only used to require real movement between
+        // same-target swaps (a consistent offset doesn't matter for deltas)
+        const pointer =
+          activatorEvent instanceof PointerEvent ||
+          activatorEvent instanceof MouseEvent
+            ? {
+                x: activatorEvent.clientX + delta.x,
+                y: activatorEvent.clientY + delta.y,
+              }
+            : { x: delta.x, y: delta.y };
 
-    const last = lastSwapRef.current;
-    if (
-      last &&
-      last.overId === over.id &&
-      Math.abs(pointer.x - last.x) < 4 &&
-      Math.abs(pointer.y - last.y) < 4
-    ) {
-      return;
-    }
+        const last = lastSwapRef.current;
+        if (
+          last &&
+          last.overId === over.id &&
+          Math.abs(pointer.x - last.x) < 4 &&
+          Math.abs(pointer.y - last.y) < 4
+        ) {
+          return;
+        }
 
-    setDragOrder((prev) => {
-      if (!prev) return prev;
-      const from = prev.indexOf(active.id as string);
-      const to = prev.indexOf(over.id as string);
-      if (from === -1 || to === -1 || from === to) return prev;
-      lastSwapRef.current = { overId: over.id as string, ...pointer };
-      return arrayMove(prev, from, to);
-    });
-  }, []);
+        const overRect = over.rect;
+        const activeRect = active.rect.current.initial;
+        // A chip much taller than the target (a wrapped multi-line tag) can't
+        // sit beside it, so taking the target's spot reads ambiguously and
+        // reflows the target away from the pointer. Slot it in directly after
+        // (below) the hovered chip instead — deterministic regardless of drag
+        // direction.
+        const tallActive =
+          activeRect !== null &&
+          overRect.height > 0 &&
+          activeRect.height > overRect.height * 1.5;
+
+        setDragOrder((prev) => {
+          if (!prev) return prev;
+          const from = prev.indexOf(active.id as string);
+          const iOver = prev.indexOf(over.id as string);
+          if (from === -1 || iOver === -1) return prev;
+          const to = tallActive && from > iOver ? iOver + 1 : iOver;
+          if (to === from) return prev;
+          lastSwapRef.current = { overId: over.id as string, ...pointer };
+          return arrayMove(prev, from, to);
+        });
+        return;
+      }
+
+      // Edge zones: place at the very start/end (idempotent, no hysteresis)
+      setDragOrder((prev) => {
+        if (!prev) return prev;
+        const from = prev.indexOf(active.id as string);
+        if (from === -1) return prev;
+        const to = zone === 'start' ? 0 : prev.length - 1;
+        return to === from ? prev : arrayMove(prev, from, to);
+      });
+    },
+    [],
+  );
 
   const handleDragEnd = useCallback(() => {
     isDraggingRef.current = false;
@@ -348,10 +421,11 @@ const TagsDisplayComponent = ({
       {dndEnabled ? (
         <DndContext
           sensors={sensors}
-          collisionDetection={collisionWithEndZone}
+          collisionDetection={collisionWithEdgeZones}
           measuring={measuringConfig}
           onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
+          onDragMove={handleDragUpdate}
+          onDragOver={handleDragUpdate}
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
