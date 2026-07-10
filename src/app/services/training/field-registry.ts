@@ -6,6 +6,7 @@
 
 import type { TrainingDefaults } from './models';
 import { getModelById } from './models';
+import type { TrainingProvider } from './types';
 
 export type ExpertiseTier = 'simple' | 'intermediate' | 'advanced' | 'expert';
 
@@ -23,6 +24,12 @@ type FieldMeta = {
   group: ConceptualGroup;
   /** Key on TrainingDefaults to compare against (null for fields with no model default) */
   defaultKey: keyof TrainingDefaults | null;
+  /**
+   * Providers that actually consume this field. Absent means the field is
+   * shared by all providers. `mock` always sees every field regardless of
+   * this list, since it's a fake backend used for UI testing.
+   */
+  providers?: TrainingProvider[];
 };
 
 /**
@@ -64,21 +71,25 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     tier: 'simple',
     group: 'learning',
     defaultKey: 'scheduler',
+    providers: ['kohya'],
   },
   warmupSteps: {
     tier: 'intermediate',
     group: 'learning',
     defaultKey: 'warmupSteps',
+    providers: ['kohya'],
   },
   numRestarts: {
     tier: 'intermediate',
     group: 'learning',
     defaultKey: 'numRestarts',
+    providers: ['kohya'],
   },
   weightDecay: {
     tier: 'advanced',
     group: 'learning',
     defaultKey: 'weightDecay',
+    providers: ['kohya'],
   },
   maxGradNorm: {
     tier: 'advanced',
@@ -94,6 +105,7 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     tier: 'advanced',
     group: 'learning',
     defaultKey: 'backboneLR',
+    providers: ['ai-toolkit'],
   },
   textEncoderLR: {
     tier: 'advanced',
@@ -104,11 +116,13 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     tier: 'advanced',
     group: 'learning',
     defaultKey: 'ema',
+    providers: ['ai-toolkit'],
   },
   lossType: {
     tier: 'advanced',
     group: 'learning',
     defaultKey: 'lossType',
+    providers: ['ai-toolkit'],
   },
   timestepType: {
     tier: 'advanced',
@@ -119,6 +133,7 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     tier: 'advanced',
     group: 'learning',
     defaultKey: 'timestepBias',
+    providers: ['ai-toolkit'],
   },
 
   // LoRA Shape
@@ -143,6 +158,7 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     tier: 'intermediate',
     group: 'loraShape',
     defaultKey: null,
+    providers: ['ai-toolkit'],
   },
   networkDropout: {
     tier: 'advanced',
@@ -165,26 +181,31 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     tier: 'intermediate',
     group: 'performance',
     defaultKey: 'transformerQuantization',
+    providers: ['ai-toolkit'],
   },
   textEncoderQuantization: {
     tier: 'intermediate',
     group: 'performance',
     defaultKey: 'textEncoderQuantization',
+    providers: ['ai-toolkit'],
   },
   cacheTextEmbeddings: {
     tier: 'intermediate',
     group: 'performance',
     defaultKey: 'cacheTextEmbeddings',
+    providers: ['ai-toolkit'],
   },
   unloadTextEncoder: {
     tier: 'advanced',
     group: 'performance',
     defaultKey: 'unloadTextEncoder',
+    providers: ['ai-toolkit'],
   },
   cacheLatents: {
     tier: 'simple',
     group: 'performance',
     defaultKey: 'cacheLatents',
+    providers: ['kohya'],
   },
   resolution: {
     tier: 'intermediate',
@@ -200,6 +221,7 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     tier: 'advanced',
     group: 'performance',
     defaultKey: 'gradientCheckpointing',
+    providers: ['kohya'],
   },
   // Per-folder augmentation (captionShuffling, captionDropoutRate,
   // keepTokens, flipAugment, flipVAugment) lives on DatasetFolder itself,
@@ -231,17 +253,28 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     tier: 'intermediate',
     group: 'sampling',
     defaultKey: 'sampleSteps',
+    // Dead on both real backends today; sweep 2 will plumb this through.
+    providers: [],
   },
-  seed: { tier: 'simple', group: 'sampling', defaultKey: null },
+  seed: {
+    tier: 'simple',
+    group: 'sampling',
+    defaultKey: null,
+    providers: ['kohya'],
+  },
   guidanceScale: {
     tier: 'advanced',
     group: 'sampling',
     defaultKey: 'guidanceScale',
+    // Dead on both real backends today; sweep 2 will plumb this through.
+    providers: [],
   },
   noiseScheduler: {
     tier: 'advanced',
     group: 'sampling',
     defaultKey: 'noiseScheduler',
+    // Dead on both real backends today; sweep 2 will plumb this through.
+    providers: [],
   },
 
   // Saving
@@ -249,6 +282,7 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     tier: 'simple',
     group: 'saving',
     defaultKey: 'saveFormat',
+    providers: ['kohya'],
   },
   saveEnabled: { tier: 'simple', group: 'saving', defaultKey: null },
   saveMode: { tier: 'simple', group: 'saving', defaultKey: null },
@@ -278,10 +312,11 @@ export function isTierAtLeast(
   return TIER_ORDER.indexOf(current) >= TIER_ORDER.indexOf(required);
 }
 
-/** Get the set of visible field names for a given tier and model. */
+/** Get the set of visible field names for a given tier, model, and provider. */
 export function getVisibleFields(
   tier: ExpertiseTier,
   modelId: string,
+  provider: TrainingProvider,
 ): Set<string> {
   const model = getModelById(modelId);
   const hiddenByModel = new Set(model?.hiddenFields ?? []);
@@ -290,6 +325,15 @@ export function getVisibleFields(
   for (const [field, meta] of Object.entries(FIELD_REGISTRY)) {
     if (!isTierAtLeast(tier, meta.tier)) continue;
     if (meta.defaultKey && hiddenByModel.has(meta.defaultKey)) continue;
+    // Mock is a fake backend for UI testing, so it shows every field
+    // regardless of which real provider(s) support it.
+    if (
+      provider !== 'mock' &&
+      meta.providers &&
+      !meta.providers.includes(provider)
+    ) {
+      continue;
+    }
     visible.add(field);
   }
   return visible;

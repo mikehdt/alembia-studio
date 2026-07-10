@@ -63,7 +63,11 @@ const TrainingConfigFormComponent = ({
     useModelDefaultsModal();
 
   const visibleFields = useMemo(() => {
-    const fields = getVisibleFields(viewMode, state.modelId);
+    const fields = getVisibleFields(
+      viewMode,
+      state.modelId,
+      state.selectedProvider,
+    );
     // Warmup steps are only meaningful for schedulers that use them
     if (state.scheduler === 'constant') fields.delete('warmupSteps');
     // Restarts only apply to cosine_with_restarts
@@ -72,7 +76,13 @@ const TrainingConfigFormComponent = ({
     // TE learning rate only applies when training the text encoder
     if (!state.trainTextEncoder) fields.delete('textEncoderLR');
     return fields;
-  }, [viewMode, state.modelId, state.scheduler, state.trainTextEncoder]);
+  }, [
+    viewMode,
+    state.modelId,
+    state.selectedProvider,
+    state.scheduler,
+    state.trainTextEncoder,
+  ]);
 
   // Compute hidden changes per section
   const hiddenChanges = useMemo(() => {
@@ -191,6 +201,7 @@ const TrainingConfigFormComponent = ({
           <DatasetSection
             datasets={state.datasets}
             extraFolders={state.extraFolders}
+            selectedProvider={state.selectedProvider}
             hasChanges={sectionHasChanges.dataset}
             visibleFields={visibleFields}
             hiddenChangesCount={hiddenChanges.dataset}
