@@ -9,8 +9,9 @@ description: Build/launch/drive recipe for verifying img-tagger changes at the b
 
 - A dev server is often already running on port 3000 (the user's own `pnpm dev`) — check before starting one; Next.js refuses a second instance for the same dir. Turbopack HMR means code edits are live on fresh page loads.
 - App config lives in `config.json` at the repo root; `projectsFolder` points at real user data (`F:\Training`).
-- Headless Edge against the user's running dev server may never hydrate React (clicks silently no-op, `input.fill` "works" but only writes the DOM; the HMR websocket also fails with ERR_INVALID_HTTP_RESPONSE — observed 2026-07). SSR HTML is still faithful, so verify state-dependent renders by seeding state server-side instead of clicking.
-- Preferences (e.g. training view mode) are cookie-seeded for SSR: set cookie `img-tagger-preferences` = URL-encoded JSON (e.g. `{"trainingViewMode":"advanced"}`) on the context, then load the page — each variant renders fully without any client interaction.
+- ALWAYS drive `http://localhost:3000`, never `http://127.0.0.1:3000`. Next 16 dev only allows its dev endpoints for the `localhost` origin: via 127.0.0.1 the HMR websocket fails (ERR_INVALID_HTTP_RESPONSE) and React never finishes hydrating — clicks silently no-op and `input.fill` only writes the DOM. Via `localhost`, headless Edge hydrates fine and is fully interactive (verified 2026-07-10; an earlier note blamed headless mode — wrong, it was the origin).
+- Preferences (e.g. training view mode) can be cookie-seeded for SSR when useful: set cookie `img-tagger-preferences` = URL-encoded JSON (e.g. `{"trainingViewMode":"advanced"}`) on the context, then load the page — each variant renders correctly server-side. With `localhost` hydration working, plain clicking works too.
+- Hydration-mismatch checks: capture `page.on('console')` errors matching /hydrat/i after `networkidle` + a ~2s settle. A clean run here plus the error persisting in the user's browser points at profile/extension DOM tampering (test in InPrivate).
 - The training form lives at `/training` (no project segment).
 
 ## Safe test data
