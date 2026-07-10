@@ -13,6 +13,7 @@ import {
 } from '@reduxjs/toolkit';
 
 import {
+  ADAPTIVE_OPTIMIZERS,
   getModelById,
   type ModelComponentType,
 } from '@/app/services/training/models';
@@ -55,6 +56,38 @@ const trainingConfigSlice = createSlice({
       // RTK infers action types, but the runtime assignment is safe.
       (state.form as Record<string, unknown>)[action.payload.field as string] =
         action.payload.value as unknown;
+    },
+
+    /**
+     * Switch the optimiser, coupled with a learning-rate safety adjustment.
+     * Prodigy/DAdaptation are self-tuning and expect an LR near 1.0 — the
+     * form otherwise seeds LR from the model defaults (~1e-4), which is a
+     * footgun for these two. We only nudge the LR when it still matches
+     * what the "other side" would have left it at, so a value the user
+     * deliberately typed is never clobbered.
+     */
+    setOptimizer: (state, action: PayloadAction<string>) => {
+      const nextOptimizer = action.payload;
+      const prevOptimizer = state.form.optimizer;
+      const wasAdaptive = ADAPTIVE_OPTIMIZERS.has(prevOptimizer);
+      const isAdaptive = ADAPTIVE_OPTIMIZERS.has(nextOptimizer);
+      const modelDefaultLR = getDefaults(state.form.modelId).learningRate;
+
+      if (
+        isAdaptive &&
+        !wasAdaptive &&
+        state.form.learningRate === modelDefaultLR
+      ) {
+        state.form.learningRate = 1.0;
+      } else if (
+        !isAdaptive &&
+        wasAdaptive &&
+        state.form.learningRate === 1.0
+      ) {
+        state.form.learningRate = modelDefaultLR;
+      }
+
+      state.form.optimizer = nextOptimizer;
     },
 
     setModel: (state, action: PayloadAction<string>) => {
@@ -171,6 +204,10 @@ const trainingConfigSlice = createSlice({
           form.lossType = ref.lossType;
           form.timestepType = ref.timestepType;
           form.timestepBias = ref.timestepBias;
+          form.discreteFlowShift = ref.discreteFlowShift;
+          form.minSnrGamma = ref.minSnrGamma;
+          form.noiseOffset = ref.noiseOffset;
+          form.emaDecay = ref.emaDecay;
           form.seed = ref.seed;
           break;
 
@@ -180,6 +217,7 @@ const trainingConfigSlice = createSlice({
           form.networkAlpha = ref.networkAlpha;
           form.networkDimAlphaLinked = ref.networkDimAlphaLinked;
           form.networkDropout = ref.networkDropout;
+          form.scaleWeightNorms = ref.scaleWeightNorms;
           break;
 
         case 'performance':
@@ -192,6 +230,8 @@ const trainingConfigSlice = createSlice({
           form.gradientAccumulationSteps = ref.gradientAccumulationSteps;
           form.gradientCheckpointing = ref.gradientCheckpointing;
           form.cacheLatents = ref.cacheLatents;
+          form.bucketResoSteps = ref.bucketResoSteps;
+          form.bucketNoUpscale = ref.bucketNoUpscale;
           break;
 
         case 'sampling':
@@ -389,6 +429,7 @@ const trainingConfigSlice = createSlice({
 
 export const {
   setField,
+  setOptimizer,
   setModel,
   setProvider,
   setModelPath,
@@ -551,12 +592,17 @@ export const selectSectionHasChanges = createSelector(selectSlice, (slice) => {
       form.lossType !== ref.lossType ||
       form.timestepType !== ref.timestepType ||
       form.timestepBias !== ref.timestepBias ||
+      form.discreteFlowShift !== ref.discreteFlowShift ||
+      form.minSnrGamma !== ref.minSnrGamma ||
+      form.noiseOffset !== ref.noiseOffset ||
+      form.emaDecay !== ref.emaDecay ||
       form.seed !== ref.seed,
     loraShape:
       form.networkDim !== ref.networkDim ||
       form.networkAlpha !== ref.networkAlpha ||
       form.networkType !== ref.networkType ||
-      form.networkDropout !== ref.networkDropout,
+      form.networkDropout !== ref.networkDropout ||
+      form.scaleWeightNorms !== ref.scaleWeightNorms,
     performance:
       form.mixedPrecision !== ref.mixedPrecision ||
       form.transformerQuantization !== ref.transformerQuantization ||
@@ -565,7 +611,9 @@ export const selectSectionHasChanges = createSelector(selectSlice, (slice) => {
       form.unloadTextEncoder !== ref.unloadTextEncoder ||
       form.gradientAccumulationSteps !== ref.gradientAccumulationSteps ||
       form.gradientCheckpointing !== ref.gradientCheckpointing ||
-      form.cacheLatents !== ref.cacheLatents,
+      form.cacheLatents !== ref.cacheLatents ||
+      form.bucketResoSteps !== ref.bucketResoSteps ||
+      form.bucketNoUpscale !== ref.bucketNoUpscale,
     // Sampling and saving are opt-in for ephemeral configs (no "has changes"
     // indicator when the user just hasn't touched them). Once a project is
     // loaded, any deviation from the baseline does count.

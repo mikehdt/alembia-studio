@@ -30,6 +30,7 @@ import {
   setFolderRepeats as setFolderRepeatsAction,
   setModel as setModelAction,
   setModelPath as setModelPathAction,
+  setOptimizer as setOptimizerAction,
   setProvider as setProviderAction,
   setSamplePrompt as setSamplePromptAction,
   updateFolderAugment as updateFolderAugmentAction,
@@ -115,6 +116,13 @@ export function useTrainingConfigForm() {
   const setField = useCallback(
     <K extends keyof FormState>(field: K, value: FormState[K]) => {
       dispatch(setFieldAction({ field, value }));
+    },
+    [dispatch],
+  );
+
+  const setOptimizer = useCallback(
+    (optimizer: string) => {
+      dispatch(setOptimizerAction(optimizer));
     },
     [dispatch],
   );
@@ -254,6 +262,7 @@ export function useTrainingConfigForm() {
     calculatedEpochs,
     sectionHasChanges,
     setField,
+    setOptimizer,
     setModel,
     setProvider,
     setModelPath,

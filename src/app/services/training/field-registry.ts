@@ -140,6 +140,30 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     defaultKey: 'timestepBias',
     providers: ['ai-toolkit'],
   },
+  discreteFlowShift: {
+    tier: 'advanced',
+    group: 'learning',
+    defaultKey: 'discreteFlowShift',
+    providers: ['kohya'],
+  },
+  minSnrGamma: {
+    tier: 'advanced',
+    group: 'learning',
+    defaultKey: 'minSnrGamma',
+    providers: ['kohya'],
+  },
+  noiseOffset: {
+    tier: 'advanced',
+    group: 'learning',
+    defaultKey: 'noiseOffset',
+    providers: ['kohya'],
+  },
+  emaDecay: {
+    tier: 'advanced',
+    group: 'learning',
+    defaultKey: 'emaDecay',
+    providers: ['ai-toolkit'],
+  },
 
   // LoRA Shape
   networkDim: {
@@ -169,6 +193,12 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     tier: 'advanced',
     group: 'loraShape',
     defaultKey: 'networkDropout',
+  },
+  scaleWeightNorms: {
+    tier: 'advanced',
+    group: 'loraShape',
+    defaultKey: 'scaleWeightNorms',
+    providers: ['kohya'],
   },
 
   // Performance
@@ -226,6 +256,18 @@ export const FIELD_REGISTRY: Record<string, FieldMeta> = {
     tier: 'advanced',
     group: 'performance',
     defaultKey: 'gradientCheckpointing',
+    providers: ['kohya'],
+  },
+  bucketResoSteps: {
+    tier: 'advanced',
+    group: 'performance',
+    defaultKey: 'bucketResoSteps',
+    providers: ['kohya'],
+  },
+  bucketNoUpscale: {
+    tier: 'advanced',
+    group: 'performance',
+    defaultKey: 'bucketNoUpscale',
     providers: ['kohya'],
   },
   // Per-folder augmentation (captionShuffling, captionDropoutRate,

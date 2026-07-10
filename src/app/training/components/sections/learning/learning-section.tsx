@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo } from 'react';
 
 import {
+  ADAPTIVE_OPTIMIZERS,
   OPTIMIZER_OPTIONS,
   SCHEDULER_OPTIONS,
   type TrainingDefaults,
@@ -40,9 +41,13 @@ type LearningSectionProps = {
   backboneLR: number;
   textEncoderLR: number;
   ema: boolean;
+  emaDecay: number;
   lossType: 'mse' | 'huber' | 'smooth_l1';
   timestepType: string;
   timestepBias: 'balanced' | 'earlier' | 'later';
+  discreteFlowShift: number;
+  minSnrGamma: number;
+  noiseOffset: number;
   calculatedSteps: number;
   calculatedEpochs: number;
   totalEffective: number;
@@ -56,6 +61,7 @@ type LearningSectionProps = {
     field: K,
     value: FormState[K],
   ) => void;
+  onOptimizerChange: (value: string) => void;
   onReset: (section: SectionName) => void;
 };
 
@@ -94,9 +100,13 @@ const LearningSectionComponent = ({
   backboneLR,
   textEncoderLR,
   ema,
+  emaDecay,
   lossType,
   timestepType,
   timestepBias,
+  discreteFlowShift,
+  minSnrGamma,
+  noiseOffset,
   calculatedSteps,
   calculatedEpochs,
   totalEffective,
@@ -107,6 +117,7 @@ const LearningSectionComponent = ({
   hiddenChangesCount,
   viewMode,
   onFieldChange,
+  onOptimizerChange,
   onReset,
 }: LearningSectionProps) => {
   const isSimple = viewMode === 'simple';
@@ -132,6 +143,7 @@ const LearningSectionComponent = ({
   const selectedOptimizer = OPTIMIZER_OPTIONS.flatMap((g) => g.items).find(
     (o) => o.value === optimizer,
   );
+  const isAdaptiveOptimizer = ADAPTIVE_OPTIMIZERS.has(optimizer);
 
   const selectedScheduler = SCHEDULER_OPTIONS.find(
     (s) => s.value === scheduler,
@@ -336,7 +348,7 @@ const LearningSectionComponent = ({
                 <Dropdown
                   items={optimizerItems}
                   selectedValue={optimizer}
-                  onChange={(val) => onFieldChange('optimizer', val)}
+                  onChange={onOptimizerChange}
                   selectedValueRenderer={() => (
                     <span className="text-sm">
                       {selectedOptimizer?.label ?? optimizer}
@@ -347,6 +359,11 @@ const LearningSectionComponent = ({
                 {selectedOptimizer && (
                   <p className="mt-1 text-xs text-slate-400">
                     {selectedOptimizer.hint}
+                  </p>
+                )}
+                {isAdaptiveOptimizer && (
+                  <p className="mt-1 text-xs text-amber-500/70">
+                    Adaptive optimiser — learning rate should stay near 1.0.
                   </p>
                 )}
               </>
@@ -585,11 +602,32 @@ const LearningSectionComponent = ({
           </div>
         )}
 
+        {visibleFields.has('emaDecay' satisfies keyof FormState) && (
+          <div>
+            <FormTitle>EMA Decay</FormTitle>
+            <Input
+              type="text"
+              value={emaDecay}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val) && val > 0 && val < 1)
+                  onFieldChange('emaDecay', val);
+              }}
+              placeholder={String(defaults.emaDecay)}
+              className="w-32 tabular-nums"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Higher = slower-moving average (0.99 typical)
+            </p>
+          </div>
+        )}
+
         {/* Loss + Timestep row */}
         {(visibleFields.has('lossType' satisfies keyof FormState) ||
           visibleFields.has('timestepType' satisfies keyof FormState) ||
-          visibleFields.has('timestepBias' satisfies keyof FormState)) && (
-          <div className="grid grid-cols-3 gap-x-4 gap-y-3">
+          visibleFields.has('timestepBias' satisfies keyof FormState) ||
+          visibleFields.has('discreteFlowShift' satisfies keyof FormState)) && (
+          <div className="grid grid-cols-4 gap-x-4 gap-y-3">
             {visibleFields.has('lossType' satisfies keyof FormState) && (
               <div>
                 <FormTitle>Loss Type</FormTitle>
@@ -630,6 +668,73 @@ const LearningSectionComponent = ({
                   }
                   aria-label="Timestep bias"
                 />
+              </div>
+            )}
+
+            {visibleFields.has(
+              'discreteFlowShift' satisfies keyof FormState,
+            ) && (
+              <div>
+                <FormTitle>Flow Shift</FormTitle>
+                <Input
+                  type="text"
+                  value={discreteFlowShift}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val) && val > 0)
+                      onFieldChange('discreteFlowShift', val);
+                  }}
+                  placeholder={String(defaults.discreteFlowShift)}
+                  className="w-full tabular-nums"
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  Flow-matching shift; higher biases training toward noisier
+                  timesteps.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Min-SNR + Noise Offset row (DDPM loss-shaping controls) */}
+        {(visibleFields.has('minSnrGamma' satisfies keyof FormState) ||
+          visibleFields.has('noiseOffset' satisfies keyof FormState)) && (
+          <div className="grid grid-cols-4 gap-x-4 gap-y-3">
+            {visibleFields.has('minSnrGamma' satisfies keyof FormState) && (
+              <div>
+                <FormTitle>Min-SNR Gamma</FormTitle>
+                <Input
+                  type="text"
+                  value={minSnrGamma}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val) && val >= 0)
+                      onFieldChange('minSnrGamma', val);
+                  }}
+                  placeholder={String(defaults.minSnrGamma)}
+                  className="w-full tabular-nums"
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  Loss weighting; 5 recommended when enabled (0 = disabled)
+                </p>
+              </div>
+            )}
+
+            {visibleFields.has('noiseOffset' satisfies keyof FormState) && (
+              <div>
+                <FormTitle>Noise Offset</FormTitle>
+                <Input
+                  type="text"
+                  value={noiseOffset}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val) && val >= 0)
+                      onFieldChange('noiseOffset', val);
+                  }}
+                  placeholder={String(defaults.noiseOffset)}
+                  className="w-full tabular-nums"
+                />
+                <p className="mt-1 text-xs text-slate-400">0 = disabled</p>
               </div>
             )}
           </div>

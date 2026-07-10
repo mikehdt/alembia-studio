@@ -103,6 +103,20 @@ export type TrainingDefaults = {
   guidanceScale: number;
   sampleSteps: number;
   sampleSampler: string;
+  /** Kohya-only: rectified-flow timestep shift (flow-matching models only). */
+  discreteFlowShift: number;
+  /** Kohya-only: caps LoRA weight norms. 0 = disabled. */
+  scaleWeightNorms: number;
+  /** Kohya-only, DDPM models only: min-SNR loss weighting gamma. 0 = disabled. */
+  minSnrGamma: number;
+  /** Kohya-only, DDPM models only: noise offset. 0 = disabled. */
+  noiseOffset: number;
+  /** Kohya-only: bucket resolution step size when multi-resolution bucketing is on. */
+  bucketResoSteps: number;
+  /** Kohya-only: disallow upscaling small images to fit a bucket. */
+  bucketNoUpscale: boolean;
+  /** ai-toolkit-only: EMA decay rate, only used when `ema` is enabled. */
+  emaDecay: number;
 };
 
 /**
@@ -156,6 +170,13 @@ const BASE_DEFAULTS: TrainingDefaults = {
   guidanceScale: 4,
   sampleSteps: 20,
   sampleSampler: 'euler_a',
+  discreteFlowShift: 1.0,
+  scaleWeightNorms: 0,
+  minSnrGamma: 0,
+  noiseOffset: 0,
+  bucketResoSteps: 64,
+  bucketNoUpscale: false,
+  emaDecay: 0.99,
 };
 
 export const MODEL_DEFINITIONS: ModelDefinition[] = [
@@ -323,6 +344,8 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       'textEncoderQuantization',
       'timestepType',
       'timestepBias',
+      // Flow-matching-only timestep shift — SDXL is DDPM, no equivalent flag.
+      'discreteFlowShift',
     ],
     defaults: {
       ...BASE_DEFAULTS,
@@ -369,6 +392,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       'textEncoderQuantization',
       'timestepType',
       'timestepBias',
+      'discreteFlowShift',
     ],
     defaults: {
       ...BASE_DEFAULTS,
@@ -415,6 +439,7 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       'textEncoderQuantization',
       'timestepType',
       'timestepBias',
+      'discreteFlowShift',
     ],
     defaults: {
       ...BASE_DEFAULTS,
@@ -494,6 +519,11 @@ export const MODEL_DEFINITIONS: ModelDefinition[] = [
       'timestepBias',
       'transformerQuantization',
       'textEncoderQuantization',
+      // Anima overrides post_process_loss to a no-op and samples noise
+      // without an offset — both are DDPM-only mechanisms its flow-matching
+      // path never consults (verified against sd-scripts anima_train_network.py).
+      'minSnrGamma',
+      'noiseOffset',
     ],
     defaults: {
       ...BASE_DEFAULTS,
@@ -618,6 +648,15 @@ export const OPTIMIZER_OPTIONS = [
     ],
   },
 ];
+
+/**
+ * Optimisers that self-tune their effective learning rate. They expect an
+ * LR around 1.0 rather than the ~1e-4 typical for fixed-schedule optimisers
+ * (AdamW etc) — both kohya and ai-toolkit warn or misbehave if fed a tiny LR.
+ * Used to auto-adjust the LR on optimiser switch (see training-config slice)
+ * and to show a guiding hint under the optimiser dropdown.
+ */
+export const ADAPTIVE_OPTIMIZERS = new Set(['prodigy', 'dadaptation']);
 
 type SchedulerOption = {
   value: string;

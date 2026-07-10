@@ -70,12 +70,22 @@ export type FormState = {
   lossType: 'mse' | 'huber' | 'smooth_l1';
   timestepType: string;
   timestepBias: 'balanced' | 'earlier' | 'later';
+  /** Kohya-only, flow-matching models only. */
+  discreteFlowShift: number;
+  /** Kohya-only, DDPM models only. 0 = disabled. */
+  minSnrGamma: number;
+  /** Kohya-only, DDPM models only. 0 = disabled. */
+  noiseOffset: number;
+  /** ai-toolkit-only. Only meaningful when `ema` is enabled. */
+  emaDecay: number;
 
   networkType: 'lora' | 'lokr';
   networkDim: number;
   networkAlpha: number;
   networkDimAlphaLinked: boolean;
   networkDropout: number;
+  /** Kohya-only. 0 = disabled. */
+  scaleWeightNorms: number;
 
   batchSize: number;
   resolution: number[];
@@ -87,6 +97,10 @@ export type FormState = {
   gradientAccumulationSteps: number;
   gradientCheckpointing: boolean;
   cacheLatents: boolean;
+  /** Kohya-only. Only meaningful when multi-resolution bucketing is on. */
+  bucketResoSteps: number;
+  /** Kohya-only. Only meaningful when multi-resolution bucketing is on. */
+  bucketNoUpscale: boolean;
 
   samplingEnabled: boolean;
   samplePrompts: string[];

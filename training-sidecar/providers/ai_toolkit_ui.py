@@ -593,7 +593,12 @@ def _build_config_dict(request: StartJobRequest, gpu_id: int = 0) -> dict:
                         ),
                         "max_grad_norm": hp.get("max_grad_norm", 1.0),
                         **(
-                            {"ema_config": {"use_ema": True, "ema_decay": 0.99}}
+                            {
+                                "ema_config": {
+                                    "use_ema": True,
+                                    "ema_decay": hp.get("ema_decay", 0.99),
+                                }
+                            }
                             if hp.get("ema", False)
                             else {}
                         ),

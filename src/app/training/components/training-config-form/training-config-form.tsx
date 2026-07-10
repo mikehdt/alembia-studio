@@ -42,6 +42,7 @@ const TrainingConfigFormComponent = ({
     calculatedEpochs,
     sectionHasChanges,
     setField,
+    setOptimizer,
     setModel,
     setProvider,
     setModelPath,
@@ -75,6 +76,13 @@ const TrainingConfigFormComponent = ({
       fields.delete('numRestarts');
     // TE learning rate only applies when training the text encoder
     if (!state.trainTextEncoder) fields.delete('textEncoderLR');
+    // EMA decay only applies when EMA is enabled
+    if (!state.ema) fields.delete('emaDecay');
+    // Bucket controls only matter when multi-resolution bucketing is on
+    if (state.resolution.length <= 1) {
+      fields.delete('bucketResoSteps');
+      fields.delete('bucketNoUpscale');
+    }
     return fields;
   }, [
     viewMode,
@@ -82,6 +90,8 @@ const TrainingConfigFormComponent = ({
     state.selectedProvider,
     state.scheduler,
     state.trainTextEncoder,
+    state.ema,
+    state.resolution,
   ]);
 
   // Compute hidden changes per section
@@ -132,14 +142,19 @@ const TrainingConfigFormComponent = ({
       backboneLR: state.backboneLR,
       textEncoderLR: state.textEncoderLR,
       ema: state.ema,
+      emaDecay: state.emaDecay,
       lossType: state.lossType,
       timestepType: state.timestepType,
       timestepBias: state.timestepBias,
+      discreteFlowShift: state.discreteFlowShift,
+      minSnrGamma: state.minSnrGamma,
+      noiseOffset: state.noiseOffset,
       batchSize: state.batchSize,
       networkType: state.networkType,
       networkDim: state.networkDim,
       networkAlpha: state.networkAlpha,
       networkDropout: state.networkDropout,
+      scaleWeightNorms: state.scaleWeightNorms,
       resolution: state.resolution,
       mixedPrecision: state.mixedPrecision,
       transformerQuantization: state.transformerQuantization,
@@ -149,6 +164,8 @@ const TrainingConfigFormComponent = ({
       gradientAccumulationSteps: state.gradientAccumulationSteps,
       gradientCheckpointing: state.gradientCheckpointing,
       cacheLatents: state.cacheLatents,
+      bucketResoSteps: state.bucketResoSteps,
+      bucketNoUpscale: state.bucketNoUpscale,
       extraFolders: state.extraFolders,
       seed: state.seed,
       guidanceScale: state.guidanceScale,
@@ -230,9 +247,13 @@ const TrainingConfigFormComponent = ({
             backboneLR={state.backboneLR}
             textEncoderLR={state.textEncoderLR}
             ema={state.ema}
+            emaDecay={state.emaDecay}
             lossType={state.lossType}
             timestepType={state.timestepType}
             timestepBias={state.timestepBias}
+            discreteFlowShift={state.discreteFlowShift}
+            minSnrGamma={state.minSnrGamma}
+            noiseOffset={state.noiseOffset}
             calculatedSteps={calculatedSteps}
             calculatedEpochs={calculatedEpochs}
             totalEffective={datasetStats.totalEffective}
@@ -243,6 +264,7 @@ const TrainingConfigFormComponent = ({
             hiddenChangesCount={hiddenChanges.learning}
             viewMode={viewMode}
             onFieldChange={setField}
+            onOptimizerChange={setOptimizer}
             onReset={resetSection}
           />
 
@@ -252,6 +274,7 @@ const TrainingConfigFormComponent = ({
             networkAlpha={state.networkAlpha}
             networkDimAlphaLinked={state.networkDimAlphaLinked}
             networkDropout={state.networkDropout}
+            scaleWeightNorms={state.scaleWeightNorms}
             hasChanges={sectionHasChanges.loraShape}
             visibleFields={visibleFields}
             hiddenChangesCount={hiddenChanges.loraShape}
@@ -272,6 +295,8 @@ const TrainingConfigFormComponent = ({
             gradientAccumulationSteps={state.gradientAccumulationSteps}
             gradientCheckpointing={state.gradientCheckpointing}
             cacheLatents={state.cacheLatents}
+            bucketResoSteps={state.bucketResoSteps}
+            bucketNoUpscale={state.bucketNoUpscale}
             hasChanges={sectionHasChanges.performance}
             visibleFields={visibleFields}
             hiddenChangesCount={hiddenChanges.performance}

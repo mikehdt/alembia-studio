@@ -376,7 +376,12 @@ class AiToolkitProvider(TrainingProvider):
                             "max_grad_norm": hp.get("max_grad_norm", 1.0),
                             # EMA — ai-toolkit expects an ema_config block
                             **(
-                                {"ema_config": {"use_ema": True, "ema_decay": 0.99}}
+                                {
+                                    "ema_config": {
+                                        "use_ema": True,
+                                        "ema_decay": hp.get("ema_decay", 0.99),
+                                    }
+                                }
                                 if hp.get("ema", False)
                                 else {}
                             ),

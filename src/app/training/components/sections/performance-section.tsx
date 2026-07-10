@@ -27,6 +27,8 @@ type PerformanceSectionProps = {
   gradientAccumulationSteps: number;
   gradientCheckpointing: boolean;
   cacheLatents: boolean;
+  bucketResoSteps: number;
+  bucketNoUpscale: boolean;
   hasChanges: boolean;
   visibleFields: Set<string>;
   hiddenChangesCount?: number;
@@ -60,6 +62,8 @@ const PerformanceSectionComponent = ({
   gradientAccumulationSteps,
   gradientCheckpointing,
   cacheLatents,
+  bucketResoSteps,
+  bucketNoUpscale,
   hasChanges,
   visibleFields,
   hiddenChangesCount,
@@ -77,7 +81,9 @@ const PerformanceSectionComponent = ({
     visibleFields.has('unloadTextEncoder') ||
     visibleFields.has('gradientAccumulationSteps') ||
     visibleFields.has('gradientCheckpointing') ||
-    visibleFields.has('cacheLatents');
+    visibleFields.has('cacheLatents') ||
+    visibleFields.has('bucketResoSteps') ||
+    visibleFields.has('bucketNoUpscale');
 
   if (!hasVisibleFields) return null;
 
@@ -221,34 +227,60 @@ const PerformanceSectionComponent = ({
           </div>
         )}
 
-        {/* Gradient Accumulation */}
-        {visibleFields.has(
+        {/* Gradient Accumulation + Bucket Resolution Steps */}
+        {(visibleFields.has(
           'gradientAccumulationSteps' satisfies keyof FormState,
-        ) && (
-          <div className="grid grid-cols-4 gap-x-4">
-            <div>
-              <FormTitle>Gradient Accumulation Steps</FormTitle>
-              <Input
-                type="number"
-                min={1}
-                max={16}
-                value={gradientAccumulationSteps}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10);
-                  if (val > 0) onFieldChange('gradientAccumulationSteps', val);
-                }}
-                className="w-full"
-              />
-              {gradientAccumulationSteps > 1 && (
+        ) ||
+          visibleFields.has('bucketResoSteps' satisfies keyof FormState)) && (
+          <div className="grid grid-cols-4 gap-x-4 gap-y-3">
+            {visibleFields.has(
+              'gradientAccumulationSteps' satisfies keyof FormState,
+            ) && (
+              <div>
+                <FormTitle>Gradient Accumulation Steps</FormTitle>
+                <Input
+                  type="number"
+                  min={1}
+                  max={16}
+                  value={gradientAccumulationSteps}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (val > 0)
+                      onFieldChange('gradientAccumulationSteps', val);
+                  }}
+                  className="w-full"
+                />
+                {gradientAccumulationSteps > 1 && (
+                  <p className="mt-1 text-xs text-slate-400">
+                    Effective batch size:{' '}
+                    <span className="font-medium">
+                      {batchSize * gradientAccumulationSteps}
+                    </span>{' '}
+                    ({batchSize} &times; {gradientAccumulationSteps})
+                  </p>
+                )}
+              </div>
+            )}
+
+            {visibleFields.has('bucketResoSteps' satisfies keyof FormState) && (
+              <div>
+                <FormTitle>Bucket Resolution Steps</FormTitle>
+                <Input
+                  type="number"
+                  min={1}
+                  value={bucketResoSteps}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (val > 0) onFieldChange('bucketResoSteps', val);
+                  }}
+                  placeholder="64"
+                  className="w-full"
+                />
                 <p className="mt-1 text-xs text-slate-400">
-                  Effective batch size:{' '}
-                  <span className="font-medium">
-                    {batchSize * gradientAccumulationSteps}
-                  </span>{' '}
-                  ({batchSize} &times; {gradientAccumulationSteps})
+                  Bucket size increment for multi-resolution training
                 </p>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -316,6 +348,22 @@ const PerformanceSectionComponent = ({
               />
               <span className="text-xs text-slate-400">
                 Caches VAE outputs for faster training
+              </span>
+            </div>
+          )}
+
+          {visibleFields.has('bucketNoUpscale' satisfies keyof FormState) && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                isSelected={bucketNoUpscale}
+                onChange={() =>
+                  onFieldChange('bucketNoUpscale', !bucketNoUpscale)
+                }
+                label="No Bucket Upscale"
+                size="sm"
+              />
+              <span className="text-xs text-slate-400">
+                Don&apos;t upscale small images to fit a bucket
               </span>
             </div>
           )}

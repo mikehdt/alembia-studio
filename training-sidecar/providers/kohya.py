@@ -285,8 +285,10 @@ class KohyaProvider(TrainingProvider):
         lines.append(f"batch_size = {int(hp.get('batch_size', 1))}")
         lines.append(f"enable_bucket = {_toml_bool(enable_bucket)}")
         if enable_bucket:
-            lines.append("bucket_no_upscale = false")
-            lines.append("bucket_reso_steps = 64")
+            bucket_no_upscale = bool(hp.get("bucket_no_upscale", False))
+            bucket_reso_steps = int(hp.get("bucket_reso_steps", 64) or 64)
+            lines.append(f"bucket_no_upscale = {_toml_bool(bucket_no_upscale)}")
+            lines.append(f"bucket_reso_steps = {bucket_reso_steps}")
             lines.append(f"min_bucket_reso = {min_res}")
             lines.append(f"max_bucket_reso = {max_res}")
         lines.append("")
@@ -383,9 +385,22 @@ class KohyaProvider(TrainingProvider):
             args.append(
                 f"--timestep_sampling={hp.get('timestep_type', defaults.get('timestep_sampling', 'sigmoid'))}"
             )
+            # hp override wins over the model entry's default.
             args.append(
-                f"--discrete_flow_shift={_num(defaults.get('discrete_flow_shift', 1.0))}"
+                f"--discrete_flow_shift={_num(hp.get('discrete_flow_shift', defaults.get('discrete_flow_shift', 1.0)))}"
             )
+
+        # Min-SNR loss weighting and noise offset are DDPM-only mechanisms —
+        # Anima (flow-matching) overrides post_process_loss to a no-op and
+        # samples noise without an offset, so these flags are inert on that
+        # path. Still safe to emit generically since sd-scripts' base
+        # train_network.py owns both regardless of architecture; the UI hides
+        # them for Anima so users aren't misled into thinking they do
+        # anything there.
+        if float(hp.get("min_snr_gamma", 0) or 0) > 0:
+            args.append(f"--min_snr_gamma={_num(hp['min_snr_gamma'])}")
+        if float(hp.get("noise_offset", 0) or 0) > 0:
+            args.append(f"--noise_offset={_num(hp['noise_offset'])}")
 
         # Keep the VAE in fp32 for archs whose VAE is fp16-unstable (SDXL).
         if model_def.get("no_half_vae"):
@@ -423,6 +438,11 @@ class KohyaProvider(TrainingProvider):
         # LoRA dropout.
         if float(hp.get("network_dropout", 0) or 0) > 0:
             args.append(f"--network_dropout={_num(hp['network_dropout'])}")
+
+        # Cap LoRA weight norms (generic train_network.py option, applies to
+        # every architecture regardless of flow-matching/DDPM).
+        if float(hp.get("scale_weight_norms", 0) or 0) > 0:
+            args.append(f"--scale_weight_norms={_num(hp['scale_weight_norms'])}")
 
         # Boolean training flags.
         if hp.get("gradient_checkpointing", True):

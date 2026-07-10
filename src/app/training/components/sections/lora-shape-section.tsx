@@ -20,6 +20,7 @@ type LoraShapeSectionProps = {
   networkAlpha: number;
   networkDimAlphaLinked: boolean;
   networkDropout: number;
+  scaleWeightNorms: number;
   hasChanges: boolean;
   visibleFields: Set<string>;
   hiddenChangesCount?: number;
@@ -41,6 +42,7 @@ const LoraShapeSectionComponent = ({
   networkAlpha,
   networkDimAlphaLinked,
   networkDropout,
+  scaleWeightNorms,
   hasChanges,
   visibleFields,
   hiddenChangesCount,
@@ -51,7 +53,8 @@ const LoraShapeSectionComponent = ({
     visibleFields.has('networkDim') ||
     visibleFields.has('networkAlpha') ||
     visibleFields.has('networkType') ||
-    visibleFields.has('networkDropout');
+    visibleFields.has('networkDropout') ||
+    visibleFields.has('scaleWeightNorms');
 
   const handleRankChange = useCallback(
     (v: number) => {
@@ -105,7 +108,8 @@ const LoraShapeSectionComponent = ({
       <div className="space-y-3">
         {/* Type + Dropout row */}
         {(visibleFields.has('networkType' satisfies keyof FormState) ||
-          visibleFields.has('networkDropout' satisfies keyof FormState)) && (
+          visibleFields.has('networkDropout' satisfies keyof FormState) ||
+          visibleFields.has('scaleWeightNorms' satisfies keyof FormState)) && (
           <div className="grid grid-cols-4 gap-x-4 gap-y-3">
             {visibleFields.has('networkType' satisfies keyof FormState) && (
               <div>
@@ -141,6 +145,28 @@ const LoraShapeSectionComponent = ({
                 />
                 <p className="mt-1 text-xs text-slate-400">
                   0 = disabled, 0.1–0.3 typical
+                </p>
+              </div>
+            )}
+
+            {visibleFields.has(
+              'scaleWeightNorms' satisfies keyof FormState,
+            ) && (
+              <div>
+                <FormTitle>Max Weight Norm</FormTitle>
+                <Input
+                  type="text"
+                  value={scaleWeightNorms}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val) && val >= 0)
+                      onFieldChange('scaleWeightNorms', val);
+                  }}
+                  placeholder="0"
+                  className="w-full tabular-nums"
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  Caps LoRA weight norms; 1.0 typical, 0 = disabled
                 </p>
               </div>
             )}
