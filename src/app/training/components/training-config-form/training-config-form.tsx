@@ -414,6 +414,7 @@ const TrainingConfigFormComponent = ({
             saveEveryEpochs={state.saveEveryEpochs}
             saveEverySteps={state.saveEverySteps}
             saveFormat={state.saveFormat}
+            maxSavesToKeep={state.maxSavesToKeep}
             seed={state.seed}
           />
         </div>

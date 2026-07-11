@@ -317,7 +317,8 @@ export function TrainingJobCard({
               )}
               {savedCount > 0 && (
                 <span className="w-full">
-                  {savedCount} checkpoint{savedCount !== 1 ? 's' : ''} saved
+                  {savedCount} {savedCount !== 1 ? 'checkpoints' : 'checkpoint'}{' '}
+                  saved
                 </span>
               )}
             </div>
@@ -327,7 +328,7 @@ export function TrainingJobCard({
           <p className="mt-1.5 text-xs text-green-600 dark:text-green-400">
             Complete{elapsed != null ? ` in ${formatDuration(elapsed)}` : ''}
             {savedCount > 0 &&
-              ` · ${savedCount} checkpoint${savedCount !== 1 ? 's' : ''}`}
+              ` · ${savedCount} ${savedCount !== 1 ? 'checkpoints' : 'checkpoint'}`}
           </p>
         )}
         {isFailed && progress?.error && (

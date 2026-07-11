@@ -182,7 +182,7 @@ const SavingSectionComponent = ({
 
                 {visibleFields.has(
                   'maxSavesToKeep' satisfies keyof FormState,
-                ) && (
+                ) ? (
                   <div>
                     <FieldTitle
                       field="maxSavesToKeep"
@@ -200,10 +200,20 @@ const SavingSectionComponent = ({
                         if (!isNaN(val) && val >= 0)
                           onFieldChange('maxSavesToKeep', val);
                       }}
-                      className="w-full"
+                      className="w-24"
                     />
                     <p className="mt-1 text-xs text-slate-400">
                       1 = only the latest, 0 = keep all
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-center">
+                    <p className="text-xs text-slate-400">
+                      {maxSavesToKeep === 0
+                        ? 'Keeps every checkpoint'
+                        : maxSavesToKeep === 1
+                          ? 'Keeps only the latest checkpoint (older ones deleted)'
+                          : `Keeps the last ${maxSavesToKeep} checkpoints (older ones deleted)`}
                     </p>
                   </div>
                 )}

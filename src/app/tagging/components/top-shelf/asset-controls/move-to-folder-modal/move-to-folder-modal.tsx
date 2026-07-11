@@ -311,9 +311,9 @@ export const MoveToFolderModal = ({
         {collisionError && (
           <div className="w-full rounded-md border border-rose-300 bg-rose-50 p-3 dark:border-rose-700 dark:bg-rose-900/30">
             <p className="text-sm font-medium text-rose-700 dark:text-rose-300">
-              Cannot move: {collisionError.length} file
-              {collisionError.length !== 1 ? 's' : ''} would collide in the
-              destination folder.
+              Cannot move: {collisionError.length}
+              {collisionError.length !== 1 ? 'files' : 'file'} would collide in
+              the destination folder.
             </p>
             <ul className="mt-1 list-inside list-disc text-xs text-rose-600 dark:text-rose-400">
               {collisionError.slice(0, 10).map((name) => (
@@ -330,8 +330,8 @@ export const MoveToFolderModal = ({
         {moveErrors && (
           <div className="w-full rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/30">
             <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
-              {moveErrors.length} file{moveErrors.length !== 1 ? 's' : ''} could
-              not be moved (file may be in use).
+              {moveErrors.length} {moveErrors.length !== 1 ? 'files' : 'file'}{' '}
+              could not be moved (file may be in use).
             </p>
             <ul className="mt-1 list-inside list-disc text-xs text-amber-600 dark:text-amber-400">
               {moveErrors.slice(0, 10).map((name) => (

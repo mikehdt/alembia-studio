@@ -87,9 +87,10 @@ const KohyaBucketPreviewComponent = ({
       <p className="text-xs text-slate-400">
         {hasImageData ? (
           <>
-            {visibleRows.length} bucket{visibleRows.length === 1 ? '' : 's'} in
-            use &middot; {totalImages.toLocaleString()} image
-            {totalImages === 1 ? '' : 's'}
+            {visibleRows.length}{' '}
+            {visibleRows.length === 1 ? 'bucket' : 'buckets'} in use &middot;{' '}
+            {totalImages.toLocaleString()}{' '}
+            {totalImages === 1 ? 'image' : 'images'}
           </>
         ) : (
           <>

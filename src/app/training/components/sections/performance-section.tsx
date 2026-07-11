@@ -289,7 +289,7 @@ const PerformanceSectionComponent = ({
                     if (val > 0)
                       onFieldChange('gradientAccumulationSteps', val);
                   }}
-                  className="w-full"
+                  className="w-24"
                 />
                 {gradientAccumulationSteps > 1 && (
                   <p className="mt-1 text-xs text-slate-400">
@@ -321,7 +321,7 @@ const PerformanceSectionComponent = ({
                     if (val > 0) onFieldChange('bucketResoSteps', val);
                   }}
                   placeholder="64"
-                  className="w-full"
+                  className="w-24"
                 />
                 <p className="mt-1 text-xs text-slate-400">
                   Bucket size increment for multi-resolution training
@@ -348,7 +348,7 @@ const PerformanceSectionComponent = ({
                       onFieldChange('blocksToSwap', val);
                   }}
                   placeholder="0"
-                  className="w-full"
+                  className="w-24"
                 />
                 <p className="mt-1 text-xs text-slate-400">
                   Offloads N transformer blocks to CPU to cut VRAM; slows

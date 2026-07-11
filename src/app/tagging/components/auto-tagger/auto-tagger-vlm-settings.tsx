@@ -84,8 +84,7 @@ export function AutoTaggerVlmSettings({
     <>
       <p className="text-sm text-slate-600 dark:text-slate-400">
         Generate natural-language captions for {selectedAssetsCount} selected
-        image
-        {selectedAssetsCount !== 1 ? 's' : ''}.
+        {selectedAssetsCount !== 1 ? 'images' : 'image'}.
       </p>
 
       {error && (

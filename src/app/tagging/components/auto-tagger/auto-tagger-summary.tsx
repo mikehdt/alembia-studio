@@ -47,29 +47,29 @@ export function AutoTaggerSummary({
         </p>
         <ul className="mt-2 space-y-1">
           <li>
-            Processed {summary.imagesProcessed} image
-            {summary.imagesProcessed !== 1 ? 's' : ''}
+            Processed {summary.imagesProcessed}
+            {summary.imagesProcessed !== 1 ? 'images' : 'image'}
           </li>
           {isCaptioning ? (
             <li>
-              Captioned {summary.imagesWithNewTags} image
-              {summary.imagesWithNewTags !== 1 ? 's' : ''}
+              Captioned {summary.imagesWithNewTags}
+              {summary.imagesWithNewTags !== 1 ? 'images' : 'image'}
             </li>
           ) : (
             <li>
-              Found {summary.totalTagsFound} tag
-              {summary.totalTagsFound !== 1 ? 's' : ''} across{' '}
-              {summary.imagesWithNewTags} image
-              {summary.imagesWithNewTags !== 1 ? 's' : ''}
+              Found {summary.totalTagsFound}
+              {summary.totalTagsFound !== 1 ? 'tags' : 'tag'} across{' '}
+              {summary.imagesWithNewTags}
+              {summary.imagesWithNewTags !== 1 ? 'images' : 'image'}
             </li>
           )}
           {summary.imagesProcessed > summary.imagesWithNewTags &&
             imageErrors.length === 0 && (
               <li className={wasCancelled ? 'text-amber-600' : 'text-teal-600'}>
-                {summary.imagesProcessed - summary.imagesWithNewTags} image
+                {summary.imagesProcessed - summary.imagesWithNewTags}
                 {summary.imagesProcessed - summary.imagesWithNewTags !== 1
-                  ? 's'
-                  : ''}{' '}
+                  ? 'images'
+                  : 'image'}{' '}
                 {noneSuffix}
               </li>
             )}
@@ -79,12 +79,12 @@ export function AutoTaggerSummary({
       {hasErrors && (
         <div className="rounded-md border border-rose-300 bg-rose-50 p-4 text-sm dark:border-rose-800 dark:bg-rose-950">
           <p className="font-medium text-rose-700 dark:text-rose-200">
-            {imageErrors.length} error
-            {imageErrors.length !== 1 ? 's' : ''} during batch:
+            {imageErrors.length}
+            {imageErrors.length !== 1 ? 'errors' : 'error'} during batch:
           </p>
           <ul className="mt-2 max-h-48 space-y-1.5 overflow-y-auto text-rose-700 dark:text-rose-200">
             {imageErrors.slice(0, 20).map((err, i) => (
-              <li key={`${err.fileId}-${i}`} className="break-words">
+              <li key={`${err.fileId}-${i}`} className="wrap-break-word">
                 <span className="font-mono text-xs opacity-70">
                   {err.fileId}
                 </span>

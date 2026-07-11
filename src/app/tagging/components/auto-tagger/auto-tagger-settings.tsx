@@ -43,8 +43,8 @@ export function AutoTaggerSettings({
   return (
     <>
       <p className="text-sm text-slate-600 dark:text-slate-400">
-        Configure tagging options for {selectedAssetsCount} selected image
-        {selectedAssetsCount !== 1 ? 's' : ''}.
+        Configure tagging options for {selectedAssetsCount} selected
+        {selectedAssetsCount !== 1 ? 'images' : 'image'}.
       </p>
 
       {error && (

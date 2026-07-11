@@ -493,7 +493,7 @@ const LearningSectionComponent = ({
                       if (val >= 0) onFieldChange('warmupSteps', val);
                     }}
                     placeholder={String(defaults.warmupSteps)}
-                    className="w-full"
+                    className="w-24"
                   />
                 </div>
               )}
@@ -516,7 +516,7 @@ const LearningSectionComponent = ({
                       if (val >= 1) onFieldChange('numRestarts', val);
                     }}
                     placeholder={String(defaults.numRestarts)}
-                    className="w-full"
+                    className="w-24"
                   />
                   <p className="mt-1 text-xs text-slate-400">Cosine cycles</p>
                 </div>

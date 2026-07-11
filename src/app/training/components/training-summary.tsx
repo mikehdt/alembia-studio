@@ -43,6 +43,7 @@ type TrainingSummaryProps = {
   saveEveryEpochs: number;
   saveEverySteps: number;
   saveFormat: string;
+  maxSavesToKeep: number;
   seed: number;
 };
 
@@ -125,6 +126,7 @@ const TrainingSummaryComponent = ({
   saveEveryEpochs,
   saveEverySteps,
   saveFormat,
+  maxSavesToKeep,
   seed,
 }: TrainingSummaryProps) => {
   const hasOutputName = outputName.trim() !== '';
@@ -194,7 +196,7 @@ const TrainingSummaryComponent = ({
               </SummaryRow>
               <SummaryRow label="Duration">
                 {effectiveEpochs > 0
-                  ? `${effectiveEpochs} epoch${effectiveEpochs !== 1 ? 's' : ''}`
+                  ? `${effectiveEpochs} ${effectiveEpochs !== 1 ? 'epochs' : 'epoch'}`
                   : '—'}
                 {' / '}
                 {effectiveSteps > 0
@@ -206,7 +208,15 @@ const TrainingSummaryComponent = ({
           <SummaryRow label="Batch size">{batchSize}</SummaryRow>
           <SummaryRow label="Seed">{seed === -1 ? 'Random' : seed}</SummaryRow>
           {saveEnabled && checkpointCount > 0 && (
-            <SummaryRow label="Checkpoints">~{checkpointCount}</SummaryRow>
+            <SummaryRow label="Checkpoints">
+              ~{checkpointCount}
+              {maxSavesToKeep > 0 && maxSavesToKeep < checkpointCount && (
+                <span className="font-normal text-slate-400">
+                  {' '}
+                  (keep {maxSavesToKeep})
+                </span>
+              )}
+            </SummaryRow>
           )}
         </div>
       </div>
@@ -276,7 +286,7 @@ const TrainingSummaryComponent = ({
             isReady={hasDataset}
             detail={
               hasDataset
-                ? `${totalImages} image${totalImages !== 1 ? 's' : ''}`
+                ? `${totalImages} ${totalImages !== 1 ? 'images' : 'image'}`
                 : undefined
             }
           />

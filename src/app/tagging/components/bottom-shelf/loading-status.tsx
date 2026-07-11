@@ -29,7 +29,7 @@ export const LoadingStatus = ({
           <>
             {saveProgress.completed} / {saveProgress.total}
             {saveProgress.failed > 0 &&
-              ` (${saveProgress.failed} error${saveProgress.failed !== 1 ? 's' : ''})`}
+              ` (${saveProgress.failed} ${saveProgress.failed !== 1 ? 'errors' : 'error'})`}
           </>
         ) : null}
 
@@ -40,7 +40,7 @@ export const LoadingStatus = ({
               ? `${loadProgress.completed} / ${loadProgress.total}`
               : ''}
             {loadProgress.failed > 0
-              ? ` (${loadProgress.failed} error${loadProgress.failed !== 1 ? 's' : ''})`
+              ? ` (${loadProgress.failed} ${loadProgress.failed !== 1 ? 'errors' : 'error'})`
               : ''}
           </>
         ) : null}

@@ -141,9 +141,10 @@ export const LoadProjectModal = ({
                     <div className="flex flex-1 flex-col">
                       <span className="truncate">{p.name}</span>
                       <span className="text-xs text-slate-500">
-                        {p.versions.length} version
-                        {p.versions.length === 1 ? '' : 's'} ·{' '}
-                        {formatRelative(p.updatedAt)}
+                        {p.versions.length}
+                        {p.versions.length === 1
+                          ? 'version'
+                          : 'versions'} · {formatRelative(p.updatedAt)}
                       </span>
                     </div>
                   </RadioRow>

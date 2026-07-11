@@ -59,8 +59,8 @@ export function TaggingJobCard({
   const successBody =
     isCompleted && summary
       ? isCaptioning
-        ? `Captioned ${summary.imagesWithNewTags} image${summary.imagesWithNewTags !== 1 ? 's' : ''}`
-        : `${summary.totalTagsFound} tag${summary.totalTagsFound !== 1 ? 's' : ''} across ${summary.imagesWithNewTags} image${summary.imagesWithNewTags !== 1 ? 's' : ''}`
+        ? `Captioned ${summary.imagesWithNewTags} ${summary.imagesWithNewTags !== 1 ? 'images' : 'image'}`
+        : `${summary.totalTagsFound} ${summary.totalTagsFound !== 1 ? 'tags' : 'tag'} across ${summary.imagesWithNewTags} ${summary.imagesWithNewTags !== 1 ? 'images' : 'image'}`
       : 'Done';
 
   const statusLabel = isRunning

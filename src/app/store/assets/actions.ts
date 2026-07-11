@@ -417,7 +417,7 @@ export const moveAssetsToFolderThunk = createAsyncThunk<
       const destLabel = destination ?? 'root';
       dispatch(
         addToast({
-          children: `Moved ${result.moved.length} asset${result.moved.length !== 1 ? 's' : ''} to ${destLabel}`,
+          children: `Moved ${result.moved.length} ${result.moved.length !== 1 ? 'assets' : 'asset'} to ${destLabel}`,
         }),
       );
     }

@@ -269,8 +269,10 @@ export const SaveAsModal = ({ isOpen, onClose }: SaveAsModalProps) => {
                 />
                 <span>
                   I understand all {selectedProject.versions.length} existing
-                  version{selectedProject.versions.length === 1 ? '' : 's'} of
-                  this project will be deleted.
+                  {selectedProject.versions.length === 1
+                    ? 'version'
+                    : 'versions'}{' '}
+                  of this project will be deleted.
                 </span>
               </label>
             )}
