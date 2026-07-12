@@ -16,6 +16,8 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
+import signal
+import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
@@ -46,15 +48,33 @@ class AiToolkitServer:
         return self._port
 
     @property
+    def log_path(self) -> Optional[Path]:
+        """Path to the ai-toolkit server log we tee stdout/stderr into (where
+        the worker's tracebacks land). None if no log path was configured."""
+        return self._log_path
+
+    @property
     def base_url(self) -> str:
         return f"http://localhost:{self._port}"
 
     async def ensure_running(self, timeout: float = 180.0) -> None:
         """Make sure the ai-toolkit server is responding. Spawns one if needed.
 
+        Self-heals a wedged instance: if the port is held by a server that
+        responds with 5xx (or holds the port without answering HTTP at all —
+        e.g. a schema-drifted DB 500ing every query), that tree is killed and
+        a fresh, schema-synced server is spawned in its place.
+
         Raises RuntimeError on failure.
         """
-        if await self._is_responding():
+        status = await self._probe()
+        if status == "healthy":
+            return
+        # A single failed probe can be a transient blip on a healthy-but-busy
+        # server we don't want to kill. Confirm before doing anything drastic.
+        await asyncio.sleep(1.0)
+        status = await self._probe()
+        if status == "healthy":
             return
 
         ui_dir = self._toolkit_path / "ui"
@@ -72,12 +92,24 @@ class AiToolkitServer:
                 "and needs Node.js installed to run."
             )
 
+        # If a wedged server is holding the port, a fresh `npm run start`
+        # can't bind and we'd fail. Reclaim it first. We only reach here after
+        # two failed probes, so an "unhealthy" (5xx) or a non-answering process
+        # still holding the port is genuinely broken — killing it is the point.
+        if status == "unhealthy" or self._listener_pids():
+            print(
+                f"[aitk-server] ai-toolkit on {self.base_url} is not healthy "
+                f"(status={status}); reclaiming the port and respawning."
+            )
+            await self._reclaim_port()
+
         env = self._build_clean_env()
 
         # Open a log file we can tail so the user can actually see what
         # ai-toolkit's worker / Next server is doing — silent failures
         # in the worker process were previously invisible (the queue
-        # would just sit "stopped" with no clue why).
+        # would just sit "stopped" with no clue why). Opened before the DB
+        # sync so its output is captured too.
         if self._log_path is not None:
             self._log_path.parent.mkdir(parents=True, exist_ok=True)
             self._log_handle = open(self._log_path, "w", encoding="utf-8")
@@ -91,13 +123,15 @@ class AiToolkitServer:
                 f"(this may take a moment on first run)..."
             )
 
+        # Keep aitk_db.db in step with ai-toolkit's Prisma schema before
+        # starting. ai-toolkit only applies column additions via `update_db`
+        # (which its build_and_start runs) — a bare `npm run start` skips it,
+        # so a drifted DB 500s every query and wedges the server.
+        await self._sync_db(npm, ui_dir, env)
+
         # Prevent npm.cmd from opening a visible console that steals focus
         # on Windows; stdio is piped to our log file either way.
-        creationflags = 0
-        if sys.platform == "win32":
-            import subprocess
-
-            creationflags = subprocess.CREATE_NO_WINDOW
+        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
         self._process = await asyncio.create_subprocess_exec(
             npm,
@@ -146,15 +180,113 @@ class AiToolkitServer:
 
     # ----- internals -----
 
-    async def _is_responding(self) -> bool:
+    async def _probe(self) -> str:
+        """Classify the server on our port: 'healthy' | 'unhealthy' | 'down'.
+
+        - healthy: answers /api/jobs with < 500
+        - unhealthy: answers, but with a 5xx (e.g. schema-drifted DB → P2022)
+        - down: nothing answering (connection refused / timeout)
+        """
         try:
-            async with httpx.AsyncClient(timeout=2.0) as client:
+            async with httpx.AsyncClient(timeout=3.0) as client:
                 # /api/jobs is cheap (just a SELECT * FROM Job) and exists
                 # in every recent ai-toolkit build.
                 res = await client.get(f"{self.base_url}/api/jobs")
-                return res.status_code < 500
+                return "healthy" if res.status_code < 500 else "unhealthy"
         except (httpx.HTTPError, OSError):
-            return False
+            return "down"
+
+    async def _is_responding(self) -> bool:
+        return await self._probe() == "healthy"
+
+    async def _sync_db(self, npm: str, ui_dir: Path, env: dict[str, str]) -> None:
+        """Run ai-toolkit's `update_db` (prisma generate + db push).
+
+        Brings aitk_db.db in step with ai-toolkit's Prisma schema so newly
+        added columns exist before the server queries them. Best-effort: on
+        failure we log and continue, since the server may still start.
+        """
+        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                npm,
+                "run",
+                "update_db",
+                cwd=str(ui_dir),
+                env=env,
+                stdout=self._log_handle
+                if self._log_handle
+                else asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.STDOUT
+                if self._log_handle
+                else asyncio.subprocess.DEVNULL,
+                creationflags=creationflags,
+            )
+            await asyncio.wait_for(proc.wait(), timeout=120)
+            if proc.returncode == 0:
+                print("[aitk-server] DB schema synced (prisma db push).")
+            else:
+                print(
+                    f"[aitk-server] update_db exited {proc.returncode}; "
+                    "continuing (server may still start)."
+                )
+        except (asyncio.TimeoutError, OSError) as exc:
+            print(f"[aitk-server] update_db failed ({exc}); continuing.")
+
+    def _listener_pids(self) -> list[int]:
+        """PIDs of processes LISTENING on our port (both IPv4 and IPv6)."""
+        needle = f":{self._port}"
+        pids: set[int] = set()
+        try:
+            if sys.platform == "win32":
+                out = subprocess.run(
+                    ["netstat", "-ano", "-p", "TCP"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                ).stdout
+                for line in out.splitlines():
+                    if "LISTENING" not in line:
+                        continue
+                    parts = line.split()
+                    # cols: Proto  Local  Foreign  State  PID
+                    if len(parts) >= 5 and parts[1].endswith(needle):
+                        if parts[-1].isdigit():
+                            pids.add(int(parts[-1]))
+            else:
+                out = subprocess.run(
+                    ["lsof", "-ti", f"tcp:{self._port}", "-sTCP:LISTEN"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                ).stdout
+                pids.update(int(x) for x in out.split() if x.strip().isdigit())
+        except (OSError, subprocess.SubprocessError, ValueError):
+            pass
+        return list(pids)
+
+    async def _reclaim_port(self) -> None:
+        """Kill whatever is listening on our port, tree-wide, and wait for it
+        to free. Resets our own ownership flags so the next spawn is clean."""
+        for pid in self._listener_pids():
+            try:
+                if sys.platform == "win32":
+                    # /T kills the whole tree (npm → concurrently → worker+next).
+                    os.system(f"taskkill /F /T /PID {pid} >nul 2>&1")
+                else:
+                    os.killpg(os.getpgid(pid), signal.SIGKILL)
+            except (OSError, ProcessLookupError):
+                pass
+
+        # Any handle we held points at a now-dead tree.
+        self._process = None
+        self._owns_process = False
+
+        # Wait for the LISTEN socket to actually clear before we try to bind.
+        for _ in range(40):
+            if not self._listener_pids():
+                return
+            await asyncio.sleep(0.25)
 
     async def _wait_for_ready(self, timeout: float) -> None:
         deadline = asyncio.get_event_loop().time() + timeout

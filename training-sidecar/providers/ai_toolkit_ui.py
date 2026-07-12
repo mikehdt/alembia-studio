@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sqlite3
 import sys
 import uuid
 from collections.abc import AsyncGenerator
@@ -132,6 +133,110 @@ def _steps_for_new_checkpoints(
         _step_from_checkpoint_name(Path(p).name, output_name, fallback_step)
         for p in new_files
     ]
+
+
+def _loss_log_path(output_path: str, output_name: str) -> Path:
+    """Path to ai-toolkit's per-job metrics DB.
+
+    ai-toolkit's UILogger writes `loss_log.db` to the trainer's save_root —
+    `<training_folder>/<name>`, i.e. our `output_path/output_name` (the same
+    dir we scan for checkpoints). We read it here rather than call ai-toolkit's
+    `/api/jobs/<id>/loss` route: that route resolves the folder from the DB
+    row's *unique* name under ai-toolkit's *own* training folder, which never
+    matches the config `name` we save under — so it would look in the wrong
+    place. Reading the file directly sidesteps that mismatch.
+    """
+    return Path(output_path) / output_name / "loss_log.db"
+
+
+def _read_loss_metrics(db_path: Path) -> Optional[dict]:
+    """Read the latest loss / learning_rate / iteration-rate from `loss_log.db`.
+
+    Returns a dict with any of `loss`, `learning_rate`, `sec_per_it` that could
+    be resolved, or None if the DB isn't there yet (logging hasn't started) or
+    holds no rows. Best-effort: any SQLite error degrades to None so a
+    momentarily-locked or half-written DB never breaks the poll loop.
+
+    Metric keys mirror BaseSDTrainProcess: learning rate under `learning_rate`,
+    loss under `loss/<name>` (typically `loss/loss`). The iteration rate is
+    derived from the wall-time gap between the two most recent logged steps —
+    ai-toolkit doesn't populate the job row's `speed_string` for ui_trainer.
+    """
+    if not db_path.exists():
+        return None
+    try:
+        # Plain (read-write-capable) handle, like ai-toolkit's own /loss route:
+        # a mode=ro connection can't attach to the writer's WAL shared-memory
+        # index. We only ever issue SELECTs, and guard existence above so this
+        # never creates the file.
+        con = sqlite3.connect(str(db_path), timeout=1.0)
+    except sqlite3.Error:
+        return None
+    try:
+        con.execute("PRAGMA busy_timeout=1000;")
+        keys = [r[0] for r in con.execute("SELECT key FROM metric_keys")]
+        if not keys:
+            return None
+
+        result: dict = {}
+
+        loss_key = next(
+            (k for k in ("loss", "loss/loss") if k in keys),
+            next((k for k in sorted(keys) if k.startswith("loss")), None),
+        )
+        if loss_key is not None:
+            row = con.execute(
+                "SELECT value_real FROM metrics WHERE key = ? "
+                "ORDER BY step DESC LIMIT 1",
+                (loss_key,),
+            ).fetchone()
+            if row and row[0] is not None:
+                result["loss"] = float(row[0])
+
+        if "learning_rate" in keys:
+            row = con.execute(
+                "SELECT value_real FROM metrics WHERE key = ? "
+                "ORDER BY step DESC LIMIT 1",
+                ("learning_rate",),
+            ).fetchone()
+            if row and row[0] is not None:
+                result["learning_rate"] = float(row[0])
+
+        # s/it from the last two logged steps' wall-times.
+        steps = con.execute(
+            "SELECT step, wall_time FROM steps ORDER BY step DESC LIMIT 2"
+        ).fetchall()
+        if len(steps) == 2:
+            (late_step, late_t), (early_step, early_t) = steps
+            if late_step > early_step and late_t > early_t:
+                result["sec_per_it"] = (late_t - early_t) / (late_step - early_step)
+
+        return result or None
+    except sqlite3.Error:
+        return None
+    finally:
+        con.close()
+
+
+def _extract_worker_error(log_path: Optional[Path], max_lines: int = 40) -> str:
+    """Pull the tail of ai-toolkit's server log for a failed run.
+
+    ai-toolkit's job row `info` only carries a one-line summary (e.g. the bare
+    "[Errno 22] Invalid argument"); the real Python traceback goes to the
+    worker's stdout, which we tee into `aitk-server.log`. When a job fails —
+    especially early, before ai-toolkit writes its per-run log.txt — that tail
+    is the only place the actual cause is visible, so fold it into the error we
+    report. Best-effort: returns "" if the log can't be read.
+    """
+    if log_path is None or not log_path.exists():
+        return ""
+    try:
+        lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    # Prefer the trailing WORKER/traceback lines — they carry the failure.
+    tail = [ln for ln in lines if ln.strip()][-max_lines:]
+    return "\n".join(tail).strip()
 
 
 def _pid_alive(pid: int) -> bool:
@@ -301,6 +406,11 @@ class AiToolkitUiProvider(TrainingProvider):
             seen_checkpoints: set[str] = _scan_checkpoints(
                 request.output_path, request.output_name
             )
+            # ai-toolkit's UILogger writes per-step loss/lr here once training
+            # begins (we enable it via logging.use_ui_logger in the config).
+            loss_db_path = _loss_log_path(
+                request.output_path, request.output_name
+            )
 
             while True:
                 await asyncio.sleep(POLL_INTERVAL_SECONDS)
@@ -328,10 +438,22 @@ class AiToolkitUiProvider(TrainingProvider):
                     del log_tail[:-50]
                     last_status_label = info
 
+                # ai-toolkit's `info` is a coarse phase label: "Loading model",
+                # "Loading dataset" (covers bucketing + latent caching — those
+                # only print a tqdm bar to log.txt, never to the row), "Saving
+                # model", "Generating images - x/y", or "Training" while steps
+                # advance. Surface everything but the plain "Training" as the
+                # structured `phase` so the UI shows a phase label the same way
+                # the Kohya provider does; None while actively stepping.
+                phase_label: Optional[str] = (
+                    None if info in ("", "Training") else info
+                )
+
                 if aitk_status in ("queued", "starting"):
                     yield JobProgress(
                         job_id=local_job_id,
                         status=JobStatus.PREPARING,
+                        phase=phase_label,
                         log_lines=log_tail[-50:],
                     )
                 elif aitk_status == "running":
@@ -362,10 +484,23 @@ class AiToolkitUiProvider(TrainingProvider):
                             yield JobProgress(
                                 job_id=local_job_id,
                                 status=JobStatus.PREPARING,
+                                phase=phase_label,
                                 log_lines=log_tail,
                             )
                         else:
+                            # Prefer ai-toolkit's structured metrics DB; fall
+                            # back to the (usually empty for ui_trainer)
+                            # speed_string parse if it isn't readable yet.
                             loss, lr, eta, rate = _parse_speed_string(speed)
+                            metrics = _read_loss_metrics(loss_db_path)
+                            if metrics is not None:
+                                loss = metrics.get("loss", loss)
+                                lr = metrics.get("learning_rate", lr)
+                                sec_per_it = metrics.get("sec_per_it")
+                                if sec_per_it is not None:
+                                    rate = f"{sec_per_it:.2f}s/it"
+                                    if total_steps > 0:
+                                        eta = int(sec_per_it * (total_steps - step))
                             yield JobProgress(
                                 job_id=local_job_id,
                                 status=JobStatus.TRAINING,
@@ -375,6 +510,7 @@ class AiToolkitUiProvider(TrainingProvider):
                                 learning_rate=lr,
                                 eta_seconds=eta,
                                 speed=rate,
+                                phase=phase_label,
                                 saved_checkpoints=newly_saved,
                                 sample_image_paths=sample_paths,
                                 log_lines=log_tail,
@@ -434,13 +570,27 @@ class AiToolkitUiProvider(TrainingProvider):
                         )
                         seen_checkpoints = current_files
 
+                    error_text: Optional[str] = None
+                    if final_status == JobStatus.FAILED:
+                        # `info` is only a one-line summary; fold in the server
+                        # log tail so the real traceback reaches the UI instead
+                        # of a bare "[Errno 22] Invalid argument".
+                        error_text = info or "ai-toolkit job failed"
+                        worker_tail = _extract_worker_error(self._server.log_path)
+                        if worker_tail:
+                            error_text = (
+                                f"{error_text}\n\n"
+                                f"--- ai-toolkit server log (tail) ---\n"
+                                f"{worker_tail}"
+                            )
+
                     yield JobProgress(
                         job_id=local_job_id,
                         status=final_status,
                         current_step=step,
                         total_steps=total_steps,
                         saved_checkpoints=final_saved,
-                        error=info if final_status == JobStatus.FAILED else None,
+                        error=error_text,
                         log_lines=log_tail,
                     )
                     break
@@ -552,6 +702,16 @@ def _build_config_dict(request: StartJobRequest, gpu_id: int = 0) -> dict:
                             else 10_000
                         ),
                         "save_state": hp.get("save_state", False),
+                    },
+                    # Turn on ai-toolkit's SQLite metrics logger so it writes
+                    # per-step loss/learning_rate to `<save_root>/loss_log.db`,
+                    # which the provider reads back (ui_trainer leaves the job
+                    # row's speed_string empty, so this is our only structured
+                    # source). log_every=1 → a point every step for a smooth
+                    # live curve; the JobManager downsamples centrally anyway.
+                    "logging": {
+                        "use_ui_logger": True,
+                        "log_every": 1,
                     },
                     "datasets": [
                         {

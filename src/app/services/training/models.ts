@@ -160,8 +160,13 @@ const BASE_DEFAULTS: TrainingDefaults = {
   mixedPrecision: 'bf16',
   transformerQuantization: 'float8',
   textEncoderQuantization: 'float8',
-  cacheTextEmbeddings: false,
-  unloadTextEncoder: false,
+  // VRAM-conservative by default (ai-toolkit only). Keeping the text encoder
+  // resident during training tips a large model (e.g. Z-Image) past 16 GB,
+  // which silently spills into system RAM and drags each step to minutes.
+  // Pre-caching TE embeddings and dropping the encoder from VRAM avoids that;
+  // users can turn them off when they have headroom.
+  cacheTextEmbeddings: true,
+  unloadTextEncoder: true,
   gradientAccumulationSteps: 1,
   gradientCheckpointing: true,
   cacheLatents: true,
@@ -207,7 +212,9 @@ const BASE_DEFAULTS: TrainingDefaults = {
   diffOutputPreservationMultiplier: 1.0,
   diffOutputPreservationClass: '',
   layerTargeting: '',
-  lowVram: false,
+  // See cacheTextEmbeddings/unloadTextEncoder above — enable ai-toolkit's
+  // block-swapping low-VRAM mode by default so 16 GB cards don't spill.
+  lowVram: true,
 };
 
 export const MODEL_DEFINITIONS: ModelDefinition[] = [
