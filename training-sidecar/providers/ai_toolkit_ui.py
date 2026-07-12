@@ -18,6 +18,7 @@ Requires the ai-toolkit UI server to be running, managed by
 from __future__ import annotations
 
 import asyncio
+import math
 import os
 import sqlite3
 import sys
@@ -239,6 +240,23 @@ def _extract_worker_error(log_path: Optional[Path], max_lines: int = 40) -> str:
     return "\n".join(tail).strip()
 
 
+def _derive_epoch(step: int, total_steps: int, total_epochs: int) -> int:
+    """Best-effort current epoch from the step counter.
+
+    ai-toolkit is purely step-based — its job row carries no epoch — so we
+    derive one the same way the UI relates the two: steps_per_epoch =
+    ceil(total_steps / total_epochs), matching `predict_checkpoint_steps` and
+    the client's calculated-steps selector (the config sends a consistent
+    steps↔epochs pair). Returns 0 when it can't be resolved (no epoch count, or
+    pre-training), which the UI reads as "no epoch info". Clamped to
+    [1, total_epochs] so the final step doesn't overshoot to epoch N+1.
+    """
+    if total_epochs <= 0 or total_steps <= 0 or step <= 0:
+        return 0
+    steps_per_epoch = max(1, math.ceil(total_steps / total_epochs))
+    return min(total_epochs, math.ceil(step / steps_per_epoch))
+
+
 def _pid_alive(pid: int) -> bool:
     """Cross-platform: is a process with this PID currently running?"""
     if pid <= 0:
@@ -397,6 +415,9 @@ class AiToolkitUiProvider(TrainingProvider):
             # already built up during setup so the UI doesn't lose context
             # when the polling phase starts.
             total_steps = int(request.hyperparameters.get("steps", 0)) or 0
+            # ai-toolkit runs by steps and reports no epoch; we derive one for
+            # the UI from the effective epoch count the client sends.
+            total_epochs = int(request.hyperparameters.get("epochs", 0) or 0)
             sample_paths: list[str] = []
             last_step = -1
             last_status_label = ""
@@ -506,6 +527,10 @@ class AiToolkitUiProvider(TrainingProvider):
                                 status=JobStatus.TRAINING,
                                 current_step=step,
                                 total_steps=total_steps,
+                                current_epoch=_derive_epoch(
+                                    step, total_steps, total_epochs
+                                ),
+                                total_epochs=total_epochs,
                                 loss=loss,
                                 learning_rate=lr,
                                 eta_seconds=eta,
@@ -540,6 +565,10 @@ class AiToolkitUiProvider(TrainingProvider):
                             status=JobStatus.TRAINING,
                             current_step=step,
                             total_steps=total_steps,
+                            current_epoch=_derive_epoch(
+                                step, total_steps, total_epochs
+                            ),
+                            total_epochs=total_epochs,
                             log_lines=log_tail,
                         )
                         exited = await _wait_for_pid_exit(int(pid))
@@ -589,6 +618,10 @@ class AiToolkitUiProvider(TrainingProvider):
                         status=final_status,
                         current_step=step,
                         total_steps=total_steps,
+                        current_epoch=_derive_epoch(
+                            step, total_steps, total_epochs
+                        ),
+                        total_epochs=total_epochs,
                         saved_checkpoints=final_saved,
                         error=error_text,
                         log_lines=log_tail,

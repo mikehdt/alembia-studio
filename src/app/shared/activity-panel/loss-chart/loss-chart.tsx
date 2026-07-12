@@ -241,7 +241,8 @@ const LossChartComponent = ({
         />
       ))}
 
-      {/* Upcoming checkpoints: faint, dashed */}
+      {/* Upcoming checkpoints: dashed, faded violet — same family as the
+          solid saved-checkpoint lines, distinct from the grey epoch grid. */}
       {upcomingCheckpoints.map((step) => (
         <line
           key={`upcoming-${step}`}
@@ -251,7 +252,7 @@ const LossChartComponent = ({
           y2={lineBottom}
           strokeWidth={1}
           strokeDasharray="2,3"
-          className="stroke-slate-400/50 dark:stroke-slate-500/50"
+          className="stroke-violet-500/70 dark:stroke-violet-400/70"
         />
       ))}
 

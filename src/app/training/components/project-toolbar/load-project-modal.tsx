@@ -3,7 +3,12 @@
 import { FolderOpenIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-import type { TrainingProjectSummary } from '@/app/services/training-projects/disk-schema';
+import { getModelById } from '@/app/services/training/models';
+import { TRAINING_PROVIDER_SHORT_LABELS } from '@/app/services/training/types';
+import type {
+  TrainingProjectSummary,
+  TrainingProjectVersionSummary,
+} from '@/app/services/training-projects/disk-schema';
 import { Button } from '@/app/shared/button';
 import { Input } from '@/app/shared/input/input';
 import { Modal } from '@/app/shared/modal';
@@ -20,6 +25,103 @@ type LoadProjectModalProps = {
   isOpen: boolean;
   onClose: () => void;
 };
+
+const MODEL_BADGE_CLASS =
+  'rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300';
+const BACKEND_BADGE_CLASS =
+  'rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-700/60 dark:text-slate-400';
+const COUNT_CHIP_CLASS =
+  'cursor-pointer rounded bg-slate-200 px-1.5 py-0.5 text-xs font-medium text-slate-500 hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-300 dark:hover:bg-slate-500';
+
+function modelLabel(modelId: string): string {
+  return getModelById(modelId)?.name ?? modelId;
+}
+
+/** Model + backend badges for a single saved version. */
+function ModelBackendBadges({
+  version,
+}: {
+  version: TrainingProjectVersionSummary;
+}) {
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      <span className={MODEL_BADGE_CLASS}>{modelLabel(version.modelId)}</span>
+      <span className={BACKEND_BADGE_CLASS}>
+        {TRAINING_PROVIDER_SHORT_LABELS[version.selectedProvider]}
+      </span>
+    </span>
+  );
+}
+
+/** Distinct values across a project's versions, latest first. */
+function distinctByVersion<T>(
+  project: TrainingProjectSummary,
+  pick: (v: TrainingProjectVersionSummary) => T,
+): T[] {
+  const ordered = [...project.versions].sort((a, b) => b.version - a.version);
+  const seen = new Set<T>();
+  const out: T[] = [];
+  for (const v of ordered) {
+    const value = pick(v);
+    if (seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  return out;
+}
+
+/**
+ * Project-level badges. A project can span several models across its versions,
+ * so the model list collapses to the latest model plus a clickable `+N` chip
+ * that expands the rest in place. Backends (usually one) are shown in full.
+ */
+function ProjectSummaryBadges({
+  project,
+}: {
+  project: TrainingProjectSummary;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const models = distinctByVersion(project, (v) => v.modelId);
+  const backends = distinctByVersion(project, (v) => v.selectedProvider);
+  if (models.length === 0) return null;
+
+  const shownModels = expanded ? models : models.slice(0, 1);
+  const hidden = models.length - shownModels.length;
+
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      {shownModels.map((id) => (
+        <span key={id} className={MODEL_BADGE_CLASS}>
+          {modelLabel(id)}
+        </span>
+      ))}
+      {(hidden > 0 || expanded) && models.length > 1 && (
+        <button
+          type="button"
+          // Inside a RadioRow <label>; stop the click from toggling selection.
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setExpanded((prev) => !prev);
+          }}
+          className={COUNT_CHIP_CLASS}
+          aria-label={
+            expanded
+              ? 'Show fewer models'
+              : `Show ${hidden} more model${hidden === 1 ? '' : 's'}`
+          }
+        >
+          {expanded ? '−' : `+${hidden}`}
+        </button>
+      )}
+      {backends.map((provider) => (
+        <span key={provider} className={BACKEND_BADGE_CLASS}>
+          {TRAINING_PROVIDER_SHORT_LABELS[provider]}
+        </span>
+      ))}
+    </span>
+  );
+}
 
 function formatRelative(iso: string): string {
   const now = Date.now();
@@ -137,14 +239,14 @@ export const LoadProjectModal = ({
                     checked={selectedId === p.id}
                     onChange={() => handleSelectProject(p.id)}
                   >
-                    <FolderOpenIcon className="h-4 w-4 shrink-0 text-slate-400" />
-                    <div className="flex flex-1 flex-col">
+                    <FolderOpenIcon className="mt-0.5 h-4 w-4 shrink-0 self-start text-slate-400" />
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="truncate">{p.name}</span>
+                      <ProjectSummaryBadges project={p} />
                       <span className="text-xs text-slate-500">
-                        {p.versions.length}
-                        {p.versions.length === 1
-                          ? 'version'
-                          : 'versions'} · {formatRelative(p.updatedAt)}
+                        {p.versions.length}{' '}
+                        {p.versions.length === 1 ? 'version' : 'versions'} ·{' '}
+                        {formatRelative(p.updatedAt)}
                       </span>
                     </div>
                   </RadioRow>
@@ -158,7 +260,7 @@ export const LoadProjectModal = ({
 
               {/* Version list */}
               <div
-                className="flex max-h-[28rem] w-48 flex-col gap-1 overflow-auto rounded-md border border-slate-200 p-2 dark:border-slate-700"
+                className="flex max-h-112 w-64 flex-col gap-1 overflow-auto rounded-md border border-slate-200 p-2 dark:border-slate-700"
                 role="radiogroup"
                 aria-label="Versions"
               >
@@ -174,11 +276,12 @@ export const LoadProjectModal = ({
                         checked={selectedVersion === v.version}
                         onChange={() => setSelectedVersion(v.version)}
                       >
-                        <div className="flex flex-1 flex-col">
+                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                           <span className="text-sm">
                             v{v.version}
                             {v.label ? ` · ${v.label}` : ''}
                           </span>
+                          <ModelBackendBadges version={v} />
                           <span className="text-xs text-slate-500">
                             {formatRelative(v.savedAt)}
                           </span>

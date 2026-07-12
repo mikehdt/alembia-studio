@@ -132,6 +132,12 @@ const TrainingConfigFormComponent = ({
   const handleStart = useCallback(() => {
     const effectiveSteps =
       state.durationMode === 'epochs' ? calculatedSteps : state.steps;
+    // Send the resolved epoch count alongside steps. ai-toolkit is purely
+    // step-based, but the sidecar needs the true epoch count to (a) convert
+    // epoch-based save cadences to steps and (b) surface an epoch in the
+    // progress UI. Mirror effectiveSteps: in steps-mode epochs is derived.
+    const effectiveEpochs =
+      state.durationMode === 'steps' ? calculatedEpochs : state.epochs;
 
     onStartTraining?.({
       modelId: state.modelId,
@@ -140,6 +146,7 @@ const TrainingConfigFormComponent = ({
       outputName: state.outputName,
       datasets: state.datasets,
       steps: effectiveSteps,
+      epochs: effectiveEpochs,
       learningRate: state.learningRate,
       optimizer: state.optimizer,
       scheduler: state.scheduler,
@@ -204,7 +211,7 @@ const TrainingConfigFormComponent = ({
       sampleEverySteps: state.sampleEverySteps,
       samplePrompts: state.samplePrompts.map((s) => s.trim()).filter(Boolean),
     });
-  }, [state, calculatedSteps, onStartTraining]);
+  }, [state, calculatedSteps, calculatedEpochs, onStartTraining]);
 
   const hasAllRequiredComponents = currentModel.components
     .filter((c) => c.required)

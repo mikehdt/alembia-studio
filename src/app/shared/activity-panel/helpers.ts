@@ -64,6 +64,28 @@ export function deriveSavedCount(progress: TrainingProgress | null): number {
   return predicted.filter((s) => s <= progress.currentStep).length;
 }
 
+/**
+ * Total checkpoints a run is expected to produce, for the "saved / expected"
+ * display. Counts the predicted intermediate save positions plus the final
+ * LoRA every backend writes on completion. Deduped by step: a predicted save
+ * that lands exactly on the last step is the same file as the final, and
+ * confirmed saves are themselves step-deduped, so this converges to the final
+ * `savedCount`. Returns 0 when there's no step count to base it on (so the
+ * caller can fall back to a bare count).
+ */
+export function deriveExpectedCheckpointCount(
+  progress: TrainingProgress | null,
+): number {
+  if (!progress) return 0;
+  const total = progress.totalSteps ?? 0;
+  if (total <= 0) return 0;
+  const predicted = (progress.checkpointSteps ?? []).filter(
+    (s) => s > 0 && s <= total,
+  );
+  // The final LoRA is always written at the last step; include it (deduped).
+  return new Set([...predicted, total]).size;
+}
+
 export function formatDuration(ms: number): string {
   const totalSeconds = Math.round(ms / 1000);
   if (totalSeconds < 60) return `${totalSeconds}s`;

@@ -11,6 +11,14 @@ export const TRAINING_PROVIDER_LABELS: Record<TrainingProvider, string> = {
   mock: 'Mock (fake GPU, UI testing)',
 };
 
+/** Compact backend names for tight UI (badges, list rows). */
+export const TRAINING_PROVIDER_SHORT_LABELS: Record<TrainingProvider, string> = {
+  'ai-toolkit': 'AI Toolkit',
+  kohya: 'Kohya',
+  musubi: 'Musubi',
+  mock: 'Mock',
+};
+
 // --- Job Lifecycle ---
 
 export type TrainingJobStatus =

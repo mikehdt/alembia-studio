@@ -1,3 +1,4 @@
+import type { TrainingProvider } from '@/app/services/training/types';
 import type { FormState } from '@/app/store/training-config/types';
 
 /** Per-project metadata. One of these per saved training project. */
@@ -17,9 +18,20 @@ export type TrainingProjectVersion = {
   form: FormState;
 };
 
+/**
+ * A version's identity in a list summary. The full `form` is stripped, but the
+ * model and backend are surfaced so the load UI can show what each project /
+ * version trains without loading the whole form.
+ */
+export type TrainingProjectVersionSummary = Pick<
+  TrainingProjectVersion,
+  'version' | 'label' | 'savedAt'
+> & {
+  modelId: string;
+  selectedProvider: TrainingProvider;
+};
+
 /** Summary returned by list endpoints — meta plus available versions. */
 export type TrainingProjectSummary = TrainingProjectMeta & {
-  versions: Array<
-    Pick<TrainingProjectVersion, 'version' | 'label' | 'savedAt'>
-  >;
+  versions: TrainingProjectVersionSummary[];
 };

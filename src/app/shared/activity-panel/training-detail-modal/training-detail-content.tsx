@@ -1,7 +1,11 @@
+import type { ReactNode } from 'react';
+
 import { TRAINING_PROVIDER_LABELS } from '@/app/services/training/types';
 import type { TrainingJob } from '@/app/store/jobs';
 
+import { ProgressBar } from '../../progress-bar/progress-bar';
 import {
+  deriveExpectedCheckpointCount,
   deriveSavedCount,
   formatDuration,
   formatEta,
@@ -11,7 +15,7 @@ import { LossChart } from '../loss-chart/loss-chart';
 import { SpeedChart } from '../speed-chart/speed-chart';
 import { useTrainingDetailView } from './use-training-detail-view';
 
-function Stat({ label, value }: { label: string; value: string | null }) {
+function Stat({ label, value }: { label: string; value: ReactNode }) {
   if (value == null) return null;
   return (
     <div className="rounded border border-slate-200 bg-slate-50 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-800/60">
@@ -40,10 +44,17 @@ export function TrainingDetailContent({ job }: { job: TrainingJob | null }) {
 
   const currentStep = progress.currentStep ?? 0;
   const totalSteps = progress.totalSteps ?? 0;
+  const stepPct =
+    totalSteps > 0 ? Math.round((currentStep / totalSteps) * 100) : 0;
   const savedCheckpoints = progress.savedCheckpoints ?? [];
   const checkpointSteps = progress.checkpointSteps ?? [];
   const speedHistory = progress.speedHistory ?? [];
   const savedCount = deriveSavedCount(progress);
+  // Never let the denominator fall below what's already confirmed saved — old
+  // persisted runs may carry saved checkpoints without a predicted-steps list.
+  const expectedRaw = deriveExpectedCheckpointCount(progress);
+  const expectedCheckpoints =
+    expectedRaw > 0 ? Math.max(expectedRaw, savedCount) : 0;
 
   const elapsed =
     progress.completedAt != null && progress.startedAt != null
@@ -104,9 +115,11 @@ export function TrainingDetailContent({ job }: { job: TrainingJob | null }) {
               Saved checkpoint
             </span>
           )}
-          {checkpointSteps.some((s) => s > currentStep) && (
+          {checkpointSteps.some(
+            (s) => s > currentStep && !savedCheckpoints.includes(s),
+          ) && (
             <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2 w-0.5 border-l border-dashed border-slate-400/70" />
+              <span className="inline-block h-2 w-0.5 border-l border-dashed border-violet-500/70 dark:border-violet-400/70" />
               Upcoming checkpoint
             </span>
           )}
@@ -137,13 +150,34 @@ export function TrainingDetailContent({ job }: { job: TrainingJob | null }) {
         </div>
       )}
 
+      {totalSteps > 0 ? (
+        <ProgressBar
+          value={currentStep}
+          max={totalSteps}
+          color={
+            isCompleted ? 'green' : job.status === 'failed' ? 'red' : 'sky'
+          }
+          marks={checkpointSteps}
+          size={isCompleted ? 'xs' : 'sm'}
+        />
+      ) : isRunning ? (
+        <ProgressBar value={0} max={1} color="sky" indeterminate size="sm" />
+      ) : null}
+
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat
           label="Step"
           value={
-            totalSteps > 0
-              ? `${currentStep.toLocaleString()} / ${totalSteps.toLocaleString()}`
-              : '—'
+            totalSteps > 0 ? (
+              <>
+                {currentStep.toLocaleString()} / {totalSteps.toLocaleString()}
+                <span className="ml-1.5 font-normal text-slate-400">
+                  · {stepPct}%
+                </span>
+              </>
+            ) : (
+              '—'
+            )
           }
         />
         <Stat
@@ -187,7 +221,13 @@ export function TrainingDetailContent({ job }: { job: TrainingJob | null }) {
         />
         <Stat
           label="Checkpoints"
-          value={savedCount > 0 ? String(savedCount) : '—'}
+          value={
+            expectedCheckpoints > 0
+              ? `${savedCount > 0 ? savedCount : '—'} / ${expectedCheckpoints}`
+              : savedCount > 0
+                ? String(savedCount)
+                : '—'
+          }
         />
       </div>
 

@@ -151,6 +151,8 @@ export async function listProjects(): Promise<TrainingProjectSummary[]> {
           version: v.version,
           label: v.label,
           savedAt: v.savedAt,
+          modelId: v.form.modelId,
+          selectedProvider: v.form.selectedProvider,
         });
       }
     }
