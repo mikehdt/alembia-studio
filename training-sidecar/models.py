@@ -109,6 +109,13 @@ class JobProgress(BaseModel):
     phase: Optional[str] = None
     # Iteration rate as reported by the trainer, e.g. "2.30 it/s" / "23.01 s/it".
     speed: Optional[str] = None
+    # Cumulative wall-time (seconds) spent actively TRAINING, accumulated
+    # centrally by the JobManager from the gaps between TRAINING-status ticks —
+    # so it excludes queueing/preparing (model load, latent caching) and, unlike
+    # the trainer's per-process tqdm elapsed, carries across a stop → resume via
+    # a marker file next to the saved state (see training_time.py). Distinct
+    # from the JobState started_at/completed_at wall-clock span.
+    training_seconds: float = 0.0
 
 
 class JobState(BaseModel):

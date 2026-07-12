@@ -22,6 +22,7 @@ from models import (
     StartJobResponse,
 )
 from providers.base import TrainingProvider
+from training_time import read_carryforward_seconds, record_time_markers
 from ws_manager import WebSocketManager
 
 
@@ -42,6 +43,15 @@ _MAX_LOSS_POINTS = 1000
 # updates, fresh checkpoint confirmations, and the first update always persist
 # immediately regardless of this throttle.
 _PERSIST_THROTTLE_SECONDS = 5.0
+
+# Upper bound on a single gap between consecutive TRAINING-status ticks that we
+# still count as training time. Ticks normally arrive ~1/sec, and a legitimate
+# between-step pause (checkpoint save, sample generation) is still TRAINING and
+# should count — but only up to this cap, past which the gap is treated as a
+# stall / clock jump / discontinuity and dropped, so a frozen or backgrounded
+# process can't inflate the figure. Bounds the per-gap error to this many
+# seconds.
+_MAX_TRAINING_GAP_SECONDS = 180.0
 
 # Matches a trainer-reported iteration rate like "2.30it/s" or "23.01 s/it".
 _RATE_RE = re.compile(r"([\d.]+)\s*(it/s|s/it)", re.IGNORECASE)
@@ -222,10 +232,17 @@ class JobManager:
         # Predict the checkpoint step positions once, up front, so they're
         # persisted with the job and survive a page refresh.
         checkpoint_steps = predict_checkpoint_steps(request.hyperparameters)
+        # If this run resumes from a saved state, seed the training clock from
+        # the marker left beside that state so the timer continues rather than
+        # restarting at zero (see training_time.py).
+        carryforward = read_carryforward_seconds(
+            request.hyperparameters.get("resume_state")
+        )
         progress = JobProgress(
             job_id=job_id,
             status=JobStatus.PENDING,
             checkpoint_steps=checkpoint_steps,
+            training_seconds=carryforward,
         )
         self._accumulators[job_id] = {
             "history": [],
@@ -235,6 +252,21 @@ class JobManager:
             "raw_count": 0,
             "checkpoint_steps": checkpoint_steps,
             "saved": set(),
+            # Active-training time accounting. `training_seconds` carries the
+            # running total (seeded from any resume marker above); `last_tick`
+            # is the monotonic timestamp of the previous TRAINING update, or
+            # None whenever we're not mid-training so a non-training stretch
+            # isn't counted. The output_* / provider fields let the terminal
+            # and per-save marker writes find the trainer's state dirs.
+            "training_seconds": carryforward,
+            "last_tick": None,
+            "provider": request.provider.value,
+            "output_path": request.output_path,
+            "output_name": request.output_name,
+            # step -> training_seconds at the moment that step's checkpoint was
+            # saved, so a state dir gets the time for the step it belongs to
+            # rather than the time we happened to notice the dir on disk.
+            "save_seconds_by_step": {},
         }
 
         self._jobs[job_id] = JobState(
@@ -366,7 +398,10 @@ class JobManager:
         acc = self._accumulators.get(progress.job_id)
         if acc is None:
             # Seed from persisted progress — covers the cancel path and any
-            # update for a job that predates the accumulator.
+            # update for a job that predates the accumulator. Output info comes
+            # from the persisted config (snake_case request dump) so a marker
+            # write on this path can still locate the state dirs.
+            cfg = job.config or {}
             acc = {
                 "history": list(job.progress.loss_history),
                 "speed_history": list(job.progress.speed_history),
@@ -375,8 +410,32 @@ class JobManager:
                 "raw_count": len(job.progress.loss_history),
                 "checkpoint_steps": list(job.progress.checkpoint_steps),
                 "saved": {int(s) for s in job.progress.saved_checkpoints},
+                "training_seconds": float(job.progress.training_seconds or 0.0),
+                "last_tick": None,
+                "provider": cfg.get("provider") or job.provider.value,
+                "output_path": cfg.get("output_path", ""),
+                "output_name": cfg.get("output_name", ""),
+                "save_seconds_by_step": {},
             }
             self._accumulators[progress.job_id] = acc
+
+        # Accumulate active-training wall-time. Every TRAINING update (step ticks
+        # *and* between-step activity like saving/sampling, which stay TRAINING)
+        # advances the clock by the gap since the previous TRAINING tick, capped
+        # so a stall/clock-jump can't inflate it. Any non-training status
+        # (pending/preparing/terminal) drops the anchor so its span isn't
+        # counted when training resumes.
+        now = time.monotonic()
+        if progress.status == JobStatus.TRAINING:
+            last_tick = acc.get("last_tick")
+            if last_tick is not None:
+                delta = now - last_tick
+                if 0 < delta <= _MAX_TRAINING_GAP_SECONDS:
+                    acc["training_seconds"] += delta
+            acc["last_tick"] = now
+        else:
+            acc["last_tick"] = None
+        progress.training_seconds = acc["training_seconds"]
 
         # Merge any confirmed saves the provider reported this tick. The set
         # dedupes by step (e.g. Kohya prints "model saved" for both an epoch
@@ -425,19 +484,46 @@ class JobManager:
         if job is None:
             return
 
-        # Capture whether the provider reported fresh saves *before*
-        # accumulation rewrites saved_checkpoints to the full deduped set —
-        # a checkpoint confirmation must always be persisted immediately.
-        has_new_saves = bool(progress.saved_checkpoints)
+        # Capture the steps the provider reported as freshly saved *before*
+        # accumulation rewrites saved_checkpoints to the full deduped set — a
+        # checkpoint confirmation must always be persisted immediately, and each
+        # fresh step's save-time is recorded into the ledger below.
+        fresh_saved_steps = [int(s) for s in progress.saved_checkpoints]
+        has_new_saves = bool(fresh_saved_steps)
+        is_terminal = progress.status in _TERMINAL_TRAINING_STATUSES
 
         # Fold in central loss/checkpoint accumulation before we replace
         # job.progress (the seed path reads the previous progress).
         self._accumulate_progress(job, progress)
 
+        # Persist a training-time marker beside the trainer's saved state
+        # whenever a checkpoint is confirmed written or the run ends, so a later
+        # resume can continue the training clock rather than restarting it.
+        # Best-effort and cheap — only fires on save/terminal events, and reads
+        # the accumulator before the terminal branch below drops it.
+        if has_new_saves or is_terminal:
+            acc = self._accumulators.get(progress.job_id)
+            if acc and acc.get("output_path") and acc.get("output_name"):
+                # Stamp each fresh save's step with the current training-seconds
+                # so its state dir can be marked with the right value even if we
+                # only find the dir on disk on a later scan.
+                for saved_step in fresh_saved_steps:
+                    acc["save_seconds_by_step"][saved_step] = (
+                        progress.training_seconds
+                    )
+                record_time_markers(
+                    provider=acc["provider"],
+                    output_path=acc["output_path"],
+                    output_name=acc["output_name"],
+                    training_seconds=progress.training_seconds,
+                    step=progress.current_step,
+                    job_id=progress.job_id,
+                    seconds_by_step=acc["save_seconds_by_step"],
+                )
+
         job.progress = progress
         job.status = progress.status
 
-        is_terminal = progress.status in _TERMINAL_TRAINING_STATUSES
         if is_terminal:
             job.completed_at = datetime.now(timezone.utc).isoformat()
             self._registry.finish(

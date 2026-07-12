@@ -51,6 +51,7 @@ type SidecarJobProgress = {
   error?: string | null;
   phase?: string | null;
   speed?: string | null;
+  training_seconds?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -137,6 +138,7 @@ function buildProgress(
     error: msg.error ?? null,
     phase: msg.phase ?? null,
     speed: msg.speed ?? null,
+    trainingSeconds: msg.training_seconds ?? 0,
   };
 }
 

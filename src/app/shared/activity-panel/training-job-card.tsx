@@ -289,8 +289,17 @@ export function TrainingJobCard({
         {progress &&
           (progress.loss !== null ||
             progress.speed !== null ||
+            progress.trainingSeconds > 0 ||
             (progress.etaSeconds !== null && progress.etaSeconds > 0)) && (
             <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-400 tabular-nums">
+              {progress.trainingSeconds > 0 && (
+                <span>
+                  Train{' '}
+                  <span className="font-medium text-(--foreground)">
+                    {formatDuration(progress.trainingSeconds * 1000)}
+                  </span>
+                </span>
+              )}
               {progress.loss !== null && (
                 <span>
                   Loss{' '}
@@ -327,6 +336,8 @@ export function TrainingJobCard({
         {isCompleted && (
           <p className="mt-1.5 text-xs text-green-600 dark:text-green-400">
             Complete{elapsed != null ? ` in ${formatDuration(elapsed)}` : ''}
+            {(progress?.trainingSeconds ?? 0) > 0 &&
+              ` · ${formatDuration(progress!.trainingSeconds * 1000)} training`}
             {savedCount > 0 &&
               ` · ${savedCount} ${savedCount !== 1 ? 'checkpoints' : 'checkpoint'}`}
           </p>

@@ -174,6 +174,14 @@ export function TrainingDetailContent({ job }: { job: TrainingJob | null }) {
         />
         <Stat label="Speed" value={progress.speed ?? '—'} />
         <Stat
+          label="Train time"
+          value={
+            progress.trainingSeconds > 0
+              ? formatDuration(progress.trainingSeconds * 1000)
+              : '—'
+          }
+        />
+        <Stat
           label="Phase"
           value={progress.phase ?? (isRunning ? 'Training' : '—')}
         />

@@ -71,6 +71,14 @@ export type TrainingProgress = {
   phase: string | null;
   /** Iteration rate from the trainer, e.g. "2.30 it/s" / "23.01 s/it". */
   speed: string | null;
+  /**
+   * Cumulative seconds spent actively training, accumulated sidecar-side from
+   * the gaps between training ticks. Excludes queueing/preparing and, unlike
+   * the wall-clock {@link startedAt}→{@link completedAt} span, carries across a
+   * stop→resume. Advances on the ~1/sec progress ticks (no client interval
+   * needed). 0 until the first training step.
+   */
+  trainingSeconds: number;
 };
 
 // --- Hyperparameters ---
