@@ -138,10 +138,6 @@ export function TrainingJobCard({
   const savedCount = deriveSavedCount(progress);
   const lrCurve = useLrScheduleCurve(config, progress?.totalSteps ?? 0);
 
-  // While running, the loss sits in the graph's header. A terminal card has no
-  // graph, so its final loss stays down in the stats row.
-  const showLossStat = !isRunning && progress?.loss != null;
-
   // Prefer the phase label the provider sends (survives rapid tqdm redraws);
   // fall back to scraping it out of the recent log lines (ai-toolkit, and
   // early phases before any structured phase is reported).
@@ -300,8 +296,7 @@ export function TrainingJobCard({
         ) : null}
 
         {progress &&
-          (showLossStat ||
-            progress.speed !== null ||
+          (progress.speed !== null ||
             progress.trainingSeconds > 0 ||
             (progress.etaSeconds !== null && progress.etaSeconds > 0)) && (
             <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-400 tabular-nums">
@@ -310,14 +305,6 @@ export function TrainingJobCard({
                   Train{' '}
                   <span className="font-medium text-(--foreground)">
                     {formatDuration(progress.trainingSeconds * 1000)}
-                  </span>
-                </span>
-              )}
-              {showLossStat && (
-                <span>
-                  Loss{' '}
-                  <span className="font-medium text-(--foreground)">
-                    {formatLoss(progress.loss!)}
                   </span>
                 </span>
               )}
