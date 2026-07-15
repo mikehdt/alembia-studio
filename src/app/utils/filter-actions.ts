@@ -4,6 +4,7 @@ import {
   SortType,
   TagState,
 } from '../store/assets';
+import { isAssetDirty } from '../store/assets/helpers';
 import { hasState } from '../store/assets/utils';
 import { ClassFilterMode, type VisibilitySettings } from '../store/filters';
 import type { CaptionMode } from '../store/project/types';
@@ -102,15 +103,20 @@ export const applyVisibilityFilters = ({
 
     // Scope: tagless/uncaptioned — only assets with no persisted tags (or empty caption)
     if (visibility.scopeTagless) {
+      const hasCaption = !!img.captionText?.trim();
+      const hasPersistedTags = img.tagList.some(
+        (tag) =>
+          !hasState(img.tagStatus[tag], TagState.TO_DELETE) &&
+          !hasState(img.tagStatus[tag], TagState.TO_ADD),
+      );
+
       if (captionMode === 'caption') {
-        if (img.captionText?.trim()) return false;
+        if (hasCaption) return false;
+      } else if (captionMode === 'hybrid') {
+        // Empty only when neither the tag block nor the caption has content.
+        if (hasPersistedTags || hasCaption) return false;
       } else {
-        const hasPersisted = img.tagList.some(
-          (tag) =>
-            !hasState(img.tagStatus[tag], TagState.TO_DELETE) &&
-            !hasState(img.tagStatus[tag], TagState.TO_ADD),
-        );
-        if (hasPersisted) return false;
+        if (hasPersistedTags) return false;
       }
     }
 
@@ -121,13 +127,7 @@ export const applyVisibilityFilters = ({
 
     // Scope: modified only
     if (visibility.showModified) {
-      const isModified =
-        captionMode === 'caption'
-          ? img.captionText !== img.savedCaptionText
-          : img.tagList.some(
-              (tag) => !hasState(img.tagStatus[tag], TagState.SAVED),
-            );
-      if (!isModified) return false;
+      if (!isAssetDirty(img, captionMode ?? 'tags')) return false;
     }
 
     // --- Per-class filters (AND between classes) ---
@@ -193,6 +193,16 @@ export const applyVisibilityFilters = ({
             const lowerCaption = img.captionText?.toLowerCase() ?? '';
             return triggerPhrasesLower.some((p) => lowerCaption.includes(p));
           }
+          if (captionMode === 'hybrid') {
+            // Match a phrase as an exact booru tag OR anywhere in the caption.
+            const lowerCaption = img.captionText?.toLowerCase() ?? '';
+            return triggerPhrasesLower.some(
+              (p) =>
+                triggerSet.has(p) ||
+                lowerCaption.includes(p) ||
+                img.tagList.some((tag) => tag.toLowerCase() === p),
+            );
+          }
           if (captionMode === 'sentences') {
             return img.tagList.some((tag) => {
               const lowerTag = tag.toLowerCase();
@@ -206,6 +216,14 @@ export const applyVisibilityFilters = ({
           if (captionMode === 'caption') {
             const lowerCaption = img.captionText?.toLowerCase() ?? '';
             return triggerPhrasesLower.every((p) => lowerCaption.includes(p));
+          }
+          if (captionMode === 'hybrid') {
+            const lowerCaption = img.captionText?.toLowerCase() ?? '';
+            return triggerPhrasesLower.every(
+              (p) =>
+                lowerCaption.includes(p) ||
+                img.tagList.some((tag) => tag.toLowerCase() === p),
+            );
           }
           if (captionMode === 'sentences') {
             return triggerPhrasesLower.every((p) =>

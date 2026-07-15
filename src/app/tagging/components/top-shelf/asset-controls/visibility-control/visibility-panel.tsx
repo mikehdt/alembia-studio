@@ -48,7 +48,11 @@ export const VisibilityPanel = () => {
   const tagSection = sections.find((s) => s.key === 'tags');
   const hasTagSelections = !!(tagSection && tagSection.count > 0);
   const taglessLabel =
-    captionMode === 'caption' ? 'Uncaptioned only' : 'Tagless only';
+    captionMode === 'caption'
+      ? 'Uncaptioned only'
+      : captionMode === 'hybrid'
+        ? 'Empty only'
+        : 'Tagless only';
   const taglessBlockedByTags = hasTagSelections && hasTaglessAssets;
 
   return (

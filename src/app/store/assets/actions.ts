@@ -35,8 +35,8 @@ import {
 import type { ProjectState } from '../project/types';
 import { addToast } from '../toasts';
 import {
+  composeAssetText,
   createCleanTagStatus,
-  createFlattenedTags,
   createSaveAssetResult,
   findModifiedAssets,
   getUpdatedTags,
@@ -220,20 +220,34 @@ export const saveAsset = createAsyncThunk<
     throw new Error(`Unable to save caption for ${fileId}`);
   }
 
-  // Tag/sentences mode: compose from tag list
+  // Tag / sentences / hybrid mode: compose the on-disk string for this mode.
   const updateTags = getUpdatedTags(asset);
-  const flattenedTags = createFlattenedTags(updateTags, captionMode);
+  const composedText = composeAssetText(asset, captionMode);
 
-  const success = await saveAssetTags(fileId, flattenedTags, projectPath);
+  const success = await saveAssetTags(fileId, composedText, projectPath);
 
   if (success) {
     const newTagStatus = createCleanTagStatus(updateTags);
+
+    if (captionMode === 'hybrid') {
+      // Hybrid persists both tags and caption — snapshot both as saved.
+      return {
+        assetIndex,
+        fileId,
+        tagList: updateTags,
+        tagStatus: newTagStatus,
+        savedTagList: [...updateTags],
+        captionText: asset.captionText,
+        savedCaptionText: asset.captionText,
+      };
+    }
+
     return createSaveAssetResult(
       asset,
       updateTags,
       newTagStatus,
       imageIndexById,
-      flattenedTags,
+      composedText,
     );
   }
 
@@ -265,16 +279,10 @@ export const saveAllAssets = createAsyncThunk<
   dispatch(updateSaveProgress({ total: totalAssets, completed: 0, failed: 0 }));
 
   // Prepare batch operations for disk writes using helper functions
-  const writeOperations: AssetTagOperation[] = modifiedAssets.map((asset) => {
-    if (captionMode === 'caption') {
-      return { fileId: asset.fileId, composedTags: asset.captionText };
-    }
-    const updateTags = getUpdatedTags(asset);
-    return {
-      fileId: asset.fileId,
-      composedTags: createFlattenedTags(updateTags, captionMode),
-    };
-  });
+  const writeOperations: AssetTagOperation[] = modifiedAssets.map((asset) => ({
+    fileId: asset.fileId,
+    composedTags: composeAssetText(asset, captionMode),
+  }));
 
   // Track success and error counts
   let successCount = 0;
@@ -425,3 +433,42 @@ export const moveAssetsToFolderThunk = createAsyncThunk<
     return result;
   },
 );
+
+/**
+ * Discard every asset's natural-language caption when leaving hybrid mode for a
+ * tag-only mode. Rewrites the `.txt` files as tags-only (dropping the `__`
+ * delimiter and caption) and clears caption state in the store.
+ *
+ * Only assets with a persisted caption are rewritten, so unrelated files are
+ * left untouched. Returns the number of assets whose captions were dropped.
+ */
+export const stripCaptionsForTagMode = createAsyncThunk<
+  { strippedCount: number },
+  { projectPath?: string } | undefined,
+  { state: { assets: ImageAssets } }
+>('assets/stripCaptionsForTagMode', async (options, { getState, dispatch }) => {
+  const { images } = getState().assets;
+
+  // Only assets that actually carry a caption on disk need rewriting.
+  const withCaptions = images.filter(
+    (asset) => asset.savedCaptionText.trim() !== '',
+  );
+
+  if (withCaptions.length === 0) {
+    return { strippedCount: 0 };
+  }
+
+  // Compose tags-only text (mode 'tags' ignores captionText entirely).
+  const writeOperations: AssetTagOperation[] = withCaptions.map((asset) => ({
+    fileId: asset.fileId,
+    composedTags: composeAssetText(asset, 'tags'),
+  }));
+
+  await saveMultipleAssetTags(writeOperations, options?.projectPath);
+
+  // Clear caption state across all loaded assets. Dispatched by action-type to
+  // avoid a circular import of the slice action through the barrel.
+  dispatch({ type: 'assets/clearAllCaptions' });
+
+  return { strippedCount: withCaptions.length };
+});

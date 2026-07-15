@@ -51,6 +51,7 @@ export const {
   copyTagsToAssets,
 
   setCaptionText,
+  clearAllCaptions,
   setSortType,
   setSortDirection,
   toggleSortDirection,

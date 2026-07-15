@@ -1,3 +1,5 @@
+import type { CaptionMode } from '@/app/store/project/types';
+
 export type ProjectColor =
   'slate' | 'rose' | 'amber' | 'teal' | 'sky' | 'indigo' | 'stone';
 
@@ -12,6 +14,6 @@ export type Project = {
   featured?: boolean;
   hidden?: boolean;
   private?: boolean;
-  captionMode?: 'tags' | 'sentences' | 'caption';
+  captionMode?: CaptionMode;
   triggerPhrases?: string[];
 };

@@ -11,6 +11,7 @@ import {
 } from '@/app/constants';
 import type { AutoTaggerSettings } from '@/app/services/auto-tagger';
 import { getProjectsFolder } from '@/app/services/config/server-config';
+import type { CaptionMode } from '@/app/store/project/types';
 
 import { isValidRepeatFolder, parseSubfolder } from './subfolder-utils';
 
@@ -26,7 +27,7 @@ export type ProjectConfig = {
   hidden?: boolean;
   featured?: boolean;
   autoTagger?: AutoTaggerSettings;
-  captionMode?: 'tags' | 'sentences' | 'caption';
+  captionMode?: CaptionMode;
   triggerPhrases?: string[];
 };
 
@@ -47,7 +48,7 @@ export type Project = {
   hidden?: boolean;
   private?: boolean;
   featured?: boolean;
-  captionMode?: 'tags' | 'sentences' | 'caption';
+  captionMode?: CaptionMode;
   triggerPhrases?: string[];
 };
 
@@ -139,7 +140,7 @@ export const getProjectInfo = async (
 ): Promise<{
   title: string;
   thumbnail?: string;
-  captionMode?: 'tags' | 'sentences' | 'caption';
+  captionMode?: CaptionMode;
   triggerPhrases?: string[];
 } | null> => {
   try {

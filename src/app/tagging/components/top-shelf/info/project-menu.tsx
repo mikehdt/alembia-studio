@@ -10,7 +10,13 @@ import { memo, useCallback, useId, useRef, useState } from 'react';
 import { MenuEditModeSwitcher } from '@/app/shared/menu-edit-mode-switcher';
 import { MenuItem } from '@/app/shared/menu-item';
 import { Popup, usePopup } from '@/app/shared/popup';
-import { IoState, loadAllAssets, selectIoState } from '@/app/store/assets';
+import {
+  IoState,
+  loadAllAssets,
+  selectAllImages,
+  selectIoState,
+  stripCaptionsForTagMode,
+} from '@/app/store/assets';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import {
   selectTagEditMode,
@@ -29,6 +35,7 @@ import { updateProject } from '@/app/utils/project-actions';
 
 import { BucketCropModal } from '../asset-controls/bucket-crop-modal';
 import { MenuCaptionModeSwitcher } from './menu-caption-mode-switcher';
+import { SwitchToTagsModal } from './switch-to-tags-modal';
 
 const ProjectMenuComponent = () => {
   const dispatch = useAppDispatch();
@@ -43,8 +50,14 @@ const ProjectMenuComponent = () => {
 
   const tagEditMode = useAppSelector(selectTagEditMode);
   const captionMode = useAppSelector(selectCaptionMode);
+  const images = useAppSelector(selectAllImages);
 
   const [isBucketModalOpen, setIsBucketModalOpen] = useState(false);
+  // Non-zero while the hybrid→tags confirm dialog is open; holds the count of
+  // captions that would be discarded.
+  const [switchToTagsCount, setSwitchToTagsCount] = useState<number | null>(
+    null,
+  );
 
   // Build thumbnail src
   const thumbnailSrc = projectThumbnail
@@ -96,7 +109,7 @@ const ProjectMenuComponent = () => {
     [dispatch],
   );
 
-  const handleSetCaptionMode = useCallback(
+  const commitCaptionMode = useCallback(
     (mode: CaptionMode) => {
       dispatch(setCaptionMode(mode));
       if (projectFolderName) {
@@ -104,6 +117,38 @@ const ProjectMenuComponent = () => {
       }
     },
     [dispatch, projectFolderName],
+  );
+
+  const handleSetCaptionMode = useCallback(
+    (mode: CaptionMode) => {
+      // Leaving hybrid for tag-only mode discards captions on save. If any
+      // loaded asset carries a caption, confirm before switching.
+      if (captionMode === 'hybrid' && mode === 'tags') {
+        const captionCount = images.filter((img) =>
+          img.savedCaptionText.trim(),
+        ).length;
+        if (captionCount > 0) {
+          setSwitchToTagsCount(captionCount);
+          return;
+        }
+      }
+      commitCaptionMode(mode);
+    },
+    [captionMode, images, commitCaptionMode],
+  );
+
+  const handleConfirmSwitchToTags = useCallback(async () => {
+    await dispatch(
+      stripCaptionsForTagMode(
+        projectFolderName ? { projectPath: projectFolderName } : undefined,
+      ),
+    );
+    commitCaptionMode('tags');
+  }, [dispatch, projectFolderName, commitCaptionMode]);
+
+  const handleCloseSwitchToTags = useCallback(
+    () => setSwitchToTagsCount(null),
+    [],
   );
 
   if (!projectName) {
@@ -174,6 +219,13 @@ const ProjectMenuComponent = () => {
       <BucketCropModal
         isOpen={isBucketModalOpen}
         onClose={handleCloseBucketModal}
+      />
+
+      <SwitchToTagsModal
+        isOpen={switchToTagsCount !== null}
+        captionCount={switchToTagsCount ?? 0}
+        onClose={handleCloseSwitchToTags}
+        onConfirm={handleConfirmSwitchToTags}
       />
     </div>
   );

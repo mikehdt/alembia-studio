@@ -17,6 +17,7 @@ import { composeDimensions, getAspectRatio } from '@/app/utils/helpers';
 import { getImageUrl } from '@/app/utils/image-utils';
 
 import { CaptionManager } from '../tagging/caption-manager';
+import { HybridManager } from '../tagging/hybrid-manager';
 import { TaggingManager } from '../tagging/tagging-manager';
 import { AssetMetadata } from './asset-metadata';
 import { CropVisualization } from './crop-visualization';
@@ -255,6 +256,8 @@ const AssetComponent = ({
         >
           {captionMode === 'caption' ? (
             <CaptionManager assetId={assetId} />
+          ) : captionMode === 'hybrid' ? (
+            <HybridManager assetId={assetId} />
           ) : (
             <TaggingManager assetId={assetId} />
           )}

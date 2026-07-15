@@ -108,9 +108,16 @@ export function useAutoTagger({
   // Only show models compatible with the project's current mode:
   // - caption mode → VLM models (natural-language captioners)
   // - tag mode → ONNX models (booru-style taggers)
-  // Mixing the two creates a footgun where captions land on invisible
-  // fields or tags overwrite captions on save, so we gate at selection.
+  // - hybrid mode → both; the selected model's provider type decides whether a
+  //   run fills the tag block (ONNX) or the caption (VLM). Results are routed
+  //   independently downstream, so either is safe.
+  // Mixing tags/caption in the non-hybrid modes creates a footgun where
+  // captions land on invisible fields or tags overwrite captions on save, so we
+  // gate at selection there.
   const modeFilteredReadyModels = useMemo(() => {
+    if (captionMode === 'hybrid') {
+      return readyModels;
+    }
     const targetProviderType: 'onnx' | 'vlm' =
       captionMode === 'caption' ? 'vlm' : 'onnx';
     return readyModels.filter(

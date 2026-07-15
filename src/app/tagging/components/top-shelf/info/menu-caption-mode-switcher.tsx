@@ -1,4 +1,4 @@
-import { HashIcon, TextIcon } from 'lucide-react';
+import { HashIcon, LayersIcon, TextIcon } from 'lucide-react';
 import { memo, useCallback } from 'react';
 
 import {
@@ -11,6 +11,7 @@ const options: SegmentOption<CaptionMode>[] = [
   { value: 'tags', icon: <HashIcon />, label: 'Tags' },
   // Sentences mode hidden until split logic is reworked
   // { value: 'sentences', icon: <WholeWordIcon />, label: 'Sentences' },
+  { value: 'hybrid', icon: <LayersIcon />, label: 'Hybrid' },
   { value: 'caption', icon: <TextIcon />, label: 'Caption' },
 ];
 

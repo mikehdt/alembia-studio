@@ -1,56 +1,15 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Development Commands
-
-- `pnpm dev` - Run development server with Turbopack
-- `pnpm build` - Build for production
-- `pnpm lint` - Run Next.js linting
-- `pnpm format` - Format code with Prettier + ESLint --fix
-- `pnpm knip` - Find unused dependencies and code
-
-Package manager: pnpm (specified in packageManager field)
-
-## First-time setup
-
-1. `pnpm install` — JS/TS dependencies
-2. Install [`uv`](https://docs.astral.sh/uv/) — used to manage the Python sidecar environment
-3. Install `ffmpeg` (provides both `ffmpeg` and `ffprobe` on PATH) — required for video asset support. Used for reading video dimensions, generating poster frames for ONNX tagging, and sampling frames for VLM video captioning. Windows: `winget install Gyan.FFmpeg` or equivalent. Skip this step if you don't need video support.
-4. That's it. The Python sidecar auto-provisions its venv via `uv run` on first invocation, reading dependencies from `training-sidecar/pyproject.toml`.
-
-### Python sidecar
-
-The sidecar handles LoRA training and VLM captioning. It's a FastAPI server
-that Node.js spawns on demand via `sidecar-manager.ts`.
-
-- Lives in `training-sidecar/`, managed as a uv project (`pyproject.toml` + `uv.lock`)
-- Python 3.12 (pinned via `requires-python`)
-- Node spawns it with `uv run python -u main.py --app-root ...` — uv handles venv creation and dependency install automatically
-- Falls back to invoking `.venv/Scripts/python.exe` directly if `uv` isn't on PATH
-
-VLM captioning has two optional runtimes. Pick the one(s) you want, or both:
-
-- **CPU (GGUF via llama-cpp-python)**: `uv sync --extra vlm`
-- **GPU (safetensors via PyTorch + HuggingFace transformers, Windows CUDA 12.8)**: `uv sync --extra gpu`
-- **Both**: `uv sync --extra vlm --extra gpu`
-
-Running `uv sync` with only one extra will uninstall the other, so be deliberate. The sidecar autodetects which is available at runtime and only offers matching model entries via the model manager.
-
-Manual sync (rarely needed): `cd training-sidecar && uv sync`
-
-## Architecture Overview
+# Architecture Overview
 
 This is a Next.js 16 application for managing and tagging image collections with the following architecture:
 
-### State Management
+## State Management
 
 - Redux Toolkit with typed hooks
 - Store slices: assets, autoTagger, filters, preferences, project, selection, toasts, training
 - Custom middleware: filter-manager for coordinating filter state changes
 - Async operations handled via AppThunk type
 
-### Routing
+## Routing
 
 - `/` — Project list (always shown, no single-project mode)
 - `/tagging/[project]/[page]` — Image tagging view with pagination
@@ -58,7 +17,7 @@ This is a Next.js 16 application for managing and tagging image collections with
 
 Project context is derived from the URL slug, not sessionStorage. The `[project]` segment is the folder name within the configured `projectsFolder`.
 
-### Core Features
+## Core Features
 
 - Image gallery with pagination
 - Tag management (add/edit/reorder tags via drag-and-drop using @dnd-kit)
@@ -67,7 +26,7 @@ Project context is derived from the URL slug, not sessionStorage. The `[project]
 - Tag persistence to associated text files
 - LoRA training system (in development) — Python sidecar with ai-toolkit and Kohya backends
 
-### Key Directories
+## Key Directories
 
 - `src/app/store/` - Redux store configuration and slices
 - `src/app/components/` - React components organised by feature area
@@ -76,29 +35,29 @@ Project context is derived from the URL slug, not sessionStorage. The `[project]
 - `src/app/api/` - Next.js API routes for serving images and project data
 - `public/tagging-projects/` - Tagging project metadata and thumbnails
 
-### Component Architecture
+## Component Architecture
 
 - Feature-based component organization (asset, tagging, top-shelf, bottom-shelf)
 - Shared components in `src/app/components/shared/`
 - Hook-based logic extraction for complex components
 - Context providers for component-specific state (tagging, filters, popups)
 
-### API Structure
+## API Structure
 
 - `/api/images/[...path]` - Dynamic image serving
 - `/api/auto-tagger/*` - Auto-tagger model management, batch tagging, downloads
 - `/api/config` - Configuration data (projectsFolder, pythonPath, trainingBackends)
 
-### Data Flow
+## Data Flow
 
 - Images and tags loaded via API routes
 - Project context derived from URL params (`[project]` slug), stored in Redux
 - Components use typed selectors and actions
 - Filter changes trigger middleware that coordinates related state updates
 
-## Development Guidelines
+# Development Guidelines
 
-### File Structure and Naming
+## File Structure and Naming
 
 - Lower kebab-case filenames for all TypeScript/TSX files (`file-name.ts`)
 - Preference for named exports over default exports
@@ -106,7 +65,7 @@ Project context is derived from the URL slug, not sessionStorage. The `[project]
 - Path alias `@/app/...` for clean imports, maximum two `../../` levels
 - Feature-based component organization
 
-### Component Folder Pattern (preferred)
+## Component Folder Pattern (preferred)
 
 When a component has enough logic to warrant splitting, use a colocated folder:
 
@@ -122,14 +81,14 @@ component-name/
 - **Shared hooks** (used by multiple siblings) live in a `hooks/` directory at the parent level
 - This pattern ensures moving a folder moves all related code with it
 
-### Code Style
+## Code Style
 
 - Australian English for UI text, US English for code (e.g., `colour` vs `color`)
 - Prefer `requestAnimationFrame` over `setTimeout` for UI timing
 - Performance optimisation with `React.memo`, `useSelector`, `useMemo`, `useCallback`
 - For Lucide icons, use the `[Name]Icon` import, with the Icon suffix
 
-### Data Structure
+## Data Structure
 
 - Images have associated `.txt` files with comma-separated tags
 - Supports .jpg, .jpeg, .png, .webp formats
@@ -137,7 +96,7 @@ component-name/
 - UI state in memory only, not persisted between sessions
 - Local app only; No over-the-network
 
-### Documentation
+## Documentation
 
 - README.md files for complex components with sub-folders
 - Minimal inline comments unless code is complex/unclear

@@ -6,6 +6,8 @@ import { composeDimensions } from '../../utils/helpers';
 import { wrapSelector } from '../../utils/selector-perf';
 import type { RootState } from '../';
 import { TagSortDirection, TagSortType } from '../project';
+import type { CaptionMode } from '../project/types';
+import { isAssetDirty } from './helpers';
 import { ImageAsset, KeyedCountList, SortType, TagState } from './types';
 import { buildTagCountsCache, hasState } from './utils';
 
@@ -49,14 +51,7 @@ export const selectAssetHasModifiedTags = (
 
   const captionMode = state.project.config.captionMode;
 
-  if (captionMode === 'caption') {
-    return asset.captionText !== asset.savedCaptionText;
-  }
-
-  if (asset.tagList.length === 0) return false;
-  return asset.tagList.some(
-    (tagName) => !hasState(asset.tagStatus[tagName], TagState.SAVED),
-  );
+  return isAssetDirty(asset, captionMode);
 };
 
 // Plain selector for caption text — returns primitive string so useSelector handles equality
@@ -142,27 +137,28 @@ export const selectHasModifiedAssets = wrapSelector(
   createSelector(
     [selectAllImages, (state: RootState) => state.project.config.captionMode],
     (images, captionMode) => {
-      return images.some((asset) => {
-        if (captionMode === 'caption') {
-          return asset.captionText !== asset.savedCaptionText;
-        }
-        return asset.tagList.some(
-          (tag) => !hasState(asset.tagStatus[tag], TagState.SAVED),
-        );
-      });
+      return images.some((asset) => isAssetDirty(asset, captionMode));
     },
   ),
 );
 
-const isAssetTagless = (asset: ImageAsset, captionMode: string): boolean => {
-  if (captionMode === 'caption') {
-    return !asset.captionText?.trim();
-  }
-  return asset.tagList.every(
+const isAssetTagless = (asset: ImageAsset, captionMode: CaptionMode): boolean => {
+  // "Persisted tags" = tags present on disk (not pending add/delete).
+  const hasNoPersistedTags = asset.tagList.every(
     (tag) =>
       hasState(asset.tagStatus[tag], TagState.TO_DELETE) ||
       hasState(asset.tagStatus[tag], TagState.TO_ADD),
   );
+  const hasNoCaption = !asset.captionText?.trim();
+
+  if (captionMode === 'caption') {
+    return hasNoCaption;
+  }
+  if (captionMode === 'hybrid') {
+    // Empty only when both sections are empty.
+    return hasNoPersistedTags && hasNoCaption;
+  }
+  return hasNoPersistedTags;
 };
 
 // Custom selector to check if any assets have no persisted tags (or no caption text)

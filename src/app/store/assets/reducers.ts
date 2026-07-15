@@ -325,6 +325,15 @@ export const coreReducers = {
     state.images[index].captionText = payload.text;
   },
 
+  // Clear the caption on every loaded asset (used when leaving hybrid mode for
+  // tag-only mode, after the tags-only files have been rewritten to disk).
+  clearAllCaptions: (state: ImageAssets) => {
+    for (const asset of state.images) {
+      asset.captionText = '';
+      asset.savedCaptionText = '';
+    }
+  },
+
   resetTags: (state: ImageAssets, { payload }: PayloadAction<string>) => {
     const assetIndex = state.imageIndexById[payload];
     if (assetIndex === undefined) return;

@@ -1,7 +1,62 @@
 import { DEFAULT_BATCH_SIZE } from '../../constants';
 import type { CaptionMode } from '../project/types';
+import { joinHybrid } from './hybrid-caption';
 import { ImageAsset, SaveAssetResult, TagState } from './types';
 import { hasState } from './utils';
+
+/**
+ * Whether a mode edits a natural-language caption at all.
+ * `caption` is pure NL; `hybrid` carries both tags and an NL caption.
+ */
+export function modeHasCaption(captionMode: CaptionMode): boolean {
+  return captionMode === 'caption' || captionMode === 'hybrid';
+}
+
+/**
+ * Whether a mode edits a booru-style tag list.
+ * Everything except pure `caption` mode maintains a tag list.
+ */
+export function modeHasTags(captionMode: CaptionMode): boolean {
+  return captionMode !== 'caption';
+}
+
+/**
+ * Compose the exact string written to disk for an asset in a given mode.
+ * Centralises the tags/caption/hybrid branching so save paths agree.
+ */
+export function composeAssetText(
+  asset: ImageAsset,
+  captionMode: CaptionMode,
+): string {
+  if (captionMode === 'caption') {
+    return asset.captionText;
+  }
+  const tags = getUpdatedTags(asset);
+  if (captionMode === 'hybrid') {
+    return joinHybrid(tags, asset.captionText);
+  }
+  return createFlattenedTags(tags, captionMode);
+}
+
+/**
+ * Whether an asset has unsaved changes, accounting for the current mode.
+ * Tag modes check tag status; caption checks caption text; hybrid checks both.
+ */
+export function isAssetDirty(
+  asset: ImageAsset,
+  captionMode: CaptionMode,
+): boolean {
+  if (captionMode === 'caption') {
+    return asset.captionText !== asset.savedCaptionText;
+  }
+  const tagsDirty = asset.tagList.some(
+    (tag) => !hasState(asset.tagStatus[tag], TagState.SAVED),
+  );
+  if (captionMode === 'hybrid') {
+    return tagsDirty || asset.captionText !== asset.savedCaptionText;
+  }
+  return tagsDirty;
+}
 
 /**
  * Get updated tags from an asset, filtering out tags marked for deletion
@@ -81,14 +136,7 @@ export function findModifiedAssets(
   images: ImageAsset[],
   captionMode: CaptionMode = 'tags',
 ): ImageAsset[] {
-  return images.filter((asset) => {
-    if (captionMode === 'caption') {
-      return asset.captionText !== asset.savedCaptionText;
-    }
-    return asset.tagList.some(
-      (tag) => !hasState(asset.tagStatus[tag], TagState.SAVED),
-    );
-  });
+  return images.filter((asset) => isAssetDirty(asset, captionMode));
 }
 
 /**
@@ -124,6 +172,20 @@ export function processSaveResults(
           tagList: asset.tagList,
           tagStatus: asset.tagStatus,
           savedTagList: asset.savedTagList,
+          captionText: asset.captionText,
+          savedCaptionText: asset.captionText,
+        });
+      } else if (captionMode === 'hybrid') {
+        // Hybrid: both the tag list and the caption were persisted. Mark tags
+        // SAVED and snapshot the caption as its saved baseline.
+        const updateTags = getUpdatedTags(asset);
+        const newTagStatus = createCleanTagStatus(updateTags);
+        results.push({
+          assetIndex: imageIndexById[asset.fileId] ?? -1,
+          fileId: asset.fileId,
+          tagList: updateTags,
+          tagStatus: newTagStatus,
+          savedTagList: [...updateTags],
           captionText: asset.captionText,
           savedCaptionText: asset.captionText,
         });

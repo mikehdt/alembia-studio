@@ -18,6 +18,7 @@ import {
   IoState,
   TagState,
 } from '../store/assets';
+import { splitHybrid } from '../store/assets/hybrid-caption';
 import { calculateKohyaBucket, KOHYA_CONFIGS } from './image-utils';
 import { isValidRepeatFolder } from './subfolder-utils';
 
@@ -544,27 +545,49 @@ export const getImageAssetDetails = async (
     if (fs.existsSync(tagFilePath)) {
       const tagContent = fs.readFileSync(tagFilePath, 'utf8').trim();
 
-      // Always store raw text for caption mode
-      captionText = tagContent;
-
-      // Parse text into tags based on caption mode
+      // Parse text into tags/caption based on caption mode. captionText is set
+      // to what the caption box should show for THIS mode (empty for pure tag
+      // modes), so a later mode switch without a reload doesn't surface stale
+      // text — e.g. tags→hybrid must start with an empty caption, not the raw
+      // tag string.
       if (tagContent) {
-        const parts =
-          captionMode === 'sentences'
-            ? // Split on sentence-ending punctuation followed by whitespace
-              tagContent.split(/(?<=[.?!])\s+/).filter((s) => s.trim() !== '')
-            : // Default: comma-separated tags
-              tagContent.split(', ').filter((tag) => tag.trim() !== '');
+        if (captionMode === 'caption') {
+          // Whole file is the caption; no tag list.
+          captionText = tagContent;
+        } else if (captionMode === 'hybrid') {
+          // Split the tag block from the trailing NL caption. Both are
+          // populated independently.
+          const { tags, caption } = splitHybrid(tagContent);
+          captionText = caption;
 
-        tagStatus = parts.reduce(
-          (acc, tag) => ({
-            ...acc,
-            [tag.trim()]: TagState.SAVED,
-          }),
-          {} as { [key: string]: TagState },
-        );
+          tagStatus = tags.reduce(
+            (acc, tag) => ({
+              ...acc,
+              [tag.trim()]: TagState.SAVED,
+            }),
+            {} as { [key: string]: TagState },
+          );
 
-        tagList = Object.keys(tagStatus);
+          tagList = Object.keys(tagStatus);
+        } else {
+          // Tags / sentences: no caption section.
+          const parts =
+            captionMode === 'sentences'
+              ? // Split on sentence-ending punctuation followed by whitespace
+                tagContent.split(/(?<=[.?!])\s+/).filter((s) => s.trim() !== '')
+              : // Default: comma-separated tags
+                tagContent.split(', ').filter((tag) => tag.trim() !== '');
+
+          tagStatus = parts.reduce(
+            (acc, tag) => ({
+              ...acc,
+              [tag.trim()]: TagState.SAVED,
+            }),
+            {} as { [key: string]: TagState },
+          );
+
+          tagList = Object.keys(tagStatus);
+        }
       }
     } else {
       // File doesn't exist - use empty tags but log this info
