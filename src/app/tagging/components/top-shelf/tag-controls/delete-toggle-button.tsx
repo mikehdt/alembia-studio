@@ -36,7 +36,6 @@ export const DeleteToggleButton = () => {
     <Button
       type="button"
       variant="ghost"
-      color="rose"
       size="toolbar"
       onClick={toggleFilterTagsDelete}
       disabled={!filterTags.length || deleteToggleAffectedCount === 0}

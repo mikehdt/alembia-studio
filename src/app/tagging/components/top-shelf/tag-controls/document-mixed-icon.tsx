@@ -1,36 +1,31 @@
-// Custom icon for mixed delete state - document with +/- symbol
+// Custom icon for mixed delete state — Lucide file page with stacked +/- symbols.
+// Page art matches lucide-react's FilePlusIcon / FileMinusIcon (folded corner);
+// the + (top) and - (bottom) sit inside the page so the mixed state stays readable.
 interface DocumentMixedIconProps {
   className?: string;
 }
 
 export const DocumentMixedIcon = ({ className }: DocumentMixedIconProps) => (
   <svg
-    className={className}
-    fill="none"
+    className={`${className} lucide`}
+    xmlns="http://www.w3.org/2000/svg"
+    width={24}
+    height={24}
     viewBox="0 0 24 24"
-    strokeWidth={1.5}
+    fill="none"
     stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
     aria-hidden="true"
   >
-    {/* Document outline (based on Heroicons DocumentIcon) */}
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-    />
-    {/* Plus symbol (top half) - larger and more visible */}
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M8.5,12.5h6M11.5,9.5v6"
-    />
-    {/* Minus symbol (bottom half) - larger and more visible */}
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M8.5,17.5h6"
-    />
+    {/* Page outline + folded corner (Lucide file art) */}
+    <path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" />
+    <path d="M14 2v5a1 1 0 0 0 1 1h5" />
+    {/* Plus (top half) */}
+    <path d="M9 14h6" />
+    <path d="M12 11.5v5" />
+    {/* Minus (bottom half) */}
+    <path d="M9 18.5h6" />
   </svg>
 );
