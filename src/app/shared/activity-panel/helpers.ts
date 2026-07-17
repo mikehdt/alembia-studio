@@ -1,4 +1,105 @@
 import type { TrainingProgress } from '@/app/services/training/types';
+import type { TaggingJob } from '@/app/store/jobs';
+
+/**
+ * Whether a batch ran the VLM captioner rather than the ONNX tagger — decides
+ * "captioned" vs "tagged" wording throughout. Both the job's own provider and
+ * the summary's are checked so that jobs predating either field still read
+ * correctly; failing those, a result carrying a caption gives it away.
+ */
+export function isCaptionJob(job: TaggingJob): boolean {
+  const provider = job.providerType ?? job.summary?.providerType;
+  if (provider) return provider === 'vlm';
+  return job.lastResult?.caption != null;
+}
+
+/**
+ * The phase a batch is in before it starts producing images, or null once it
+ * is actually working through them. These are the steps the run spends most of
+ * its opening minute in — waiting for the GPU, reading weights off disk, or
+ * spinning up — and without them the UI shows an empty bar against the first
+ * filename and reads as a stalled run.
+ *
+ * `starting` is the gap between creating the job and the backend's first event
+ * of any kind: no queue placement, no loading shards, no progress.
+ */
+export function getTaggingPreloadPhase(
+  job: TaggingJob,
+): 'queued' | 'loading' | 'starting' | null {
+  if (job.status !== 'running' && job.status !== 'preparing') return null;
+  if (job.progress?.queued) return 'queued';
+  if (job.progress?.loading) return 'loading';
+  if (job.status === 'preparing') return 'starting';
+  return null;
+}
+
+/**
+ * Progress-bar geometry for a tagging job, shared by the activity card and the
+ * detail view. During the preload phases the bar tracks model-loading shards
+ * (or runs indeterminate when there's nothing countable yet) rather than the
+ * image counter, which is stuck at zero until the first image lands.
+ */
+export function deriveTaggingBar(job: TaggingJob): {
+  value: number;
+  max: number;
+  indeterminate: boolean;
+} {
+  const phase = getTaggingPreloadPhase(job);
+  const loading = job.progress?.loading;
+  if (phase === 'loading' && loading) {
+    return {
+      value: loading.current,
+      max: loading.total || 1,
+      indeterminate: loading.total === 0,
+    };
+  }
+  if (phase) return { value: 0, max: 1, indeterminate: true };
+  if (job.status === 'completed')
+    return { value: 1, max: 1, indeterminate: false };
+
+  const progress = job.progress;
+  const isRunning = job.status === 'running' || job.status === 'preparing';
+  return {
+    value: progress?.current ?? 0,
+    max: progress?.total || 1,
+    indeterminate: isRunning && !progress,
+  };
+}
+
+/**
+ * The one-line status for a tagging job, shared by the activity card and the
+ * detail view so the two can't drift. A completed batch may still have
+ * per-image errors — that's reported as partial success rather than a clean
+ * finish, since the images that failed were silently skipped.
+ */
+export function deriveTaggingStatusLabel(job: TaggingJob): string {
+  const { progress, summary } = job;
+  const errorCount = summary?.errorCount ?? 0;
+
+  const phase = getTaggingPreloadPhase(job);
+  if (phase === 'queued') {
+    return `Queued for the GPU — position ${progress?.queued?.position ?? 1}`;
+  }
+  if (phase === 'loading' && progress?.loading) {
+    const { message, current, total } = progress.loading;
+    return total > 0 ? `${message} (${current}/${total})` : message;
+  }
+  if (phase === 'starting') {
+    return isCaptionJob(job) ? 'Starting captioner…' : 'Starting auto-tagger…';
+  }
+  if (job.status === 'running' || job.status === 'preparing') {
+    return progress?.currentFileId || 'Processing...';
+  }
+  if (job.status === 'cancelled') return 'Cancelled';
+  if (job.status === 'failed') return 'Failed';
+  if (job.status !== 'completed' || !summary) return 'Done';
+
+  const body = isCaptionJob(job)
+    ? `Captioned ${summary.imagesWithNewTags} ${summary.imagesWithNewTags !== 1 ? 'images' : 'image'}`
+    : `${summary.totalTagsFound} ${summary.totalTagsFound !== 1 ? 'tags' : 'tag'} across ${summary.imagesWithNewTags} ${summary.imagesWithNewTags !== 1 ? 'images' : 'image'}`;
+
+  return errorCount > 0 ? `${body} (${errorCount} failed)` : body;
+}
 
 /** Format an ETA in seconds as a compact "1h 3m" / "4m 12s" / "45s". */
 export function formatEta(seconds: number): string {

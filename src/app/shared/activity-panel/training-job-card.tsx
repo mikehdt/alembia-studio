@@ -1,6 +1,7 @@
 import { Maximize2Icon, XIcon } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
+import { useConfirmAction } from '@/app/shared/use-confirm-action';
 import { useAppDispatch } from '@/app/store/hooks';
 import { type TrainingJob } from '@/app/store/jobs';
 import {
@@ -74,37 +75,12 @@ export function TrainingJobCard({
   const dispatch = useAppDispatch();
 
   // Cancel is a two-step confirm — the button sits right beside Enlarge in a
-  // cramped row, so a stray click shouldn't kill a long run. First click arms
-  // it ("Confirm?"), a second within the window commits; it disarms itself if
-  // the user doesn't follow through.
-  const [confirmingCancel, setConfirmingCancel] = useState(false);
-  const cancelResetTimer = useRef<number | null>(null);
-
-  useEffect(
-    () => () => {
-      if (cancelResetTimer.current !== null) {
-        clearTimeout(cancelResetTimer.current);
-      }
-    },
-    [],
-  );
-
-  const handleCancelClick = useCallback(() => {
-    if (confirmingCancel) {
-      if (cancelResetTimer.current !== null) {
-        clearTimeout(cancelResetTimer.current);
-        cancelResetTimer.current = null;
-      }
-      setConfirmingCancel(false);
-      dispatch(cancelTraining(job.id));
-      return;
-    }
-    setConfirmingCancel(true);
-    cancelResetTimer.current = window.setTimeout(() => {
-      setConfirmingCancel(false);
-      cancelResetTimer.current = null;
-    }, 3500);
-  }, [confirmingCancel, dispatch, job.id]);
+  // cramped row, so a stray click shouldn't kill a long run.
+  const handleConfirmCancel = useCallback(() => {
+    dispatch(cancelTraining(job.id));
+  }, [dispatch, job.id]);
+  const { armed: confirmingCancel, trigger: handleCancelClick } =
+    useConfirmAction(handleConfirmCancel);
 
   const isRunning = job.status === 'running' || job.status === 'preparing';
   const isCompleted = job.status === 'completed';
@@ -206,7 +182,7 @@ export function TrainingJobCard({
           loss rides in the header rather than the stats row below, so it sits
           beside the curve it belongs to. */}
       {isRunning && (
-        <div className="border-t border-dashed border-(--border-subtle) px-3 py-2">
+        <div className="border-t border-dashed border-(--border-subtle) px-3 pb-2">
           <div className="flex items-baseline justify-between">
             <span className="text-xs text-slate-400 uppercase">Loss</span>
             {progress?.loss != null && (

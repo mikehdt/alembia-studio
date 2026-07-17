@@ -16,4 +16,5 @@ export type Project = {
   private?: boolean;
   captionMode?: CaptionMode;
   triggerPhrases?: string[];
+  captionPrompt?: string;
 };

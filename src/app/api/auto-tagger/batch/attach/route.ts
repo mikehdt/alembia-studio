@@ -1,11 +1,15 @@
 /**
  * API Route: GET /api/auto-tagger/batch/attach?batchId=<id>
  *
- * Reattach to a caption batch the browser lost its connection to (page
- * refresh, closed tab). Replays every per-image result the sidecar has
- * accumulated, then streams live progress — same SSE event vocabulary as
- * the main /api/auto-tagger/batch stream, so the client processes both
- * with the same code.
+ * Reattach to a tagging batch the browser lost its connection to (page
+ * refresh, closed tab). Replays every per-image result accumulated so far,
+ * then streams live progress — same SSE event vocabulary as the main
+ * /api/auto-tagger/batch stream, so the client processes both with the same
+ * code, whichever provider ran the batch.
+ *
+ * VLM batches are replayed from the sidecar's snapshot; ONNX batches from this
+ * process's batch store. The id alone selects the source — the client doesn't
+ * need to know which provider it's reattaching to.
  *
  * Detaching (aborting this stream) does NOT cancel the batch; use
  * POST /api/auto-tagger/batch/cancel for that.
@@ -13,7 +17,12 @@
 
 import { NextRequest } from 'next/server';
 
+import { displayName } from '@/app/services/auto-tagger/display-name';
 import { attachCaptionBatch } from '@/app/services/auto-tagger/providers/vlm/client';
+import {
+  attachOnnxBatch,
+  hasOnnxBatch,
+} from '@/app/services/auto-tagger/providers/wd14/batch-store';
 
 export async function GET(request: NextRequest) {
   const batchId = request.nextUrl.searchParams.get('batchId');
@@ -25,6 +34,7 @@ export async function GET(request: NextRequest) {
   }
 
   const encoder = new TextEncoder();
+  const isOnnx = hasOnnxBatch(batchId);
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -34,13 +44,42 @@ export async function GET(request: NextRequest) {
         );
       };
 
-      // Images processed so far. The snapshot's stored results and the live
-      // per-image events arrive through the same generator, so counting
-      // result/error events reproduces the sidecar's `current` exactly.
+      // Images processed so far. Replayed results and live per-image events
+      // arrive through the same generator, so counting them reproduces the
+      // batch's `current` exactly.
       let completed = 0;
       let total = 0;
 
       try {
+        if (isOnnx) {
+          for await (const event of attachOnnxBatch(batchId)) {
+            if ('snapshot' in event) {
+              total = event.total;
+              continue;
+            }
+
+            if ('cancelled' in event) {
+              sendEvent({ type: 'cancelled', current: completed, total });
+              controller.close();
+              return;
+            }
+
+            const { itemId, fileName, tags, error } = event.result;
+            if (error != null) {
+              sendEvent({ type: 'error', fileId: itemId, error });
+            } else {
+              sendEvent({ type: 'result', fileId: itemId, fileName, tags });
+            }
+
+            completed++;
+            sendEvent({ type: 'progress', current: completed, total });
+          }
+
+          sendEvent({ type: 'complete', total });
+          controller.close();
+          return;
+        }
+
         for await (const event of attachCaptionBatch(batchId)) {
           if ('snapshot' in event) {
             total = event.total;
@@ -93,9 +132,13 @@ export async function GET(request: NextRequest) {
               error: event.error,
             });
           } else {
+            // The sidecar stores the path each item resolved to (poster frame
+            // or original image), so replayed results can name a thumbnail
+            // exactly like the live stream does.
             sendEvent({
               type: 'result',
               fileId: event.itemId,
+              fileName: displayName(event.imagePath),
               caption: event.caption,
             });
           }

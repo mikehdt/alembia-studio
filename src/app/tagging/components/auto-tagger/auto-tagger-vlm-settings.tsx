@@ -5,10 +5,9 @@ import type {
   VlmOptions,
   VlmVideoQuality,
 } from '@/app/services/auto-tagger';
-import { DEFAULT_VLM_OPTIONS } from '@/app/services/auto-tagger';
 import { Button } from '@/app/shared/button';
 import { Checkbox } from '@/app/shared/checkbox';
-import { Dropdown, DropdownItem } from '@/app/shared/dropdown';
+import { Dropdown, DropdownGroup, DropdownItem } from '@/app/shared/dropdown';
 import { FormTitle } from '@/app/shared/form-title/form-title';
 import { Input } from '@/app/shared/input/input';
 import { RadioGroup } from '@/app/shared/radio-group';
@@ -23,7 +22,7 @@ type AutoTaggerVlmSettingsProps = {
   vlmOptions: VlmOptions;
   unselectOnComplete: boolean;
   selectedModelId: string | null;
-  modelItems: DropdownItem<string>[];
+  modelItems: (DropdownItem<string> | DropdownGroup<string>)[];
   triggerPhraseInsertModeOptions: {
     value: TriggerPhraseInsertMode;
     label: string;
@@ -35,6 +34,11 @@ type AutoTaggerVlmSettingsProps = {
   selectedModelSupportsVideo: boolean;
   error: string | null;
   triggerPhrases: string[];
+  /**
+   * The prompt this run started from — the project's canonical prompt, or the
+   * built-in default when the project hasn't authored one. Reset restores it.
+   */
+  seededPrompt: string;
   onModelChange: (modelId: string) => void;
   onVlmOptionChange: <K extends keyof VlmOptions>(
     key: K,
@@ -60,6 +64,7 @@ export function AutoTaggerVlmSettings({
   selectedModelSupportsVideo,
   error,
   triggerPhrases,
+  seededPrompt,
   onModelChange,
   onVlmOptionChange,
   onVideoOptionChange,
@@ -111,11 +116,9 @@ export function AutoTaggerVlmSettings({
           <FormTitle as="span" size="sm">
             Prompt
           </FormTitle>
-          {vlmOptions.prompt !== DEFAULT_VLM_OPTIONS.prompt && (
+          {vlmOptions.prompt !== seededPrompt && (
             <Button
-              onClick={() =>
-                onVlmOptionChange('prompt', DEFAULT_VLM_OPTIONS.prompt)
-              }
+              onClick={() => onVlmOptionChange('prompt', seededPrompt)}
               color="slate"
               variant="ghost"
               size="xs"
@@ -134,9 +137,9 @@ export function AutoTaggerVlmSettings({
           placeholder="Describe this image in detail for AI training purposes."
         />
         <p className="text-sm text-slate-500">
-          This prompt is sent with each image to guide the model&apos;s
-          response. Example-based priming tends to work better than
-          negative-only instructions with these models.
+          Starts from the project&apos;s caption prompt. Edits here apply to
+          this run only — to change the project&apos;s prompt for good, use Edit
+          Caption Prompt in the project menu.
         </p>
       </div>
 

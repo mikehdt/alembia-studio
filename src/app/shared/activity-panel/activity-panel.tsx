@@ -2,7 +2,7 @@
 
 import { ActivityIcon, ChevronDownIcon } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 
 import { cancelTaggingJob } from '@/app/services/auto-tagger/tagging-controllers';
 import { useIsAnyModalOpen } from '@/app/shared/modal';
@@ -10,11 +10,14 @@ import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import {
   cancelTagging,
   clearCompletedJobs,
+  closeJobDetail,
   closePanel,
+  openJobDetail,
   openPanel,
   restoreJobs,
   selectActiveJobs,
   selectCompletedJobs,
+  selectDetailJob,
   selectHasJobs,
   selectPanelOpen,
   selectPendingJobs,
@@ -34,6 +37,7 @@ import { loadPersistedTrainingHistory } from '@/app/store/training-history/persi
 import { Button } from '../button';
 import { DownloadJobCard } from './download-job-card';
 import { PendingJobsList } from './pending-jobs-list';
+import { TaggingDetailModal } from './tagging-detail-modal/tagging-detail-modal';
 import { TaggingJobCard } from './tagging-job-card';
 import { TrainingDetailModal } from './training-detail-modal/training-detail-modal';
 import { TrainingJobCard } from './training-job-card';
@@ -135,17 +139,31 @@ const ActivityPanelComponent = () => {
     fetch('/api/training/clear', { method: 'POST' }).catch(() => {});
   }, [dispatch]);
 
-  // Which training job's enlarge modal is open, if any. Kept here — above
-  // the `isAnyModalOpen` gate below — rather than inside a job card: the
-  // panel (and every card in it) unmounts while a modal is open, so a modal
+  // Which job's enlarge modal is open, if any. Rendered here — above the
+  // `isAnyModalOpen` gate below — rather than inside a job card: the panel
+  // (and every card in it) unmounts while a modal is open, so a modal
   // rendered *inside* a card would unmount itself the instant it opened.
-  const [detailJobId, setDetailJobId] = useState<string | null>(null);
-  const handleEnlarge = useCallback((jobId: string) => {
-    setDetailJobId(jobId);
-  }, []);
+  //
+  // The state itself lives in the jobs slice because the auto-tagger modal
+  // opens the tagging detail view directly when a batch starts. Both modals
+  // close themselves when their id no longer resolves, so handing a tagging id
+  // to the training modal would make it slam shut on open — hence the type.
+  const detail = useAppSelector(selectDetailJob);
+  const handleEnlargeTraining = useCallback(
+    (id: string) => {
+      dispatch(openJobDetail({ id, type: 'training' }));
+    },
+    [dispatch],
+  );
+  const handleEnlargeTagging = useCallback(
+    (id: string) => {
+      dispatch(openJobDetail({ id, type: 'tagging' }));
+    },
+    [dispatch],
+  );
   const handleCloseDetail = useCallback(() => {
-    setDetailJobId(null);
-  }, []);
+    dispatch(closeJobDetail());
+  }, [dispatch]);
 
   const activeCount = activeJobs.length;
   const hasActive = activeCount > 0;
@@ -205,13 +223,14 @@ const ActivityPanelComponent = () => {
               <TrainingJobCard
                 key={job.id}
                 job={job}
-                onEnlarge={handleEnlarge}
+                onEnlarge={handleEnlargeTraining}
               />
             ) : job.type === 'tagging' ? (
               <TaggingJobCard
                 key={job.id}
                 job={job}
                 onCancel={handleCancelTagging}
+                onEnlarge={handleEnlargeTagging}
               />
             ) : (
               <DownloadJobCard
@@ -230,10 +249,14 @@ const ActivityPanelComponent = () => {
               <TrainingJobCard
                 key={job.id}
                 job={job}
-                onEnlarge={handleEnlarge}
+                onEnlarge={handleEnlargeTraining}
               />
             ) : job.type === 'tagging' ? (
-              <TaggingJobCard key={job.id} job={job} />
+              <TaggingJobCard
+                key={job.id}
+                job={job}
+                onEnlarge={handleEnlargeTagging}
+              />
             ) : (
               <DownloadJobCard
                 key={job.id}
@@ -264,7 +287,15 @@ const ActivityPanelComponent = () => {
 
   return (
     <>
-      <TrainingDetailModal jobId={detailJobId} onClose={handleCloseDetail} />
+      <TrainingDetailModal
+        jobId={detail?.type === 'training' ? detail.id : null}
+        onClose={handleCloseDetail}
+      />
+      <TaggingDetailModal
+        jobId={detail?.type === 'tagging' ? detail.id : null}
+        onClose={handleCloseDetail}
+        onCancel={handleCancelTagging}
+      />
       {panelContent}
     </>
   );

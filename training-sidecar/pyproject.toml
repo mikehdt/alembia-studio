@@ -23,6 +23,9 @@ vlm = [
     #   $env:CMAKE_ARGS = "-DGGML_CUDA=on"
     #   uv pip install --force-reinstall --no-cache-dir llama-cpp-python
     "llama-cpp-python>=0.3.0,<1",
+    # Needed to downscale oversized images before inference. The provider
+    # degrades to full-size images without it, which can exhaust memory.
+    "pillow>=10,<12",
 ]
 # GPU VLM via HuggingFace transformers + PyTorch CUDA.
 # Install with: uv sync --extra gpu

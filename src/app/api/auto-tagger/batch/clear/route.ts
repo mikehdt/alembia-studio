@@ -1,15 +1,16 @@
 /**
  * API Route: POST /api/auto-tagger/batch/clear
  *
- * Drop a terminal caption batch (and its stored results) from the sidecar
- * once the client has flushed the results. Keeps the sidecar's batch list
- * from accumulating forever and stops /batch/active re-surfacing batches
- * the client already collected.
+ * Drop a terminal batch (and its stored results) once the client has flushed
+ * the results — from the sidecar for VLM, from the in-process batch store for
+ * ONNX. Keeps the batch lists from accumulating forever and stops
+ * /batch/active re-surfacing batches the client already collected.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 
 import { clearCaptionBatch } from '@/app/services/auto-tagger/providers/vlm/client';
+import { clearOnnxBatch } from '@/app/services/auto-tagger/providers/wd14/batch-store';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,6 +22,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // The id only ever exists in one store, and clearing an unknown id is a
+    // no-op. A still-running ONNX batch refuses to clear — the caller cancels
+    // first and retries once it goes terminal.
+    if (!clearOnnxBatch(batchId)) {
+      return NextResponse.json({ status: 'still-running' }, { status: 409 });
+    }
     await clearCaptionBatch(batchId);
     return NextResponse.json({ status: 'cleared' });
   } catch {

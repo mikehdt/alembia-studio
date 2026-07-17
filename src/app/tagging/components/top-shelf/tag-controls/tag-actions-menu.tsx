@@ -17,8 +17,6 @@ import {
 } from '@/app/store/auto-tagger';
 import { selectFilterTags } from '@/app/store/filters';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
-import { selectActiveTaggingJob } from '@/app/store/jobs';
-import { selectProjectFolderName } from '@/app/store/project';
 import { selectSelectedAssetsCount } from '@/app/store/selection';
 import {
   selectAssetsWithActiveFiltersCount,
@@ -33,16 +31,11 @@ import { TriggerPhrasesModal } from './trigger-phrases-modal';
 export const TagActionsMenu = () => {
   const dispatch = useAppDispatch();
 
-  const projectFolderName = useAppSelector(selectProjectFolderName);
-  const activeTaggingJob = useAppSelector(
-    selectActiveTaggingJob(projectFolderName ?? ''),
-  );
-
   const [isCopyTagsModalOpen, setIsCopyTagsModalOpen] = useState(false);
-  // Auto-open on mount if there's an active tagging job (e.g. user returned to project)
-  const [isTaggerModalOpen, setIsTaggerModalOpen] = useState(
-    () => activeTaggingJob !== null,
-  );
+  // Never auto-opens: a batch running for this project (one the user started
+  // elsewhere, or one reattached to on return) shows in the activity panel,
+  // which is where its progress lives now.
+  const [isTaggerModalOpen, setIsTaggerModalOpen] = useState(false);
   const [isTriggersModalOpen, setIsTriggersModalOpen] = useState(false);
 
   const filterTags = useAppSelector(selectFilterTags);

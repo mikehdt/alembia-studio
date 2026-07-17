@@ -1,5 +1,3 @@
-import type { ReactNode } from 'react';
-
 import { TRAINING_PROVIDER_LABELS } from '@/app/services/training/types';
 import type { TrainingJob } from '@/app/store/jobs';
 
@@ -14,19 +12,8 @@ import {
 } from '../helpers';
 import { LossChart } from '../loss-chart/loss-chart';
 import { SpeedChart } from '../speed-chart/speed-chart';
+import { Stat } from '../stat';
 import { useTrainingDetailView } from './use-training-detail-view';
-
-function Stat({ label, value }: { label: string; value: ReactNode }) {
-  if (value == null) return null;
-  return (
-    <div className="rounded border border-slate-200 bg-slate-50 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-800/60">
-      <div className="text-xs text-slate-400 uppercase">{label}</div>
-      <div className="mt-0.5 text-sm font-medium text-(--foreground) tabular-nums">
-        {value}
-      </div>
-    </div>
-  );
-}
 
 /**
  * The body of a training job's detail view: loss graph, per-stat parameters,
@@ -157,7 +144,7 @@ export function TrainingDetailContent({ job }: { job: TrainingJob | null }) {
           color={
             isCompleted ? 'green' : job.status === 'failed' ? 'red' : 'sky'
           }
-          size={isCompleted ? 'xs' : 'sm'}
+          size={isCompleted ? 'sm' : 'md'}
         />
       ) : isRunning ? (
         <ProgressBar value={0} max={1} color="sky" indeterminate size="sm" />

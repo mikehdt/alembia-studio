@@ -27,7 +27,7 @@ export interface DropdownItem<T> {
 /**
  * A named group of dropdown items, rendered with a non-selectable header
  */
-interface DropdownGroup<T> {
+export interface DropdownGroup<T> {
   /** Label shown as the group header */
   groupLabel: ReactNode;
   /** Items within this group */

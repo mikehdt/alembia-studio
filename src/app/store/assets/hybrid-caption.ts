@@ -27,6 +27,14 @@ export const HYBRID_DELIMITER = '__';
 const HYBRID_SEPARATOR = `, ${HYBRID_DELIMITER}, `;
 
 /**
+ * Whether a string carries a standalone `__` delimiter token, i.e. it is
+ * already in hybrid shape and {@link splitHybrid} will recover both sides of it.
+ */
+export function hasHybridDelimiter(raw: string): boolean {
+  return raw.split(', ').some((part) => part.trim() === HYBRID_DELIMITER);
+}
+
+/**
  * Parse a raw hybrid `.txt` string into its tag list and caption.
  *
  * Splits on the *first* `__` delimiter token only, so a stray `__` inside the
@@ -56,7 +64,10 @@ export function splitHybrid(raw: string): { tags: string[]; caption: string } {
     .filter((t) => t !== '');
 
   // Rejoin the tail with the original `, ` so commas inside the caption survive.
-  const caption = parts.slice(delimiterIndex + 1).join(', ').trim();
+  const caption = parts
+    .slice(delimiterIndex + 1)
+    .join(', ')
+    .trim();
 
   return { tags, caption };
 }

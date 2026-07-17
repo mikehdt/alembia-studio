@@ -17,14 +17,16 @@ import {
 import {
   appendPendingTagResult,
   clearPendingTagResults,
+  getPendingTagResults,
   summarisePendingResults,
 } from '@/app/services/auto-tagger/pending-tag-results';
 import {
-  cancelTaggingJob,
+  hasBatchBeenAdopted,
+  markBatchAdopted,
   registerTaggingController,
   removeTaggingController,
 } from '@/app/services/auto-tagger/tagging-controllers';
-import type { DropdownItem } from '@/app/shared/dropdown';
+import type { DropdownGroup, DropdownItem } from '@/app/shared/dropdown';
 import type { AppDispatch, RootState } from '@/app/store';
 import { flushPendingTagResults } from '@/app/store/assets/flush-pending-tags';
 import {
@@ -40,6 +42,8 @@ import {
   cancelTagging,
   completeTagging,
   failTagging,
+  openJobDetail,
+  recordTaggingResult,
   selectActiveTaggingJob,
   updateJobStatus,
   updateTaggingProgress,
@@ -47,6 +51,7 @@ import {
 import { selectKeepTaggerModelInMemory } from '@/app/store/preferences';
 import {
   selectCaptionMode,
+  selectCaptionPrompt,
   selectProjectInfo,
   selectTriggerPhrases,
 } from '@/app/store/project';
@@ -61,13 +66,6 @@ type UseAutoTaggerParams = {
   onClose: () => void;
   selectedAssets: { fileId: string; fileExtension: string }[];
 };
-
-// Batches this browser session has already reattached to. Module-level
-// (not a ref) because the hook is instantiated by more than one component
-// (tag menu + caption menu both mount the modal) — two instances racing the
-// same batch would double-append results. Also covers cancelled batches the
-// sidecar hasn't cleared yet, so they don't get re-adopted and re-flushed.
-const reattachedBatchIds = new Set<string>();
 
 const INSERT_MODE_OPTIONS: { value: TagInsertMode; label: string }[] = [
   { value: 'prepend', label: 'Prepend to start' },
@@ -99,6 +97,7 @@ export function useAutoTagger({
   const hasReadyModel = useSelector(selectHasReadyModel);
   const selectedModelId = useSelector(selectSelectedModelId);
   const captionMode = useSelector(selectCaptionMode);
+  const captionPrompt = useSelector(selectCaptionPrompt);
   const triggerPhrases = useSelector(selectTriggerPhrases);
   const keepModelInMemory = useSelector(selectKeepTaggerModelInMemory);
   const projectInfo = useSelector((state: RootState) =>
@@ -130,10 +129,10 @@ export function useAutoTagger({
     selectActiveTaggingJob(projectInfo.projectFolderName ?? ''),
   );
 
-  // Derived state from the job
+  // Derived state from the job. A batch's progress is the activity panel's
+  // detail modal to show — this modal is only ever the settings step now — so
+  // all we need from it is whether one is already running for this project.
   const isTagging = activeTaggingJob !== null;
-  const progress = activeTaggingJob?.progress ?? null;
-  const jobStatus = activeTaggingJob?.status ?? null;
 
   // Local settings state (not part of the job)
   const [options, setOptions] = useState<TaggerOptions>({
@@ -145,26 +144,36 @@ export function useAutoTagger({
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [unselectOnComplete, setUnselectOnComplete] = useState(true);
 
+  // Seed each run's prompt from the project's canonical prompt on the
+  // closed→open transition, falling back to the built-in default for projects
+  // that have never authored one. One-way by design: edits in the settings
+  // panel below belong to this run and never travel back to the project.
+  // Re-syncing on every render (or via an effect keyed on `captionPrompt`)
+  // would clobber those edits mid-run — this is the React-docs
+  // "adjusting state on prop change" pattern used by the project modals.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      setVlmOptions((prev) => ({
+        ...prev,
+        prompt: captionPrompt ?? DEFAULT_VLM_OPTIONS.prompt,
+      }));
+    }
+  }
+
   // Derive the provider type of the currently-selected model
   const selectedProviderType = selectedModelId
     ? getProviderTypeForModel(selectedModelId)
     : undefined;
 
-  // Summary and error are set locally after the job completes,
-  // since they drive the modal's summary view
-  const [summary, setSummary] = useState<{
-    imagesProcessed: number;
-    imagesWithNewTags: number;
-    totalTagsFound: number;
-  } | null>(null);
+  // Start-up failures (bad model, sidecar down) shown against the settings
+  // form. Once a batch is under way its errors belong to the job.
   const [error, setError] = useState<string | null>(null);
-  // Per-image errors collected during the batch run, shown in the summary
-  const [imageErrors, setImageErrors] = useState<
-    { fileId: string; error: string }[]
-  >([]);
-  // Use a ref so we can accumulate errors inside the SSE loop without re-rendering
+  // Per-image errors collected during the batch run, handed to the job's
+  // summary on completion. A ref so the SSE loop can accumulate them without
+  // re-rendering.
   const imageErrorsRef = useRef<{ fileId: string; error: string }[]>([]);
-  const [wasCancelled, setWasCancelled] = useState(false);
 
   // Track the current job ID so we can cancel it
   const currentJobIdRef = useRef<string | null>(null);
@@ -222,7 +231,8 @@ export function useAutoTagger({
 
             setVlmOptions((prev) => ({
               ...prev,
-              prompt: savedSettings.prompt ?? prev.prompt,
+              // `prompt` is deliberately absent — it comes from the project's
+              // canonical prompt (seeded on open below), not from run settings.
               maxTokens: savedSettings.maxTokens ?? prev.maxTokens,
               temperature: savedSettings.temperature ?? prev.temperature,
               injectTriggerPhrases:
@@ -269,14 +279,36 @@ export function useAutoTagger({
   ]);
 
   // Model dropdown items — mode-restricted so only compatible models appear.
-  const modelItems: DropdownItem<string>[] = useMemo(
-    () =>
-      modeFilteredReadyModels.map((model) => ({
+  // In hybrid mode both kinds are offered, so they're split into "Tags" and
+  // "Natural Language" groups to make the choice legible. The single-mode views
+  // only ever list one kind, so headings there would be noise.
+  const modelItems: (DropdownItem<string> | DropdownGroup<string>)[] =
+    useMemo(() => {
+      const toItem = (model: (typeof modeFilteredReadyModels)[number]) => ({
         value: model.id,
         label: model.name,
-      })),
-    [modeFilteredReadyModels],
-  );
+      });
+
+      if (captionMode !== 'hybrid') {
+        return modeFilteredReadyModels.map(toItem);
+      }
+
+      const tagItems = modeFilteredReadyModels
+        .filter((m) => getProviderTypeForModel(m.id) === 'onnx')
+        .map(toItem);
+      const captionItems = modeFilteredReadyModels
+        .filter((m) => getProviderTypeForModel(m.id) === 'vlm')
+        .map(toItem);
+
+      // With only one kind installed the headings add nothing.
+      if (tagItems.length === 0) return captionItems;
+      if (captionItems.length === 0) return tagItems;
+
+      return [
+        { groupLabel: 'Tags', items: tagItems },
+        { groupLabel: 'Natural Language', items: captionItems },
+      ];
+    }, [modeFilteredReadyModels, captionMode]);
 
   // Whether there's *any* ready model that fits the current project mode.
   // Drives the "No models installed" warning in the modal.
@@ -348,33 +380,24 @@ export function useAutoTagger({
   );
 
   const handleClose = useCallback(() => {
-    // Always dismiss. The tagging job lives in Redux and its SSE stream is
-    // owned by this (always-mounted) hook, so closing mid-run just hides the
-    // modal — the batch keeps going and drops finished tags in on completion.
-    // Only clear the completed-run UI state when nothing is in flight, so a
-    // reopen while tagging returns to the live progress view.
+    // Dismiss and reset. The tagging job lives in Redux and its SSE stream is
+    // owned by this (always-mounted) hook, so closing changes nothing about a
+    // batch in flight — it keeps going and drops finished tags in when done.
     onClose();
-    if (!isTagging) {
-      setSummary(null);
-      setError(null);
-      setWasCancelled(false);
-      setSettingsLoaded(false);
-    }
-  }, [isTagging, onClose]);
+    setError(null);
+    setSettingsLoaded(false);
+  }, [onClose]);
 
-  const handleCancel = useCallback(() => {
-    // Use the local ref if this instance started the job, otherwise
-    // fall back to the active job from Redux (e.g. modal auto-opened on return)
-    const jobId = currentJobIdRef.current ?? activeTaggingJob?.id;
-    if (jobId) {
-      // Aborts the local stream AND cancels the sidecar batch — batches
-      // survive disconnects now, so aborting alone stops nothing.
-      cancelTaggingJob(jobId);
-      // Don't re-adopt this batch if the sidecar hasn't cleared it yet.
-      reattachedBatchIds.add(jobId);
-      dispatch(cancelTagging(jobId));
-    }
-  }, [activeTaggingJob?.id, dispatch]);
+  // Opening the tagger while this project already has a batch running goes
+  // straight to that batch's detail view instead. There's only one batch per
+  // project (a second would race the first for the same .txt files), so the
+  // settings form has nothing to offer until this one is done — and the run is
+  // almost certainly what the user came looking for anyway.
+  useEffect(() => {
+    if (!isOpen || !activeTaggingJob) return;
+    dispatch(openJobDetail({ id: activeTaggingJob.id, type: 'tagging' }));
+    onClose();
+  }, [isOpen, activeTaggingJob, dispatch, onClose]);
 
   /**
    * Flush pending results from localStorage → Redux, then deselect tagged assets.
@@ -400,8 +423,17 @@ export function useAutoTagger({
       const summaryData = {
         ...baseSummary,
         errorCount: imageErrorsRef.current.length,
+        errors: [...imageErrorsRef.current],
         providerType: selectedProviderType,
       };
+
+      // Which assets actually got something, read before the flush clears the
+      // store. A cancelled run processes only part of the selection, so
+      // deselecting the whole selection would drop assets that were never
+      // touched — and they're exactly the ones the user needs to re-run.
+      const taggedFileIds = getPendingTagResults(projectFolderName)
+        .filter((r) => r.tags?.length || r.caption?.length)
+        .map((r) => r.fileId);
 
       // Tell the sidecar to drop its stored copy of this batch — the results
       // are being flushed locally now, and /batch/active must not resurface
@@ -415,22 +447,15 @@ export function useAutoTagger({
       }).catch(() => {
         /* best-effort */
       });
-      setSummary(summaryData);
-      // Publish the errors we've accumulated for the summary view
-      setImageErrors([...imageErrorsRef.current]);
 
       // Flush: read from localStorage → dispatch addMultipleTags → clear
       dispatch(flushPendingTagResults(projectFolderName));
 
       // Deselect assets that received tags
-      if (unselectOnComplete && summaryData.imagesWithNewTags > 0) {
-        // Re-read isn't needed — we know which assets were tagged from the summary
-        // But we need the fileIds. Read from localStorage before flush clears them...
-        // Actually, flush already cleared them. For deselection, we can use the
-        // selectedAssets that were passed to the hook.
+      if (unselectOnComplete && taggedFileIds.length > 0) {
         dispatch(
           setAssetsSelectionState({
-            assetIds: selectedAssets.map((a) => a.fileId),
+            assetIds: taggedFileIds,
             selected: false,
           }),
         );
@@ -452,32 +477,29 @@ export function useAutoTagger({
       }
       dispatch(completeTagging({ id: jobId, summary: summaryData }));
     },
-    [dispatch, unselectOnComplete, selectedAssets, selectedProviderType],
+    [dispatch, unselectOnComplete, selectedProviderType],
   );
 
   /**
-   * Reattach to a caption batch the sidecar is still tracking (the page was
-   * refreshed or the tab closed while it ran). The attach stream replays
-   * every result the sidecar accumulated, then follows live progress using
-   * the same SSE vocabulary as a fresh batch. Works for terminal batches
-   * too — their replayed results get flushed and the batch cleared.
+   * Reattach to a batch that's still being tracked (the page was refreshed or
+   * the tab closed while it ran) — sidecar-side for VLM, in the Next process's
+   * batch store for ONNX. The attach stream replays every result accumulated
+   * so far, then follows live progress using the same SSE vocabulary as a
+   * fresh batch. Works for terminal batches too — their replayed results get
+   * flushed and the batch cleared.
    */
   const reattachToBatch = useCallback(
     async (batch: {
       batchId: string;
       current: number;
       total: number;
-      modelPath?: string | null;
+      modelName?: string;
+      providerType?: 'vlm' | 'onnx';
     }) => {
       const projectFolderName = projectInfo.projectFolderName;
       if (!projectFolderName) return;
 
       const jobId = batch.batchId;
-      // Derive a display name from the model path — the original request
-      // isn't recoverable after a refresh.
-      const modelName =
-        batch.modelPath?.split(/[\\/]/).filter(Boolean).pop() ??
-        'VLM captioner';
 
       dispatch(
         addJob({
@@ -490,21 +512,23 @@ export function useAutoTagger({
           error: null,
           projectFolderName,
           projectName: projectInfo.projectName || projectFolderName,
-          modelName,
+          // Both derived server-side in /batch/active — the original request
+          // isn't recoverable after a refresh.
+          modelName: batch.modelName ?? 'Auto-tagger',
+          providerType: batch.providerType ?? 'vlm',
           progress: { current: batch.current, total: batch.total },
           summary: null,
+          lastResult: null,
         }),
       );
       currentJobIdRef.current = jobId;
       const abortController = registerTaggingController(jobId);
       imageErrorsRef.current = [];
-      setImageErrors([]);
-      setWasCancelled(false);
       setError(null);
 
-      // The sidecar's stored results are authoritative and replayed in
-      // full — anything still in localStorage from the interrupted session
-      // would be applied twice.
+      // The batch's stored results are authoritative and replayed in full —
+      // anything still in localStorage from the interrupted session would be
+      // applied twice.
       clearPendingTagResults(projectFolderName);
 
       // Position comes from the project's saved settings; the value chosen
@@ -589,6 +613,15 @@ export function useAutoTagger({
                 caption: event.caption,
                 position,
               });
+              dispatch(
+                recordTaggingResult({
+                  id: jobId,
+                  fileId: event.fileId,
+                  fileName: event.fileName,
+                  tags: event.tags,
+                  caption: event.caption,
+                }),
+              );
             } else if (event.type === 'error' && event.fileId) {
               console.warn(`Error captioning ${event.fileId}:`, event.error);
               imageErrorsRef.current.push({
@@ -602,7 +635,6 @@ export function useAutoTagger({
               await flushAndFinalise(projectFolderName, jobId, false);
             } else if (event.type === 'cancelled') {
               finished = true;
-              setWasCancelled(true);
               dispatch(cancelTagging(jobId));
               await flushAndFinalise(projectFolderName, jobId, true);
             }
@@ -619,7 +651,6 @@ export function useAutoTagger({
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
-          setWasCancelled(true);
           flushAndFinalise(projectFolderName, jobId, true);
         } else {
           const message =
@@ -664,13 +695,14 @@ export function useAutoTagger({
             batchId: string;
             current: number;
             total: number;
-            modelPath?: string | null;
+            modelName?: string;
+            providerType?: 'vlm' | 'onnx';
           }[];
         };
         const batch = body.batches?.[0];
         if (!batch || disposed) return;
-        if (reattachedBatchIds.has(batch.batchId)) return;
-        reattachedBatchIds.add(batch.batchId);
+        if (hasBatchBeenAdopted(batch.batchId)) return;
+        markBatchAdopted(batch.batchId);
         await reattachToBatch(batch);
       } catch {
         // Sidecar unreachable — nothing to reattach to.
@@ -715,22 +747,28 @@ export function useAutoTagger({
         projectFolderName,
         projectName: projectInfo.projectName || projectFolderName,
         modelName,
+        providerType: selectedProviderType,
         progress: {
           current: 0,
           total: selectedAssets.length,
           currentFileId: selectedAssets[0]?.fileId,
         },
         summary: null,
+        lastResult: null,
       }),
     );
+
+    // Hand straight over to the activity panel's detail view — it's the one
+    // progress surface for a batch, and it covers everything from the queue
+    // wait through to the final summary. This modal's job (choosing a model
+    // and settings) is done.
+    dispatch(openJobDetail({ id: jobId, type: 'tagging' }));
+    onClose();
 
     currentJobIdRef.current = jobId;
     const abortController = registerTaggingController(jobId);
 
-    setSummary(null);
     setError(null);
-    setWasCancelled(false);
-    setImageErrors([]);
     imageErrorsRef.current = [];
 
     try {
@@ -913,6 +951,19 @@ export function useAutoTagger({
               caption: event.caption,
               position,
             });
+            // Mirror the latest result into the job so the activity panel's
+            // detail view can show it. Display-only, and deliberately not the
+            // path results take to the assets slice — that stays the
+            // end-of-batch flush out of localStorage.
+            dispatch(
+              recordTaggingResult({
+                id: jobId,
+                fileId: event.fileId,
+                fileName: event.fileName,
+                tags: event.tags,
+                caption: event.caption,
+              }),
+            );
           } else if (event.type === 'error' && event.fileId) {
             // Per-image error — collect for the summary
             console.warn(`Error tagging ${event.fileId}:`, event.error);
@@ -944,7 +995,9 @@ export function useAutoTagger({
               includeRatingTags: options.includeRatingTags,
               excludeTags: options.excludeTags,
               tagInsertMode: options.tagInsertMode,
-              prompt: vlmOptions.prompt,
+              // `prompt` is deliberately not saved: the project's canonical
+              // prompt is authored from the project menu, and a run's edits
+              // apply to that run only.
               maxTokens: vlmOptions.maxTokens,
               temperature: vlmOptions.temperature,
               injectTriggerPhrases: vlmOptions.injectTriggerPhrases,
@@ -960,7 +1013,6 @@ export function useAutoTagger({
             // keep whatever results already landed. The job status update
             // is dispatched here because no local abort handler ran.
             receivedComplete = true;
-            setWasCancelled(true);
             dispatch(cancelTagging(jobId));
             await flushAndFinalise(projectFolderName, jobId, true);
           }
@@ -998,7 +1050,6 @@ export function useAutoTagger({
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
-        setWasCancelled(true);
         // Flush any partial results that made it to localStorage
         flushAndFinalise(projectFolderName, jobId, true);
       } else {
@@ -1022,6 +1073,7 @@ export function useAutoTagger({
     }
   }, [
     selectedModelId,
+    selectedProviderType,
     projectInfo.projectPath,
     projectInfo.projectFolderName,
     projectInfo.projectName,
@@ -1033,6 +1085,7 @@ export function useAutoTagger({
     flushAndFinalise,
     keepModelInMemory,
     dispatch,
+    onClose,
   ]);
 
   return {
@@ -1041,12 +1094,7 @@ export function useAutoTagger({
     vlmOptions,
     unselectOnComplete,
     isTagging,
-    progress,
-    jobStatus,
-    summary,
     error,
-    imageErrors,
-    wasCancelled,
     // True when any model at all is installed — kept for the outer modal gate.
     hasReadyModel,
     // True when at least one *compatible* model exists for the current project
@@ -1060,6 +1108,9 @@ export function useAutoTagger({
     triggerPhrases,
     selectedVideoCount,
     selectedModelSupportsVideo,
+    // What this run's prompt was seeded with, so the panel's Reset restores
+    // the project's prompt rather than the built-in default.
+    seededPrompt: captionPrompt ?? DEFAULT_VLM_OPTIONS.prompt,
     // Actions
     handleModelChange,
     handleOptionChange,
@@ -1067,7 +1118,6 @@ export function useAutoTagger({
     handleVideoOptionChange,
     setUnselectOnComplete,
     handleClose,
-    handleCancel,
     handleStartTagging,
   };
 }

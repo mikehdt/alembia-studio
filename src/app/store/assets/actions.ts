@@ -72,9 +72,7 @@ export const loadAllAssets = createAsyncThunk<
     // Build blur cache from existing assets to reuse unchanged blur data
     const {
       assets: { images },
-      project,
     } = getState();
-    const captionMode = project.config.captionMode;
     const blurCache: BlurCache = {};
     for (const asset of images) {
       const isVideo = isSupportedVideoExtension(`.${asset.fileExtension}`);
@@ -144,7 +142,6 @@ export const loadAllAssets = createAsyncThunk<
           batch,
           options?.projectPath,
           blurCache,
-          captionMode,
         );
         // Update error count and track failed files for this batch
         if (errors.length > 0) {
@@ -164,7 +161,6 @@ export const loadAllAssets = createAsyncThunk<
             file,
             options?.projectPath,
             blurCache,
-            captionMode,
           );
         } catch (error) {
           console.error(`Failed to process file ${file}:`, error);
@@ -247,7 +243,6 @@ export const saveAsset = createAsyncThunk<
       updateTags,
       newTagStatus,
       imageIndexById,
-      composedText,
     );
   }
 

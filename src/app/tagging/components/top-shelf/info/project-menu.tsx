@@ -2,6 +2,7 @@ import {
   BoxIcon,
   CalculatorIcon,
   ChevronDownIcon,
+  MessageSquareTextIcon,
   RefreshCwIcon,
 } from 'lucide-react';
 import Image from 'next/image';
@@ -13,10 +14,12 @@ import { Popup, usePopup } from '@/app/shared/popup';
 import {
   IoState,
   loadAllAssets,
+  reconcileCaptionsForMode,
   selectAllImages,
   selectIoState,
   stripCaptionsForTagMode,
 } from '@/app/store/assets';
+import { hasHybridDelimiter } from '@/app/store/assets/hybrid-caption';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import {
   selectTagEditMode,
@@ -34,7 +37,9 @@ import {
 import { updateProject } from '@/app/utils/project-actions';
 
 import { BucketCropModal } from '../asset-controls/bucket-crop-modal';
+import { CaptionPromptModal } from './caption-prompt-modal';
 import { MenuCaptionModeSwitcher } from './menu-caption-mode-switcher';
+import { SwitchToHybridModal } from './switch-to-hybrid-modal';
 import { SwitchToTagsModal } from './switch-to-tags-modal';
 
 const ProjectMenuComponent = () => {
@@ -53,9 +58,15 @@ const ProjectMenuComponent = () => {
   const images = useAppSelector(selectAllImages);
 
   const [isBucketModalOpen, setIsBucketModalOpen] = useState(false);
+  const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
   // Non-zero while the hybrid→tags confirm dialog is open; holds the count of
   // captions that would be discarded.
   const [switchToTagsCount, setSwitchToTagsCount] = useState<number | null>(
+    null,
+  );
+  // Non-null while the caption→hybrid confirm dialog is open; holds the count of
+  // assets whose caption text hybrid can't re-derive on its own.
+  const [switchToHybridCount, setSwitchToHybridCount] = useState<number | null>(
     null,
   );
 
@@ -102,6 +113,15 @@ const ProjectMenuComponent = () => {
     setIsBucketModalOpen(false);
   }, []);
 
+  const handleOpenPromptModal = useCallback(() => {
+    closePopup(popupId);
+    setIsPromptModalOpen(true);
+  }, [closePopup, popupId]);
+
+  const handleClosePromptModal = useCallback(() => {
+    setIsPromptModalOpen(false);
+  }, []);
+
   const handleSetTagEditMode = useCallback(
     (mode: TagEditMode) => {
       dispatch(setTagEditMode(mode));
@@ -110,13 +130,22 @@ const ProjectMenuComponent = () => {
   );
 
   const commitCaptionMode = useCallback(
-    (mode: CaptionMode) => {
+    (mode: CaptionMode, ambiguousCaption: 'keep' | 'clear' = 'clear') => {
+      // Re-derive caption state for the incoming mode before the switch lands,
+      // so the editors don't surface text the new mode doesn't mean.
+      dispatch(
+        reconcileCaptionsForMode({
+          from: captionMode,
+          to: mode,
+          ambiguousCaption,
+        }),
+      );
       dispatch(setCaptionMode(mode));
       if (projectFolderName) {
         updateProject(projectFolderName, { captionMode: mode });
       }
     },
-    [dispatch, projectFolderName],
+    [dispatch, captionMode, projectFolderName],
   );
 
   const handleSetCaptionMode = useCallback(
@@ -132,6 +161,21 @@ const ProjectMenuComponent = () => {
           return;
         }
       }
+
+      // Leaving caption for hybrid: caption text still carrying the delimiter
+      // splits back apart on its own, but anything else is ambiguous — it may be
+      // a tag block echoed in on the way into caption mode. Confirm those.
+      if (captionMode === 'caption' && mode === 'hybrid') {
+        const ambiguousCount = images.filter(
+          (img) =>
+            img.captionText.trim() && !hasHybridDelimiter(img.captionText),
+        ).length;
+        if (ambiguousCount > 0) {
+          setSwitchToHybridCount(ambiguousCount);
+          return;
+        }
+      }
+
       commitCaptionMode(mode);
     },
     [captionMode, images, commitCaptionMode],
@@ -150,6 +194,21 @@ const ProjectMenuComponent = () => {
     () => setSwitchToTagsCount(null),
     [],
   );
+
+  const handleCloseSwitchToHybrid = useCallback(
+    () => setSwitchToHybridCount(null),
+    [],
+  );
+
+  const handleKeepCaptionsForHybrid = useCallback(() => {
+    commitCaptionMode('hybrid', 'keep');
+    setSwitchToHybridCount(null);
+  }, [commitCaptionMode]);
+
+  const handleClearCaptionsForHybrid = useCallback(() => {
+    commitCaptionMode('hybrid', 'clear');
+    setSwitchToHybridCount(null);
+  }, [commitCaptionMode]);
 
   if (!projectName) {
     return null;
@@ -209,6 +268,16 @@ const ProjectMenuComponent = () => {
             setCaptionMode={handleSetCaptionMode}
           />
 
+          {/* Only the modes that actually produce natural-language captions
+              have a prompt to author. */}
+          {(captionMode === 'caption' || captionMode === 'hybrid') && (
+            <MenuItem
+              icon={<MessageSquareTextIcon className="h-5 w-5" />}
+              label="Edit Caption Prompt"
+              onClick={handleOpenPromptModal}
+            />
+          )}
+
           <MenuEditModeSwitcher
             editMode={tagEditMode}
             setEditMode={handleSetTagEditMode}
@@ -221,11 +290,24 @@ const ProjectMenuComponent = () => {
         onClose={handleCloseBucketModal}
       />
 
+      <CaptionPromptModal
+        isOpen={isPromptModalOpen}
+        onClose={handleClosePromptModal}
+      />
+
       <SwitchToTagsModal
         isOpen={switchToTagsCount !== null}
         captionCount={switchToTagsCount ?? 0}
         onClose={handleCloseSwitchToTags}
         onConfirm={handleConfirmSwitchToTags}
+      />
+
+      <SwitchToHybridModal
+        isOpen={switchToHybridCount !== null}
+        ambiguousCount={switchToHybridCount ?? 0}
+        onClose={handleCloseSwitchToHybrid}
+        onKeep={handleKeepCaptionsForHybrid}
+        onClear={handleClearCaptionsForHybrid}
       />
     </div>
   );

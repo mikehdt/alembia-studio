@@ -39,6 +39,25 @@ export function composeAssetText(
 }
 
 /**
+ * Compose the string currently on disk for an asset in a given mode — the same
+ * branching as {@link composeAssetText}, but from the asset's saved baseline
+ * rather than its in-progress edits.
+ */
+export function composeSavedText(
+  asset: ImageAsset,
+  captionMode: CaptionMode,
+): string {
+  if (captionMode === 'caption') {
+    return asset.savedCaptionText;
+  }
+  const tags = asset.savedTagList ?? [];
+  if (captionMode === 'hybrid') {
+    return joinHybrid(tags, asset.savedCaptionText);
+  }
+  return createFlattenedTags(tags, captionMode);
+}
+
+/**
  * Whether an asset has unsaved changes, accounting for the current mode.
  * Tag modes check tag status; caption checks caption text; hybrid checks both.
  */
@@ -103,17 +122,16 @@ export function createCleanTagStatus(tags: string[]): {
  * @param updatedTags The tags after filtering
  * @param newTagStatus The clean tag status object
  * @param imageIndexById Lookup map from fileId to array index
- * @param flattenedTags The exact string written to disk — also stashed as
- *   captionText/savedCaptionText so a later switch into caption mode reads
- *   the same content the .txt file holds, without needing a project reload
  * @returns SaveAssetResult object ready for the reducer
+ *
+ * Caption state is deliberately left alone: a tag-only mode has no caption, and
+ * a later mode switch re-derives it via `reconcileCaptionsForMode`.
  */
 export function createSaveAssetResult(
   asset: ImageAsset,
   updatedTags: string[],
   newTagStatus: { [key: string]: number },
   imageIndexById: { [fileId: string]: number },
-  flattenedTags?: string,
 ): SaveAssetResult {
   return {
     assetIndex: imageIndexById[asset.fileId] ?? -1,
@@ -121,8 +139,6 @@ export function createSaveAssetResult(
     tagList: updatedTags,
     tagStatus: newTagStatus,
     savedTagList: [...updatedTags], // Store the current order as the saved order
-    captionText: flattenedTags,
-    savedCaptionText: flattenedTags,
   };
 }
 
@@ -199,7 +215,6 @@ export function processSaveResults(
             updateTags,
             newTagStatus,
             imageIndexById,
-            createFlattenedTags(updateTags, captionMode),
           ),
         );
       }

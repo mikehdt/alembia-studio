@@ -1,7 +1,10 @@
 // Core reducers for the assets slice
 import { PayloadAction } from '@reduxjs/toolkit';
 
+import type { CaptionMode } from '../project/types';
 import { toggleDirection } from '../utils';
+import { composeAssetText, composeSavedText, modeHasCaption } from './helpers';
+import { hasHybridDelimiter, splitHybrid } from './hybrid-caption';
 import {
   ImageAssets,
   IoState,
@@ -323,6 +326,71 @@ export const coreReducers = {
     const index = state.imageIndexById[payload.assetId];
     if (index === undefined) return;
     state.images[index].captionText = payload.text;
+  },
+
+  // Re-derive every loaded asset's caption state for a caption-mode switch, so
+  // the caption box shows what the new mode means by "caption" without needing
+  // a project reload. Only the caption side moves — tag state is untouched.
+  reconcileCaptionsForMode: (
+    state: ImageAssets,
+    {
+      payload: { from, to, ambiguousCaption = 'clear' },
+    }: PayloadAction<{
+      from: CaptionMode;
+      to: CaptionMode;
+      /**
+       * What to do with caption text that can't be re-derived on the way out of
+       * caption mode. See the `from === 'caption'` branch below.
+       */
+      ambiguousCaption?: 'keep' | 'clear';
+    }>,
+  ) => {
+    if (from === to) return;
+
+    // Entering caption mode: the whole .txt file is the caption, so seed the
+    // box with the text this asset's current state would write to disk.
+    if (to === 'caption') {
+      for (const asset of state.images) {
+        asset.captionText = composeAssetText(asset, from);
+        asset.savedCaptionText = composeSavedText(asset, from);
+      }
+      return;
+    }
+
+    if (to !== 'hybrid') return;
+
+    // Entering hybrid from a tag-only mode: the file has no caption section, so
+    // the caption box starts empty rather than echoing the tag block.
+    if (!modeHasCaption(from)) {
+      for (const asset of state.images) {
+        asset.captionText = '';
+        asset.savedCaptionText = '';
+      }
+      return;
+    }
+
+    // Entering hybrid from caption mode. The caption box held the *entire* file
+    // body — tag block included — so carrying it across verbatim would make
+    // hybrid re-emit those tags after the delimiter, on top of the tag list that
+    // was never cleared. Round-tripping the mode switch would then double the
+    // text every lap. Re-derive instead:
+    //
+    //   savedCaptionText is the on-disk body, so re-parsing it as hybrid always
+    //   recovers the true caption side (empty for a tags-only file).
+    //
+    //   captionText only re-parses cleanly when it still carries the delimiter.
+    //   Without one it's ambiguous — either a tag block echoed in on the way
+    //   into caption mode, or prose the user typed — so the caller decides.
+    if (from === 'caption') {
+      for (const asset of state.images) {
+        asset.savedCaptionText = splitHybrid(asset.savedCaptionText).caption;
+        asset.captionText = hasHybridDelimiter(asset.captionText)
+          ? splitHybrid(asset.captionText).caption
+          : ambiguousCaption === 'keep'
+            ? asset.captionText
+            : '';
+      }
+    }
   },
 
   // Clear the caption on every loaded asset (used when leaving hybrid mode for

@@ -3,7 +3,7 @@ import { OctagonAlertIcon } from 'lucide-react';
 import type { TaggerOptions, TagInsertMode } from '@/app/services/auto-tagger';
 import { Button } from '@/app/shared/button';
 import { Checkbox } from '@/app/shared/checkbox';
-import { Dropdown, DropdownItem } from '@/app/shared/dropdown';
+import { Dropdown, DropdownGroup, DropdownItem } from '@/app/shared/dropdown';
 import { FormTitle } from '@/app/shared/form-title/form-title';
 import { MultiTagInput } from '@/app/shared/multi-tag-input';
 import { RadioGroup } from '@/app/shared/radio-group';
@@ -12,7 +12,7 @@ type AutoTaggerSettingsProps = {
   options: TaggerOptions;
   unselectOnComplete: boolean;
   selectedModelId: string | null;
-  modelItems: DropdownItem<string>[];
+  modelItems: (DropdownItem<string> | DropdownGroup<string>)[];
   insertModeOptions: { value: TagInsertMode; label: string }[];
   selectedAssetsCount: number;
   error: string | null;

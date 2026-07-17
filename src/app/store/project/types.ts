@@ -24,6 +24,13 @@ type ProjectConfig = {
   tagSortDirection: TagSortDirection;
   captionMode: CaptionMode;
   triggerPhrases: string[];
+  /**
+   * The project's canonical natural-language captioning prompt, authored from
+   * the project menu. `null` means the user has never written one, so runs fall
+   * back to `DEFAULT_VLM_OPTIONS.prompt`. Per-run edits in the captioning modal
+   * never write back here — only the modal does.
+   */
+  captionPrompt: string | null;
 };
 
 export type ProjectState = {

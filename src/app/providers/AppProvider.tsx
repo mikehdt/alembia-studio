@@ -16,6 +16,7 @@ import { selectActiveTaggingJob } from '../store/jobs';
 import {
   selectProjectFolderName,
   setCaptionMode,
+  setCaptionPrompt,
   setProjectInfo,
   setTriggerPhrases,
 } from '../store/project';
@@ -89,6 +90,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       if (info?.captionMode) dispatch(setCaptionMode(info.captionMode));
       if (info?.triggerPhrases)
         dispatch(setTriggerPhrases(info.triggerPhrases));
+      // Dispatched unconditionally: a project without an authored prompt must
+      // clear whatever the previously-viewed project left in the slice, not
+      // inherit it.
+      dispatch(setCaptionPrompt(info?.captionPrompt ?? null));
       dispatch(
         setProjectInfo({
           name: info?.title || urlProject,

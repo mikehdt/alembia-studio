@@ -19,9 +19,16 @@ import {
   getModel,
   getProviderTypeForModel,
 } from '@/app/services/auto-tagger';
+import { displayName } from '@/app/services/auto-tagger/display-name';
 import { checkModelStatus } from '@/app/services/auto-tagger/model-manager';
 import type { CaptionBatchItem } from '@/app/services/auto-tagger/providers/vlm/client';
 import { captionBatchViaSidecar } from '@/app/services/auto-tagger/providers/vlm/client';
+import {
+  appendOnnxResult,
+  createOnnxBatch,
+  finishOnnxBatch,
+  isOnnxCancelRequested,
+} from '@/app/services/auto-tagger/providers/wd14/batch-store';
 import { tagImageInWorker } from '@/app/services/auto-tagger/providers/wd14/worker-manager';
 import { getProjectsFolder } from '@/app/services/config/server-config';
 import { ensureVideoPoster } from '@/app/utils/asset-actions';
@@ -68,6 +75,11 @@ type BatchProgressEvent = {
   current?: number;
   total?: number;
   fileId?: string;
+  /**
+   * On `result` events — the name of the file that was actually fed to the
+   * model, for the client to render a thumbnail from. See {@link displayName}.
+   */
+  fileName?: string;
   /** ONNX tagger result — comma-separated tags for the image */
   tags?: string[];
   /** VLM captioner result — natural-language caption for the image */
@@ -238,12 +250,43 @@ export async function POST(request: NextRequest) {
     // Capture narrowed model so nested helpers don't lose the non-null type
     const resolvedModel = model;
 
+    // Register ONNX batches before the stream opens so /batch/active can find
+    // them from the first moment. VLM batches get the equivalent registration
+    // sidecar-side, inside captionBatchViaSidecar.
+    if (providerType !== 'vlm') {
+      createOnnxBatch({
+        batchId,
+        project: projectFolderName,
+        modelName: resolvedModel.name,
+        total,
+      });
+    }
+
     const stream = new ReadableStream({
       async start(controller) {
+        // The client's abort (tab close, refresh, navigation) deliberately
+        // does NOT stop the run — for either provider. Results keep
+        // accumulating (sidecar-side for VLM, in the batch store for ONNX)
+        // and the client reattaches via /api/auto-tagger/batch/attach.
+        // Once the browser is gone `enqueue` throws, so events from then on
+        // go to the store only. Explicit cancellation is /batch/cancel.
+        let clientGone = false;
         const sendEvent = (event: BatchProgressEvent) => {
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
-          );
+          if (clientGone) return;
+          try {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
+            );
+          } catch {
+            clientGone = true;
+          }
+        };
+        const closeStream = () => {
+          try {
+            controller.close();
+          } catch {
+            // Client already disconnected — nothing to close.
+          }
         };
 
         try {
@@ -251,20 +294,21 @@ export async function POST(request: NextRequest) {
           if (providerType === 'vlm') {
             outcome = (await runVlmBatch(sendEvent)) ?? 'complete';
           } else {
-            await runOnnxBatch(sendEvent);
+            outcome = (await runOnnxBatch(sendEvent)) ?? 'complete';
           }
 
           if (outcome !== 'cancelled') {
             sendEvent({ type: 'complete', total });
           }
-          controller.close();
+          closeStream();
         } catch (err) {
-          sendEvent({
-            type: 'error',
-            error:
-              err instanceof Error ? err.message : 'Batch processing failed',
-          });
-          controller.close();
+          const message =
+            err instanceof Error ? err.message : 'Batch processing failed';
+          if (providerType !== 'vlm') {
+            finishOnnxBatch(batchId, 'failed', message);
+          }
+          sendEvent({ type: 'error', error: message });
+          closeStream();
         }
       },
     });
@@ -276,10 +320,22 @@ export async function POST(request: NextRequest) {
     // - After each image finishes, current increments.
     // - Final emit guarantees current=total so the progress bar reaches 100%.
     // The display converts `current` to a 1-based label via `min(current+1, total)`.
+    //
+    // Returns 'cancelled' when a /batch/cancel landed mid-run; undefined for a
+    // normal run (the caller emits `complete`). Mirrors runVlmBatch.
     async function runOnnxBatch(
       sendEvent: (event: BatchProgressEvent) => void,
-    ) {
+    ): Promise<'cancelled' | undefined> {
       for (let i = 0; i < assets.length; i++) {
+        // There's no way to interrupt an in-flight ONNX inference, so a
+        // cancel lands at the next image boundary. Results already recorded
+        // stay in the store for the client to collect.
+        if (isOnnxCancelRequested(batchId)) {
+          finishOnnxBatch(batchId, 'cancelled');
+          sendEvent({ type: 'cancelled', current: i, total });
+          return 'cancelled';
+        }
+
         const asset = assets[i];
         const sourcePath = path.join(
           projectPath,
@@ -294,11 +350,9 @@ export async function POST(request: NextRequest) {
         }
 
         if (!imagePath) {
-          sendEvent({
-            type: 'error',
-            fileId: asset.fileId,
-            error: 'Failed to extract poster frame from video',
-          });
+          const error = 'Failed to extract poster frame from video';
+          appendOnnxResult(batchId, { itemId: asset.fileId, error });
+          sendEvent({ type: 'error', fileId: asset.fileId, error });
           const completed = i + 1;
           const nextFileId = assets[i + 1]?.fileId ?? asset.fileId;
           sendEvent({
@@ -333,17 +387,22 @@ export async function POST(request: NextRequest) {
           let tagNames = allTags.map((t) => t.tag);
           tagNames = [...new Set(tagNames)];
 
+          const result = {
+            itemId: asset.fileId,
+            fileName: displayName(imagePath),
+            tags: tagNames,
+          };
+          appendOnnxResult(batchId, result);
           sendEvent({
             type: 'result',
             fileId: asset.fileId,
+            fileName: result.fileName,
             tags: tagNames,
           });
         } catch (err) {
-          sendEvent({
-            type: 'error',
-            fileId: asset.fileId,
-            error: err instanceof Error ? err.message : 'Unknown error',
-          });
+          const error = err instanceof Error ? err.message : 'Unknown error';
+          appendOnnxResult(batchId, { itemId: asset.fileId, error });
+          sendEvent({ type: 'error', fileId: asset.fileId, error });
         }
 
         // Emit completion of this image. `current` = images completed so far.
@@ -357,6 +416,9 @@ export async function POST(request: NextRequest) {
           fileId: nextFileId,
         });
       }
+
+      finishOnnxBatch(batchId, 'completed');
+      return undefined;
     }
 
     // --- VLM (sidecar) batch runner ---
@@ -411,6 +473,10 @@ export async function POST(request: NextRequest) {
       if (items.length === 0) {
         return;
       }
+
+      // Per-image events come back keyed by itemId only; keep the path each
+      // one resolved to so results can name a thumbnail (poster vs. original).
+      const pathByItemId = new Map(items.map((i) => [i.itemId, i.path]));
 
       // NOTE: the client's abort (tab close, navigation) deliberately does
       // NOT cancel the sidecar batch any more. The batch keeps running,
@@ -490,9 +556,11 @@ export async function POST(request: NextRequest) {
             error: event.error,
           });
         } else {
+          const resolvedPath = pathByItemId.get(event.itemId);
           sendEvent({
             type: 'result',
             fileId: event.itemId,
+            fileName: resolvedPath ? displayName(resolvedPath) : undefined,
             caption: event.caption,
           });
         }

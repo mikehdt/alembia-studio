@@ -8,6 +8,7 @@ import { useAppDispatch } from '@/app/store/hooks';
 import {
   resetProjectState,
   setCaptionMode,
+  setCaptionPrompt,
   setProjectInfo,
   setTriggerPhrases,
 } from '@/app/store/project';
@@ -104,6 +105,10 @@ export const useProjectList = () => {
       if (selectedProject?.triggerPhrases) {
         dispatch(setTriggerPhrases(selectedProject.triggerPhrases));
       }
+      // Dispatched unconditionally: AppProvider won't re-seed once the folder
+      // name matches, so a project with no authored prompt has to clear the
+      // previously-viewed project's value rather than inherit it.
+      dispatch(setCaptionPrompt(selectedProject?.captionPrompt ?? null));
       dispatch(
         setProjectInfo({
           name: projectTitle,

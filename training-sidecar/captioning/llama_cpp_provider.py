@@ -25,7 +25,9 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import io
 import os
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -103,8 +105,51 @@ class LlamaCppCaptioningProvider(CaptioningProvider):
         self._loaded_model_path = model_path
         self._loaded_mmproj_path = mmproj_path
 
+    def _downscaled_jpeg_bytes(self, image_path: str) -> Optional[bytes]:
+        """
+        Re-encode an oversized image down to the pixel budget as JPEG.
+
+        Returns None when the image is already within budget (send the
+        original bytes — no re-encode, no generation loss) or when Pillow
+        isn't installed. Pillow only ships in the "gpu" extra, so a
+        `uv sync --extra vlm` install runs this provider without it; there
+        we accept the original size rather than fail the caption.
+        """
+        try:
+            from PIL import Image
+
+            from captioning.image_prep import (
+                MAX_IMAGE_PIXELS,
+                downscale_to_pixel_budget,
+            )
+        except ImportError:
+            print(
+                "[llama_cpp_provider] Pillow not installed - sending image at "
+                "full size. Large images may exhaust memory; install the "
+                "'gpu' extra to enable downscaling.",
+                file=sys.stderr,
+            )
+            return None
+
+        with Image.open(image_path) as opened:
+            width, height = opened.size
+            if width * height <= MAX_IMAGE_PIXELS:
+                return None
+
+            # JPEG can't hold alpha, and the model doesn't use it regardless.
+            resized = downscale_to_pixel_budget(opened.convert("RGB"))
+
+        buffer = io.BytesIO()
+        resized.save(buffer, format="JPEG", quality=90)
+        return buffer.getvalue()
+
     def _image_to_data_uri(self, image_path: str) -> str:
         """Encode an image file as a base64 data URI for the chat handler."""
+        downscaled = self._downscaled_jpeg_bytes(image_path)
+        if downscaled is not None:
+            encoded = base64.b64encode(downscaled).decode("ascii")
+            return f"data:image/jpeg;base64,{encoded}"
+
         ext = os.path.splitext(image_path)[1].lower().lstrip(".")
         if ext in ("jpg", "jpeg"):
             mime = "image/jpeg"

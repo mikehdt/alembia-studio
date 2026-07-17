@@ -40,6 +40,7 @@ export const coreReducers = {
     state.config.tagSortDirection = TagSortDirection.ASC;
     state.config.captionMode = 'tags';
     state.config.triggerPhrases = [];
+    state.config.captionPrompt = null;
   },
 
   // Toggle crop visualisation
@@ -86,5 +87,14 @@ export const coreReducers = {
     { payload }: PayloadAction<string[]>,
   ) => {
     state.config.triggerPhrases = payload;
+  },
+
+  // Set the project's canonical captioning prompt. `null` restores the
+  // built-in default for future runs.
+  setCaptionPrompt: (
+    state: ProjectState,
+    { payload }: PayloadAction<string | null>,
+  ) => {
+    state.config.captionPrompt = payload;
   },
 };

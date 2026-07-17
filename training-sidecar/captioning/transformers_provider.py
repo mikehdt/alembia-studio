@@ -42,6 +42,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterator, Optional
 
+from captioning.image_prep import downscale_to_pixel_budget
 from captioning.provider import (
     CancelCheck,
     CaptionCancelled,
@@ -419,7 +420,7 @@ class TransformersCaptioningProvider(CaptioningProvider):
 
         assert self._model is not None and self._processor is not None
 
-        image = Image.open(image_path).convert("RGB")
+        image = downscale_to_pixel_budget(Image.open(image_path).convert("RGB"))
 
         messages = [
             {

@@ -19,8 +19,10 @@ import type {
   Job,
   JobsState,
   JobStatus,
+  TaggingImageError,
   TaggingJob,
   TaggingProgress,
+  TaggingResult,
   TaggingSummary,
   TrainingJob,
 } from './types';
@@ -28,6 +30,7 @@ import type {
 const initialState: JobsState = {
   jobs: {},
   panelOpen: false,
+  detailJob: null,
 };
 
 const jobsSlice = createSlice({
@@ -157,6 +160,22 @@ const jobsSlice = createSlice({
       job.startedAt ??= Date.now();
     },
 
+    /**
+     * Record the latest finished image and what it produced. Kept off
+     * `progress` deliberately: progress payloads are whole-object replaces,
+     * so a result stored there would be wiped by the very next counter tick.
+     */
+    recordTaggingResult: (
+      state,
+      action: PayloadAction<{ id: string } & TaggingResult>,
+    ) => {
+      const { id, ...result } = action.payload;
+      const job = state.jobs[id];
+      if (!job || job.type !== 'tagging') return;
+
+      job.lastResult = result;
+    },
+
     completeTagging: (
       state,
       action: PayloadAction<{ id: string; summary: TaggingSummary }>,
@@ -232,6 +251,19 @@ const jobsSlice = createSlice({
     togglePanel: (state) => {
       state.panelOpen = !state.panelOpen;
     },
+
+    // --- Detail modal ---
+
+    openJobDetail: (
+      state,
+      action: PayloadAction<{ id: string; type: 'training' | 'tagging' }>,
+    ) => {
+      state.detailJob = action.payload;
+    },
+
+    closeJobDetail: (state) => {
+      state.detailJob = null;
+    },
   },
 });
 
@@ -249,6 +281,7 @@ export const {
   completeDownload,
   failDownload,
   updateTaggingProgress,
+  recordTaggingResult,
   completeTagging,
   failTagging,
   cancelTagging,
@@ -258,6 +291,8 @@ export const {
   openPanel,
   closePanel,
   togglePanel,
+  openJobDetail,
+  closeJobDetail,
 } = jobsSlice.actions;
 
 // ---------------------------------------------------------------------------
@@ -400,6 +435,9 @@ export const selectGpuBusyReason = createSelector(
 /** Whether the activity panel is open. */
 export const selectPanelOpen = createSelector(selectJobs, (s) => s.panelOpen);
 
+/** Which job's detail modal is open, if any. */
+export const selectDetailJob = createSelector(selectJobs, (s) => s.detailJob);
+
 /** Whether there are any active or completed jobs to show. */
 export const selectHasJobs = createSelector(
   selectAllJobs,
@@ -411,8 +449,10 @@ export type {
   DownloadJob,
   Job,
   JobStatus,
+  TaggingImageError,
   TaggingJob,
   TaggingProgress,
+  TaggingResult,
   TaggingSummary,
   TrainingJob,
 };

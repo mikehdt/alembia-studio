@@ -17,6 +17,7 @@ const initialState: ProjectState = {
     tagSortDirection: TagSortDirection.ASC,
     captionMode: 'tags',
     triggerPhrases: [],
+    captionPrompt: null,
   },
 };
 
@@ -37,6 +38,7 @@ const projectSlice = createSlice({
     selectTagSortDirection: (state) => state.config.tagSortDirection,
     selectCaptionMode: (state) => state.config.captionMode,
     selectTriggerPhrases: (state) => state.config.triggerPhrases,
+    selectCaptionPrompt: (state) => state.config.captionPrompt,
   },
 });
 
@@ -51,6 +53,7 @@ export const {
   toggleTagSortDirection,
   setCaptionMode,
   setTriggerPhrases,
+  setCaptionPrompt,
 } = projectSlice.actions;
 
 // Export the selectors from the slice
@@ -64,6 +67,7 @@ export const {
   selectTagSortDirection,
   selectCaptionMode,
   selectTriggerPhrases,
+  selectCaptionPrompt,
 } = projectSlice.selectors;
 
 // Main exports for project module

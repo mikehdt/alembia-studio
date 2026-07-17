@@ -8,6 +8,23 @@
 
 const controllers = new Map<string, AbortController>();
 
+/**
+ * Batches this browser session has already taken ownership of — either by
+ * reattaching to them or by cancelling them. The reattach sweep skips these:
+ * two hook instances racing the same batch would double-apply its results,
+ * and a batch the sidecar hasn't finished cancelling yet would otherwise be
+ * re-adopted and flushed all over again.
+ */
+const adoptedBatchIds = new Set<string>();
+
+export function markBatchAdopted(batchId: string): void {
+  adoptedBatchIds.add(batchId);
+}
+
+export function hasBatchBeenAdopted(batchId: string): boolean {
+  return adoptedBatchIds.has(batchId);
+}
+
 /** Register a controller for a tagging job. */
 export function registerTaggingController(jobId: string): AbortController {
   controllers.get(jobId)?.abort();
@@ -35,6 +52,9 @@ export function abortTagging(jobId: string): void {
  */
 export function cancelTaggingJob(jobId: string): void {
   abortTagging(jobId);
+  // Cancelling is ownership too — don't let the reattach sweep pick this
+  // batch back up in the window before the sidecar has cleared it.
+  markBatchAdopted(jobId);
   void (async () => {
     try {
       await fetch('/api/auto-tagger/batch/cancel', {

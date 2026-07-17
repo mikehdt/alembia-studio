@@ -2,9 +2,7 @@
 
 import { Modal } from '@/app/shared/modal';
 
-import { AutoTaggerProgress } from './auto-tagger-progress';
 import { AutoTaggerSettings } from './auto-tagger-settings';
-import { AutoTaggerSummary } from './auto-tagger-summary';
 import { AutoTaggerVlmSettings } from './auto-tagger-vlm-settings';
 import { useAutoTagger } from './use-auto-tagger';
 
@@ -14,6 +12,12 @@ type AutoTaggerModalProps = {
   selectedAssets: { fileId: string; fileExtension: string }[];
 };
 
+/**
+ * Choosing a model and settings for a batch, and nothing else. Starting one
+ * closes this modal and opens the activity panel's detail view, which owns the
+ * whole run from the queue wait through to the summary — so there's a single
+ * place to watch a batch, whether it was just started or reattached to.
+ */
 export function AutoTaggerModal({
   isOpen,
   onClose,
@@ -24,12 +28,7 @@ export function AutoTaggerModal({
     vlmOptions,
     unselectOnComplete,
     isTagging,
-    progress,
-    jobStatus,
-    summary,
     error,
-    imageErrors,
-    wasCancelled,
     hasReadyModel,
     hasModelForMode,
     modelItems,
@@ -40,13 +39,13 @@ export function AutoTaggerModal({
     triggerPhrases,
     selectedVideoCount,
     selectedModelSupportsVideo,
+    seededPrompt,
     handleModelChange,
     handleOptionChange,
     handleVlmOptionChange,
     handleVideoOptionChange,
     setUnselectOnComplete,
     handleClose,
-    handleCancel,
     handleStartTagging,
   } = useAutoTagger({ isOpen, onClose, selectedAssets });
 
@@ -60,7 +59,10 @@ export function AutoTaggerModal({
 
   return (
     <Modal
-      isOpen={isOpen}
+      // A batch running for this project redirects to its detail view (see
+      // `useAutoTagger`). Gating here too keeps the form from flashing up for
+      // the frame between the open and the effect that redirects it.
+      isOpen={isOpen && !isTagging}
       onClose={handleClose}
       className="max-w-xl"
       labelledById="auto-tagger-modal-title"
@@ -94,21 +96,6 @@ export function AutoTaggerModal({
                 : 'Install an ONNX tagger (e.g. WD14) in the Model Manager to tag images in this mode. Or switch the project to caption mode to use a VLM.'}
             </p>
           </div>
-        ) : isTagging ? (
-          <AutoTaggerProgress
-            progress={progress}
-            jobStatus={jobStatus}
-            providerType={selectedProviderType}
-            onCancel={handleCancel}
-          />
-        ) : summary ? (
-          <AutoTaggerSummary
-            summary={summary}
-            wasCancelled={wasCancelled}
-            providerType={selectedProviderType}
-            imageErrors={imageErrors}
-            onClose={handleClose}
-          />
         ) : isVlm ? (
           <AutoTaggerVlmSettings
             vlmOptions={vlmOptions}
@@ -121,6 +108,7 @@ export function AutoTaggerModal({
             selectedModelSupportsVideo={selectedModelSupportsVideo}
             error={error}
             triggerPhrases={triggerPhrases}
+            seededPrompt={seededPrompt}
             onModelChange={handleModelChange}
             onVlmOptionChange={handleVlmOptionChange}
             onVideoOptionChange={handleVideoOptionChange}

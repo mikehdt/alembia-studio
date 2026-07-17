@@ -29,6 +29,13 @@ export type ProjectConfig = {
   autoTagger?: AutoTaggerSettings;
   captionMode?: CaptionMode;
   triggerPhrases?: string[];
+  /**
+   * The project's canonical natural-language captioning prompt. Absent means
+   * "never authored" — captioning runs fall back to the built-in default.
+   * Only the project menu's prompt modal writes this; a run's per-batch edits
+   * are deliberately not persisted here.
+   */
+  captionPrompt?: string;
 };
 
 type CentralizedProjectInfo = ProjectConfig;
@@ -50,7 +57,20 @@ export type Project = {
   featured?: boolean;
   captionMode?: CaptionMode;
   triggerPhrases?: string[];
+  captionPrompt?: string;
 };
+
+/**
+ * Resolve a project's canonical caption prompt.
+ *
+ * Before the prompt was project-level, every completed captioning run wrote its
+ * prompt into `autoTagger.prompt`. Projects tagged under that scheme adopt that
+ * value as their canonical prompt rather than silently reverting to the
+ * built-in default.
+ */
+const resolveCaptionPrompt = (
+  config: CentralizedProjectInfo | null,
+): string | undefined => config?.captionPrompt ?? config?.autoTagger?.prompt;
 
 /**
  * Find thumbnail file for a project based on project name
@@ -132,6 +152,25 @@ const readLocalProjectInfo = (projectPath: string): LocalProjectInfo | null => {
 };
 
 /**
+ * Resolve a project's caption mode from its config file on the server.
+ *
+ * Asset parsing must not trust the client's Redux caption mode: on a hard
+ * refresh, assets start loading before the project config has hydrated, and a
+ * hybrid file parsed under the default 'tags' mode splits its natural-language
+ * caption into junk tags. The config file is the source of truth — mode
+ * switches persist to it synchronously with the in-app switch.
+ *
+ * `projectPath` may be a folder name or an absolute path under projectsFolder.
+ */
+export const getProjectCaptionMode = async (
+  projectPath?: string,
+): Promise<CaptionMode> => {
+  if (!projectPath) return 'tags';
+  const folderName = path.basename(projectPath);
+  return readCentralizedProjectInfo(folderName)?.captionMode ?? 'tags';
+};
+
+/**
  * Get display info for a single project by folder name.
  * Used to resolve titles/thumbnails when navigating directly via URL.
  */
@@ -142,15 +181,32 @@ export const getProjectInfo = async (
   thumbnail?: string;
   captionMode?: CaptionMode;
   triggerPhrases?: string[];
+  captionPrompt?: string;
 } | null> => {
   try {
     const centralInfo = readCentralizedProjectInfo(folderName);
     const thumbnail = findThumbnailFile(folderName);
+    const captionPrompt = resolveCaptionPrompt(centralInfo);
+
+    // One-time migration of a legacy run-persisted prompt to the project-level
+    // field. Opening the project is the natural point for it: without this the
+    // next completed run rewrites the `autoTagger` blob without `prompt` and
+    // the project would silently revert to the built-in default.
+    if (centralInfo?.captionPrompt === undefined && captionPrompt) {
+      const autoTagger = { ...centralInfo?.autoTagger };
+      delete autoTagger.prompt;
+      await updateProject(folderName, {
+        captionPrompt,
+        autoTagger: Object.keys(autoTagger).length > 0 ? autoTagger : undefined,
+      });
+    }
+
     return {
       title: centralInfo?.title || folderName,
       thumbnail: thumbnail || undefined,
       captionMode: centralInfo?.captionMode,
       triggerPhrases: centralInfo?.triggerPhrases,
+      captionPrompt,
     };
   } catch {
     return null;
@@ -264,6 +320,7 @@ export const getProjectList = async (): Promise<Project[]> => {
           featured: centralizedInfo?.featured || false,
           captionMode: centralizedInfo?.captionMode,
           triggerPhrases: centralizedInfo?.triggerPhrases,
+          captionPrompt: resolveCaptionPrompt(centralizedInfo),
         };
       }),
     );

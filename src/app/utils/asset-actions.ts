@@ -19,7 +19,9 @@ import {
   TagState,
 } from '../store/assets';
 import { splitHybrid } from '../store/assets/hybrid-caption';
+import type { CaptionMode } from '../store/project/types';
 import { calculateKohyaBucket, KOHYA_CONFIGS } from './image-utils';
+import { getProjectCaptionMode } from './project-actions';
 import { isValidRepeatFolder } from './subfolder-utils';
 
 /**
@@ -225,7 +227,6 @@ export const getMultipleImageAssetDetails = async (
   files: string[],
   projectPath?: string,
   blurCache?: BlurCache,
-  captionMode?: string,
 ): Promise<{ assets: ImageAsset[]; errors: string[] }> => {
   // Check for duplicate fileIds and get filtered files
   const { uniqueFiles, duplicateWarnings } = detectDuplicateFileIds(files);
@@ -241,9 +242,13 @@ export const getMultipleImageAssetDetails = async (
     duplicateWarnings.forEach((warning) => console.warn(warning));
   }
 
+  // Resolve the caption mode once for the whole batch — server-side, from the
+  // project config, so parsing can't race the client's config hydration.
+  const captionMode = await getProjectCaptionMode(projectPath);
+
   const results = await Promise.allSettled(
     uniqueFiles.map((file) =>
-      getImageAssetDetails(file, projectPath, blurCache, captionMode),
+      loadAssetDetails(file, projectPath, blurCache, captionMode),
     ),
   );
 
@@ -475,12 +480,22 @@ const generateBlurDataUrl = async (
   }
 };
 
-// Process a single image file and return its asset data
+// Process a single image file and return its asset data. The caption mode is
+// resolved server-side from the project config (see getProjectCaptionMode).
 export const getImageAssetDetails = async (
   file: string,
   projectPath?: string,
   blurCache?: BlurCache,
-  captionMode?: string,
+): Promise<ImageAsset> => {
+  const captionMode = await getProjectCaptionMode(projectPath);
+  return loadAssetDetails(file, projectPath, blurCache, captionMode);
+};
+
+const loadAssetDetails = async (
+  file: string,
+  projectPath: string | undefined,
+  blurCache: BlurCache | undefined,
+  captionMode: CaptionMode,
 ): Promise<ImageAsset> => {
   const fileId = file.substring(0, file.lastIndexOf('.'));
   const fileExtension = file.substring(file.lastIndexOf('.') + 1);

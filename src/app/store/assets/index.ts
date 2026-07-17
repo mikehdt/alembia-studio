@@ -52,6 +52,7 @@ export const {
 
   setCaptionText,
   clearAllCaptions,
+  reconcileCaptionsForMode,
   setSortType,
   setSortDirection,
   toggleSortDirection,
