@@ -1,13 +1,21 @@
 'use client';
 
-import { ArrowLeftIcon, HistoryIcon, Trash2Icon } from 'lucide-react';
+import {
+  ArrowLeftIcon,
+  HistoryIcon,
+  SlidersHorizontalIcon,
+  Trash2Icon,
+} from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { formatDuration } from '@/app/shared/activity-panel/helpers';
 import { TrainingDetailContent } from '@/app/shared/activity-panel/training-detail-modal/training-detail-content';
 import { Button } from '@/app/shared/button';
 import { Modal } from '@/app/shared/modal';
+import { useConfirmAction } from '@/app/shared/use-confirm-action';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
+import { addToast } from '@/app/store/toasts/reducers';
+import { hydrateFromRun } from '@/app/store/training-config';
 import {
   clearHistory,
   deleteHistoryEntry,
@@ -61,10 +69,12 @@ function HistoryRow({
   entry,
   onOpen,
   onDelete,
+  onReuse,
 }: {
   entry: TrainingHistoryEntry;
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
+  onReuse: (entry: TrainingHistoryEntry) => void;
 }) {
   const status = STATUS_META[entry.status] ?? STATUS_META.cancelled;
   const elapsed =
@@ -72,6 +82,19 @@ function HistoryRow({
       ? entry.completedAt - entry.startedAt
       : null;
   const params = paramSummary(entry);
+
+  // Reusing replaces the whole form, discarding whatever is being edited —
+  // worth a second click, since the row's main body is a click target too.
+  const handleConfirmReuse = useCallback(
+    () => onReuse(entry),
+    [onReuse, entry],
+  );
+  const { armed: confirmingReuse, trigger: handleReuseClick } =
+    useConfirmAction(handleConfirmReuse);
+
+  // Runs archived before we started snapshotting the form can't be reused —
+  // their stored config is a display summary, not a rebuildable setup.
+  const canReuse = entry.formSnapshot != null;
 
   return (
     <div className="group flex items-center gap-3 border-b border-(--border-subtle) px-3 py-2.5 last:border-b-0 hover:bg-slate-100 dark:hover:bg-slate-700/50">
@@ -97,6 +120,24 @@ function HistoryRow({
           </span>
         </span>
       </button>
+
+      {canReuse && (
+        <Button
+          onClick={handleReuseClick}
+          size="sm"
+          variant="ghost"
+          color={confirmingReuse ? 'amber' : 'slate'}
+          className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+          title={
+            confirmingReuse
+              ? 'Click again to replace the current form with this run’s settings'
+              : 'Load this run’s settings into the training form'
+          }
+        >
+          <SlidersHorizontalIcon />
+          {confirmingReuse ? 'Replace form?' : 'Use these settings'}
+        </Button>
+      )}
 
       <button
         type="button"
@@ -144,6 +185,22 @@ export function TrainingHistoryModal() {
     setSelectedId(null);
   }, [dispatch]);
 
+  // Load a past run's settings into the form and get out of the way — the form
+  // is directly behind this modal, so there's nowhere to navigate to.
+  const handleReuse = useCallback(
+    (entry: TrainingHistoryEntry) => {
+      if (!entry.formSnapshot) return;
+      dispatch(hydrateFromRun(entry.formSnapshot));
+      dispatch(
+        addToast({
+          children: `Loaded settings from “${entry.config?.outputName || 'training run'}”`,
+        }),
+      );
+      handleClose();
+    },
+    [dispatch, handleClose],
+  );
+
   return (
     <Modal
       isOpen={isOpen}
@@ -190,6 +247,7 @@ export function TrainingHistoryModal() {
                     entry={entry}
                     onOpen={setSelectedId}
                     onDelete={handleDelete}
+                    onReuse={handleReuse}
                   />
                 ))}
               </div>

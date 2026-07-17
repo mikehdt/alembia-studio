@@ -9,6 +9,7 @@ import type {
   TrainingJobConfig,
   TrainingProgress,
 } from '@/app/services/training/types';
+import type { FormState } from '@/app/store/training-config/types';
 
 // ---------------------------------------------------------------------------
 // Job status (shared across all job types)
@@ -47,6 +48,14 @@ export type TrainingJob = JobBase & {
   type: 'training';
   config: TrainingJobConfig;
   progress: TrainingProgress | null;
+  /**
+   * The launch form exactly as it was submitted, kept so a past run's settings
+   * can be loaded back into the config form. `config` is a lossy summary built
+   * for the progress UI (no datasets, single resolution, no expert fields), so
+   * it can't serve this. Absent on runs rehydrated from the sidecar and on
+   * history entries archived before this field existed — gate reuse on it.
+   */
+  formSnapshot?: FormState;
 };
 
 export type DownloadJob = JobBase & {

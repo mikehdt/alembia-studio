@@ -447,6 +447,24 @@ const trainingConfigSlice = createSlice({
     },
 
     /**
+     * Load a past run's settings into the form. Same merge-over-defaults
+     * treatment as {@link hydrateFromProject} — a run archived before a field
+     * existed loads it as undefined otherwise. Unlike a saved project this has
+     * no disk identity, so the loaded-project pointer is dropped and the
+     * baseline left null: the form is ephemeral until the user saves it.
+     */
+    hydrateFromRun: (state, action: PayloadAction<FormState>) => {
+      const incoming = action.payload;
+      const merged: FormState = {
+        ...defaultsToFormState(getDefaults(incoming.modelId), incoming.modelId),
+        ...incoming,
+      };
+      state.form = coerceProvider(merged);
+      state.loadedProject = null;
+      state.baselineSnapshot = null;
+    },
+
+    /**
      * After a successful save, update the loaded-project pointer and
      * re-stamp the baseline to the current form (dirty → clean).
      */
@@ -486,6 +504,7 @@ export const {
   removeExtraFolder,
   setAppModelDefaults,
   hydrateFromProject,
+  hydrateFromRun,
   stampSaved,
   clearLoadedProject,
 } = trainingConfigSlice.actions;

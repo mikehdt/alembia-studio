@@ -4,6 +4,7 @@ import {
   FIELD_REGISTRY,
   getVisibleFields,
 } from '@/app/services/training/field-registry';
+import type { FormState } from '@/app/store/training-config/types';
 
 import { TrainingBottomShelf } from '../bottom-shelf/training-bottom-shelf';
 import { ModelDefaultsModal } from '../model-defaults-modal/model-defaults-modal';
@@ -24,7 +25,15 @@ import {
 } from './use-training-config-form';
 
 type TrainingConfigFormProps = {
-  onStartTraining?: (config: Record<string, unknown>) => void;
+  /**
+   * `config` is the flattened launch payload the sidecar expects; `formSnapshot`
+   * is the untouched form state, stored on the job so the run's settings can be
+   * loaded back later (the flattened payload can't be reversed cleanly).
+   */
+  onStartTraining?: (
+    config: Record<string, unknown>,
+    formSnapshot: FormState,
+  ) => void;
 };
 
 const TrainingConfigFormComponent = ({
@@ -140,84 +149,88 @@ const TrainingConfigFormComponent = ({
     const effectiveEpochs =
       state.durationMode === 'steps' ? calculatedEpochs : state.epochs;
 
-    onStartTraining?.({
-      modelId: state.modelId,
-      modelPaths: state.modelPaths,
-      provider: state.selectedProvider,
-      outputName: state.outputName,
-      datasets: state.datasets,
-      // Which of steps/epochs the user actually asked for. Our epochs→steps
-      // conversion is only an estimate (it can't know how the trainer's
-      // aspect-ratio buckets round their partial batches), so a backend that
-      // can count epochs itself should be told to do that rather than trust
-      // the converted step total.
-      durationMode: state.durationMode,
-      steps: effectiveSteps,
-      epochs: effectiveEpochs,
-      learningRate: state.learningRate,
-      optimizer: state.optimizer,
-      scheduler: state.scheduler,
-      warmupSteps: state.warmupSteps,
-      numRestarts: state.numRestarts,
-      weightDecay: state.weightDecay,
-      maxGradNorm: state.maxGradNorm,
-      trainTextEncoder: state.trainTextEncoder,
-      backboneLR: state.backboneLR,
-      textEncoderLR: state.textEncoderLR,
-      ema: state.ema,
-      emaDecay: state.emaDecay,
-      lossType: state.lossType,
-      timestepType: state.timestepType,
-      timestepBias: state.timestepBias,
-      discreteFlowShift: state.discreteFlowShift,
-      minSnrGamma: state.minSnrGamma,
-      noiseOffset: state.noiseOffset,
-      batchSize: state.batchSize,
-      networkType: state.networkType,
-      networkDim: state.networkDim,
-      networkAlpha: state.networkAlpha,
-      networkDropout: state.networkDropout,
-      scaleWeightNorms: state.scaleWeightNorms,
-      resolution: state.resolution,
-      mixedPrecision: state.mixedPrecision,
-      transformerQuantization: state.transformerQuantization,
-      textEncoderQuantization: state.textEncoderQuantization,
-      cacheTextEmbeddings: state.cacheTextEmbeddings,
-      unloadTextEncoder: state.unloadTextEncoder,
-      gradientAccumulationSteps: state.gradientAccumulationSteps,
-      gradientCheckpointing: state.gradientCheckpointing,
-      cacheLatents: state.cacheLatents,
-      bucketResoSteps: state.bucketResoSteps,
-      bucketNoUpscale: state.bucketNoUpscale,
-      extraFolders: state.extraFolders,
-      seed: state.seed,
-      guidanceScale: state.guidanceScale,
-      sampleSteps: state.sampleSteps,
-      sampleSampler: state.sampleSampler,
-      saveEnabled: state.saveEnabled,
-      saveMode: state.saveMode,
-      saveEveryEpochs: state.saveEveryEpochs,
-      saveEverySteps: state.saveEverySteps,
-      saveFormat: state.saveFormat,
-      maxSavesToKeep: state.maxSavesToKeep,
-      saveState: state.saveState,
-      resumeState: state.resumeState,
-      networkArgs: state.networkArgs,
-      optimizerArgs: state.optimizerArgs,
-      blocksToSwap: state.blocksToSwap,
-      lokrFactor: state.lokrFactor,
-      contentOrStyle: state.contentOrStyle,
-      diffOutputPreservation: state.diffOutputPreservation,
-      diffOutputPreservationMultiplier: state.diffOutputPreservationMultiplier,
-      diffOutputPreservationClass: state.diffOutputPreservationClass,
-      layerTargeting: state.layerTargeting,
-      lowVram: state.lowVram,
-      samplingEnabled: state.samplingEnabled,
-      sampleMode: state.sampleMode,
-      sampleEveryEpochs: state.sampleEveryEpochs,
-      sampleEverySteps: state.sampleEverySteps,
-      samplePrompts: state.samplePrompts.map((s) => s.trim()).filter(Boolean),
-    });
+    onStartTraining?.(
+      {
+        modelId: state.modelId,
+        modelPaths: state.modelPaths,
+        provider: state.selectedProvider,
+        outputName: state.outputName,
+        datasets: state.datasets,
+        // Which of steps/epochs the user actually asked for. Our epochs→steps
+        // conversion is only an estimate (it can't know how the trainer's
+        // aspect-ratio buckets round their partial batches), so a backend that
+        // can count epochs itself should be told to do that rather than trust
+        // the converted step total.
+        durationMode: state.durationMode,
+        steps: effectiveSteps,
+        epochs: effectiveEpochs,
+        learningRate: state.learningRate,
+        optimizer: state.optimizer,
+        scheduler: state.scheduler,
+        warmupSteps: state.warmupSteps,
+        numRestarts: state.numRestarts,
+        weightDecay: state.weightDecay,
+        maxGradNorm: state.maxGradNorm,
+        trainTextEncoder: state.trainTextEncoder,
+        backboneLR: state.backboneLR,
+        textEncoderLR: state.textEncoderLR,
+        ema: state.ema,
+        emaDecay: state.emaDecay,
+        lossType: state.lossType,
+        timestepType: state.timestepType,
+        timestepBias: state.timestepBias,
+        discreteFlowShift: state.discreteFlowShift,
+        minSnrGamma: state.minSnrGamma,
+        noiseOffset: state.noiseOffset,
+        batchSize: state.batchSize,
+        networkType: state.networkType,
+        networkDim: state.networkDim,
+        networkAlpha: state.networkAlpha,
+        networkDropout: state.networkDropout,
+        scaleWeightNorms: state.scaleWeightNorms,
+        resolution: state.resolution,
+        mixedPrecision: state.mixedPrecision,
+        transformerQuantization: state.transformerQuantization,
+        textEncoderQuantization: state.textEncoderQuantization,
+        cacheTextEmbeddings: state.cacheTextEmbeddings,
+        unloadTextEncoder: state.unloadTextEncoder,
+        gradientAccumulationSteps: state.gradientAccumulationSteps,
+        gradientCheckpointing: state.gradientCheckpointing,
+        cacheLatents: state.cacheLatents,
+        bucketResoSteps: state.bucketResoSteps,
+        bucketNoUpscale: state.bucketNoUpscale,
+        extraFolders: state.extraFolders,
+        seed: state.seed,
+        guidanceScale: state.guidanceScale,
+        sampleSteps: state.sampleSteps,
+        sampleSampler: state.sampleSampler,
+        saveEnabled: state.saveEnabled,
+        saveMode: state.saveMode,
+        saveEveryEpochs: state.saveEveryEpochs,
+        saveEverySteps: state.saveEverySteps,
+        saveFormat: state.saveFormat,
+        maxSavesToKeep: state.maxSavesToKeep,
+        saveState: state.saveState,
+        resumeState: state.resumeState,
+        networkArgs: state.networkArgs,
+        optimizerArgs: state.optimizerArgs,
+        blocksToSwap: state.blocksToSwap,
+        lokrFactor: state.lokrFactor,
+        contentOrStyle: state.contentOrStyle,
+        diffOutputPreservation: state.diffOutputPreservation,
+        diffOutputPreservationMultiplier:
+          state.diffOutputPreservationMultiplier,
+        diffOutputPreservationClass: state.diffOutputPreservationClass,
+        layerTargeting: state.layerTargeting,
+        lowVram: state.lowVram,
+        samplingEnabled: state.samplingEnabled,
+        sampleMode: state.sampleMode,
+        sampleEveryEpochs: state.sampleEveryEpochs,
+        sampleEverySteps: state.sampleEverySteps,
+        samplePrompts: state.samplePrompts.map((s) => s.trim()).filter(Boolean),
+      },
+      state,
+    );
   }, [state, calculatedSteps, calculatedEpochs, onStartTraining]);
 
   const hasAllRequiredComponents = currentModel.components

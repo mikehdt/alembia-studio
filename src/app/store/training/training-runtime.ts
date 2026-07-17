@@ -23,6 +23,7 @@ type ThunkDispatch = (action: unknown) => unknown;
 import { addJob, openPanel, removeJob, updateTrainingProgress } from '../jobs';
 import type { TrainingJob } from '../jobs/types';
 import { addToast } from '../toasts/reducers';
+import type { FormState } from '../training-config/types';
 import { dismissFromPanel } from '../training-history';
 
 // ---------------------------------------------------------------------------
@@ -253,7 +254,10 @@ function snapshotClientConfig(
 // startTraining — replaces the old mock thunk.
 // ---------------------------------------------------------------------------
 
-export function startTraining(config: Record<string, unknown>): AppThunk {
+export function startTraining(
+  config: Record<string, unknown>,
+  formSnapshot?: FormState,
+): AppThunk {
   return async (dispatch) => {
     // No client-side GPU-busy gate — the sidecar owns a shared queue
     // across training + tagging, so additional jobs enqueue behind whatever
@@ -336,6 +340,7 @@ export function startTraining(config: Record<string, unknown>): AppThunk {
       error: null,
       config: snapshotClientConfig(config),
       progress: null,
+      formSnapshot,
     };
     dispatch(addJob(job));
     dispatch(openPanel());
