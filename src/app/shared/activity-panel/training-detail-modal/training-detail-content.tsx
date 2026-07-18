@@ -41,7 +41,14 @@ export function TrainingDetailContent({ job }: { job: TrainingJob | null }) {
   const stepPct = formatPct(currentStep, totalSteps);
   const savedCheckpoints = progress.savedCheckpoints ?? [];
   const checkpointSteps = progress.checkpointSteps ?? [];
-  const speedHistory = progress.speedHistory ?? [];
+  // While caching (latents / text-encoder outputs) show that phase's live
+  // rate; it hands over to the real training speed curve once steps start.
+  const speedSeries = isPreparing
+    ? (progress.prepSpeedHistory ?? [])
+    : (progress.speedHistory ?? []);
+  // Prep bars carry their own item count, not training steps — let the chart
+  // auto-scale its x-axis to the observed range rather than the run length.
+  const speedAxisSteps = isPreparing ? 0 : totalSteps;
   const savedCount = deriveSavedCount(progress);
   // Never let the denominator fall below what's already confirmed saved — old
   // persisted runs may carry saved checkpoints without a predicted-steps list.
@@ -125,16 +132,18 @@ export function TrainingDetailContent({ job }: { job: TrainingJob | null }) {
         </div>
       </div>
 
-      {speedHistory.length > 0 && (
+      {speedSeries.length > 0 && (
         <div>
           <div className="flex items-baseline justify-between">
-            <span className="text-xs text-slate-400 uppercase">Speed</span>
+            <span className="text-xs text-slate-400 uppercase">
+              {isPreparing ? 'Caching speed' : 'Speed'}
+            </span>
             <span className="text-xs text-slate-400">s/it</span>
           </div>
           <div className="mt-1 rounded border border-slate-300 bg-slate-100 p-2 dark:border-slate-600 dark:bg-slate-900">
             <SpeedChart
-              speedHistory={speedHistory}
-              totalSteps={totalSteps}
+              speedHistory={speedSeries}
+              totalSteps={speedAxisSteps}
               width={640}
               height={90}
               className="w-full"

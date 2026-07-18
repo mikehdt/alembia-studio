@@ -89,6 +89,12 @@ class JobProgress(BaseModel):
     # lockstep with loss_history at the same downsampled steps. Empty for
     # providers/backends that don't report an iteration rate.
     speed_history: list[SpeedPoint] = []
+    # Transient speed curve for the *current* setup phase (caching latents /
+    # text-encoder outputs), keyed by that phase's item index. Populated only
+    # while PREPARING, reset when the caching phase changes, and cleared once
+    # training proper begins — it is deliberately not part of the persisted
+    # training speed_history.
+    prep_speed_history: list[SpeedPoint] = []
     learning_rate: Optional[float] = None
     eta_seconds: Optional[int] = None
     sample_image_paths: list[str] = []

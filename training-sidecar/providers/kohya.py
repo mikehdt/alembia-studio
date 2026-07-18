@@ -884,17 +884,29 @@ class KohyaProvider(TrainingProvider):
                 else:
                     # A tqdm bar here is a setup phase (caching latents / TE
                     # outputs / loading the DiT) — surface its count so the UI
-                    # can show a determinate bar under the phase label.
+                    # can show a determinate bar under the phase label, plus the
+                    # bar's own it/s rate and ETA (which sit in the bracket, same
+                    # as the training bar) so a slow cache doesn't look stalled.
                     prep_current = 0
                     prep_total = 0
+                    prep_eta = None
+                    prep_speed = None
                     if match:
                         prep_current = int(match.group(1))
                         prep_total = int(match.group(2))
+                        prep_eta = _parse_eta_seconds(match.group(3))
+                        prep_speed = (
+                            f"{rate_match.group(1)} {rate_match.group(2)}"
+                            if rate_match
+                            else None
+                        )
                     yield JobProgress(
                         job_id=job_id,
                         status=JobStatus.PREPARING,
                         current_step=prep_current,
                         total_steps=prep_total,
+                        eta_seconds=prep_eta,
+                        speed=prep_speed,
                         phase=preparing_phase,
                         log_lines=log_lines[-50:],
                         sample_image_paths=sample_paths,

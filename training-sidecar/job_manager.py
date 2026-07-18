@@ -429,6 +429,11 @@ class JobManager:
                 "output_path": cfg.get("output_path", ""),
                 "output_name": cfg.get("output_name", ""),
                 "save_seconds_by_step": {},
+                # Transient per-caching-phase speed series (not persisted past
+                # prep). `prep_phase` tracks which phase it belongs to so a new
+                # caching bar starts a fresh curve.
+                "prep_speed": [],
+                "prep_phase": None,
             }
             self._accumulators[progress.job_id] = acc
 
@@ -449,6 +454,30 @@ class JobManager:
         else:
             acc["last_tick"] = None
         progress.training_seconds = acc["training_seconds"]
+
+        # Feed the current setup phase's tqdm rate into a transient speed series
+        # so the detail view's speed graph animates while caching. A change of
+        # phase label (latents → text-encoder outputs) starts a fresh curve; the
+        # first non-preparing tick discards it, since caching pace isn't part of
+        # the training speed curve and shouldn't be persisted past this stage.
+        if progress.status == JobStatus.PREPARING:
+            if progress.phase != acc["prep_phase"]:
+                acc["prep_phase"] = progress.phase
+                acc["prep_speed"] = []
+            sec_per_it = _parse_sec_per_it(progress.speed)
+            if sec_per_it is not None and progress.current_step > 0:
+                series = acc["prep_speed"]
+                point = SpeedPoint(
+                    step=progress.current_step, sec_per_it=sec_per_it
+                )
+                # Collapse rapid tqdm redraws on the same item into one point.
+                if series and series[-1].step == progress.current_step:
+                    series[-1] = point
+                else:
+                    series.append(point)
+        elif acc["prep_speed"]:
+            acc["prep_speed"] = []
+            acc["prep_phase"] = None
 
         # Merge any confirmed saves the provider reported this tick. The set
         # dedupes by step (e.g. Kohya prints "model saved" for both an epoch
@@ -505,6 +534,7 @@ class JobManager:
         # Write the accumulated view onto the outgoing progress.
         progress.loss_history = list(acc["history"])
         progress.speed_history = list(acc["speed_history"])
+        progress.prep_speed_history = list(acc["prep_speed"])
         progress.checkpoint_steps = list(acc["checkpoint_steps"])
         progress.saved_checkpoints = sorted(acc["saved"])
 

@@ -69,10 +69,39 @@ class MockProvider(TrainingProvider):
             predict_checkpoint_steps({**hp, "steps": total_steps})
         )
 
-        yield JobProgress(job_id=job_id, status=JobStatus.PREPARING)
-
-        # Brief "preparing" delay so the UI actually shows the preparing state.
-        await asyncio.sleep(self._tick_interval)
+        # Two synthetic setup phases (latents, then text-encoder outputs), each
+        # a determinate bar carrying an it/s rate + ETA — exercises the caching
+        # progress bar, ETA, and the transient prep speed graph (including the
+        # per-phase reset) before training starts, without a real backend.
+        for phase_label, prep_total in (
+            ("Caching latents", 24),
+            ("Caching text-encoder outputs", 16),
+        ):
+            prep_current = 0
+            while prep_current < prep_total:
+                if self._cancelled:
+                    return
+                prep_current = min(prep_total, prep_current + 4)
+                prep_noise = (
+                    hash((job_id, prep_current, phase_label)) % 100 - 50
+                ) / 1000.0
+                prep_sec_per_it = round(0.4 + prep_noise, 2)
+                prep_eta = max(0, int((prep_total - prep_current) * prep_sec_per_it))
+                yield JobProgress(
+                    job_id=job_id,
+                    status=JobStatus.PREPARING,
+                    current_step=prep_current,
+                    total_steps=prep_total,
+                    eta_seconds=prep_eta,
+                    # Report it/s (not s/it) so the manager's rate inversion is
+                    # exercised too.
+                    speed=f"{round(1.0 / prep_sec_per_it, 2)} it/s",
+                    phase=phase_label,
+                    log_lines=[
+                        f"[mock] {phase_label.lower()} {prep_current}/{prep_total}"
+                    ],
+                )
+                await asyncio.sleep(self._tick_interval)
 
         step_increment = max(1, total_steps // self._tick_count)
         current = 0

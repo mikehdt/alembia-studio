@@ -62,6 +62,14 @@ export type TrainingProgress = {
    * the speed graph in the expanded training detail view.
    */
   speedHistory: SpeedPoint[];
+  /**
+   * Transient seconds-per-iteration series for the current setup phase
+   * (caching latents / text-encoder outputs). Populated only while preparing
+   * and discarded once training starts — drives the speed graph during
+   * caching, kept separate from {@link speedHistory} so it never pollutes the
+   * training curve.
+   */
+  prepSpeedHistory: SpeedPoint[];
   learningRate: number | null;
   etaSeconds: number | null;
   sampleImagePaths: string[];
