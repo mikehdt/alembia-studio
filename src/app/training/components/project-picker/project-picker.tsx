@@ -69,6 +69,9 @@ const ProjectPickerComponent = ({
   const renderProject = (project: (typeof projects)[number]) => {
     const isExcluded = excludeFolders.includes(project.name);
     const isSelecting = selectingFolder === project.name;
+    // Dim hidden projects (shown only when Show Hidden is on) to match the
+    // main tagging project list, unless already dimmed by another state.
+    const isHiddenDimmed = project.hidden && !isExcluded && !isSelecting;
     const thumbnailSrc = project.thumbnail
       ? `/tagging-projects/${project.thumbnail}${project.thumbnailVersion ? `?v=${project.thumbnailVersion}` : ''}`
       : null;
@@ -79,13 +82,13 @@ const ProjectPickerComponent = ({
         type="button"
         disabled={isExcluded || isSelecting}
         onClick={() => selectProject(project)}
-        className={`flex w-full items-center gap-3 px-3 py-2 text-left ${
+        className={`flex w-full items-center gap-3 px-3 py-2 text-left transition-opacity ${
           isExcluded
             ? 'cursor-not-allowed opacity-40'
             : isSelecting
               ? 'bg-sky-50 dark:bg-sky-900/30'
               : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700'
-        }`}
+        } ${isHiddenDimmed ? 'opacity-50 hover:opacity-100' : ''}`}
       >
         <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 dark:bg-slate-600">
           {thumbnailSrc ? (
