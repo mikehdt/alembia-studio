@@ -1,6 +1,6 @@
 'use client';
 
-import { FolderIcon, Loader2Icon, StarIcon } from 'lucide-react';
+import { FolderIcon, Loader2Icon, RefreshCwIcon, StarIcon } from 'lucide-react';
 import Image from 'next/image';
 import React, { memo, useMemo, useState } from 'react';
 
@@ -46,6 +46,7 @@ const ProjectPickerComponent = ({
     loading,
     selectingFolder,
     open,
+    refresh,
     selectProject,
   } = useProjectPicker({ excludeFolders, onSelect });
 
@@ -61,6 +62,9 @@ const ProjectPickerComponent = ({
   }, [projects, showHidden]);
 
   const isEmpty = featured.length === 0 && regular.length === 0;
+  // Show the full-panel spinner only on the first load; a manual refresh keeps
+  // the list in place and spins the refresh icon instead.
+  const showFullSpinner = loading && projects.length === 0;
 
   const renderProject = (project: (typeof projects)[number]) => {
     const isExcluded = excludeFolders.includes(project.name);
@@ -139,25 +143,42 @@ const ProjectPickerComponent = ({
         triggerRef={triggerRef}
         className="w-72 rounded-md border border-slate-200 bg-white shadow-md shadow-slate-600/50 dark:border-slate-600 dark:bg-slate-800 dark:shadow-slate-950/50"
       >
-        {loading ? (
+        {showFullSpinner ? (
           <div className="flex items-center justify-center py-6">
             <Loader2Icon className="h-5 w-5 animate-spin text-slate-400" />
           </div>
-        ) : isEmpty ? (
-          <div className="px-4 py-6 text-center text-sm text-slate-400">
-            No projects found
-          </div>
         ) : (
           <div className="py-1">
-            {/* Show hidden toggle — at top so toggling doesn't shift scroll */}
-            {hasHidden && (
-              <div className="border-b border-slate-100 px-3 py-1.5 dark:border-slate-700">
+            {/* Toolbar — refresh, plus the show-hidden toggle when there are
+                hidden projects. At the top so toggling doesn't shift scroll. */}
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-1.5 dark:border-slate-700">
+              {hasHidden ? (
                 <Checkbox
                   isSelected={showHidden}
                   onChange={() => setShowHidden(!showHidden)}
                   label="Show hidden projects"
                   size="sm"
                 />
+              ) : (
+                <span />
+              )}
+              <button
+                type="button"
+                onClick={refresh}
+                disabled={loading}
+                title="Refresh project list"
+                aria-label="Refresh project list"
+                className="cursor-pointer rounded p-1 text-slate-400 transition-colors hover:text-slate-600 disabled:cursor-default disabled:opacity-50 dark:hover:text-slate-300"
+              >
+                <RefreshCwIcon
+                  className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`}
+                />
+              </button>
+            </div>
+
+            {isEmpty && (
+              <div className="px-4 py-6 text-center text-sm text-slate-400">
+                No projects found
               </div>
             )}
 

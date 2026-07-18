@@ -37,16 +37,7 @@ export function useProjectPicker({
     closePopup(popupId);
   }, [closePopup, popupId]);
 
-  const open = useCallback(async () => {
-    // Toggle: if the popup is already open (or mid-open/closing), clicking the
-    // trigger should close it rather than re-fetch and flash the loader.
-    const state = getPopupState(popupId);
-    if (state.isOpen || state.isPositioning || state.shouldRender) {
-      close();
-      return;
-    }
-
-    openPopup(popupId, { position: 'bottom-left', triggerRef });
+  const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const list = await getProjectList();
@@ -57,7 +48,20 @@ export function useProjectPicker({
     } finally {
       setLoading(false);
     }
-  }, [openPopup, popupId, getPopupState, close]);
+  }, []);
+
+  const open = useCallback(async () => {
+    // Toggle: if the popup is already open (or mid-open/closing), clicking the
+    // trigger should close it rather than re-fetch and flash the loader.
+    const state = getPopupState(popupId);
+    if (state.isOpen || state.isPositioning || state.shouldRender) {
+      close();
+      return;
+    }
+
+    openPopup(popupId, { position: 'bottom-left', triggerRef });
+    refresh();
+  }, [openPopup, popupId, getPopupState, close, refresh]);
 
   const selectProject = useCallback(
     async (project: Project) => {
@@ -99,6 +103,7 @@ export function useProjectPicker({
     selectingFolder,
     open,
     close,
+    refresh,
     selectProject,
   };
 }
