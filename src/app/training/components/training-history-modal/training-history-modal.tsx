@@ -9,7 +9,7 @@ import {
 import { useCallback, useState } from 'react';
 
 import { formatDuration } from '@/app/shared/activity-panel/helpers';
-import { TrainingDetailContent } from '@/app/shared/activity-panel/training-detail-modal/training-detail-content';
+import { TrainingDetailTabs } from '@/app/shared/activity-panel/training-detail-modal/training-detail-tabs/training-detail-tabs';
 import { Button } from '@/app/shared/button';
 import { Modal } from '@/app/shared/modal';
 import { useConfirmAction } from '@/app/shared/use-confirm-action';
@@ -166,6 +166,7 @@ export function TrainingHistoryModal() {
   const selected = selectedId
     ? (history.find((e) => e.id === selectedId) ?? null)
     : null;
+  const selectedHasSamples = (selected?.progress?.samples?.length ?? 0) > 0;
 
   const handleClose = useCallback(() => {
     setSelectedId(null);
@@ -205,7 +206,7 @@ export function TrainingHistoryModal() {
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      className="w-full max-w-3xl"
+      className={`w-full ${selected && selectedHasSamples ? 'max-w-5xl' : 'max-w-3xl'}`}
       labelledById={selected ? undefined : 'training-history-modal-title'}
       ariaLabel={selected ? 'Training history' : undefined}
     >
@@ -219,7 +220,7 @@ export function TrainingHistoryModal() {
             <ArrowLeftIcon className="h-4 w-4" />
             Back to history
           </button>
-          <TrainingDetailContent job={selected} />
+          <TrainingDetailTabs key={selected.id} job={selected} />
         </div>
       ) : (
         <div className="flex flex-col">

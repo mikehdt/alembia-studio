@@ -1,6 +1,6 @@
 import { Modal } from '@/app/shared/modal';
 
-import { TrainingDetailContent } from './training-detail-content';
+import { TrainingDetailTabs } from './training-detail-tabs/training-detail-tabs';
 import { useTrainingDetailModal } from './use-training-detail-modal';
 
 type TrainingDetailModalProps = {
@@ -23,14 +23,18 @@ export function TrainingDetailModal({
   const { job } = useTrainingDetailModal(jobId, onClose);
   const isOpen = jobId !== null && job !== null;
 
+  // Widen to make room for the samples grid only once samples exist — with none
+  // the modal keeps its original width and looks exactly as before.
+  const hasSamples = (job?.progress?.samples?.length ?? 0) > 0;
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      className="w-full max-w-3xl"
+      className={`w-full ${hasSamples ? 'max-w-5xl' : 'max-w-3xl'}`}
       ariaLabel="Training details"
     >
-      <TrainingDetailContent job={job} />
+      <TrainingDetailTabs key={job?.id} job={job} />
     </Modal>
   );
 }

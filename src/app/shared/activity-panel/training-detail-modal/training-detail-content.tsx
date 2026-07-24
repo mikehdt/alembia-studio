@@ -301,7 +301,13 @@ export function TrainingDetailContent({ job }: { job: TrainingJob | null }) {
           label="Phase"
           value={
             progress.phase ??
-            (isPreparing ? 'Preparing' : isRunning ? 'Training' : '—')
+            (isPreparing
+              ? 'Preparing'
+              : isRunning
+                ? 'Training'
+                : isCompleted
+                  ? 'Completed'
+                  : '—')
           }
         />
       </div>
