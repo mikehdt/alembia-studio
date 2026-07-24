@@ -21,7 +21,7 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Optional
 
-from models import JobProgress, JobStatus, StartJobRequest
+from models import JobProgress, JobStatus, SampleImage, StartJobRequest
 from providers.base import TrainingProvider
 
 # sd-scripts' main training bar looks like:
@@ -39,6 +39,15 @@ ETA_PATTERN = re.compile(r"<(\d+):(\d+):?(\d*)")
 RATE_PATTERN = re.compile(r"([\d.]+)\s*(it/s|s/it)")
 # sd-scripts prints "epoch 1/10" between epochs.
 EPOCH_PATTERN = re.compile(r"epoch\s+(\d+)\s*/\s*(\d+)")
+
+# sd-scripts writes samples as
+#   {output_name}_{num_suffix}_{promptIdx:02d}_{timestamp}{_seed}.png
+# where num_suffix is `e%06d` (epoch cadence) or `%06d` (step cadence). We strip
+# the exact `{output_name}_` prefix first (output_name may itself contain
+# underscores), then match the remainder from the start: an optional `e` marks
+# an epoch-cadence run, the six digits are the epoch or step, and the two-digit
+# group is the prompt index.
+SAMPLE_NAME_RE = re.compile(r"^(?:e(\d{6})|(\d{6}))_(\d{2})_")
 
 # Leading "2026-07-13 21:20:00 " on sd-scripts' rich-formatted log lines. Only
 # stripped for repeat comparison — the line itself keeps its timestamp.
@@ -276,6 +285,79 @@ def _parse_eta_seconds(eta_str: str) -> Optional[int]:
     if len(parts) == 3:
         return parts[0] * 3600 + parts[1] * 60 + parts[2]
     return None
+
+
+def _scan_sample_files(output_path: str, output_name: str) -> set[str]:
+    """Return the sample PNGs written for this run so far.
+
+    sd-scripts writes samples to `<output_dir>/sample/`, and since we pass
+    `--output_dir=<output_path>` (the shared loras root) that folder is shared
+    across every Kohya run — so we filter to this run's `{output_name}_`
+    prefix. Iterated non-recursively; matched with plain string ops rather than
+    a glob because `output_name` is user-controlled free text that can contain
+    glob metacharacters.
+    """
+    sample_dir = Path(output_path) / "sample"
+    if not sample_dir.exists():
+        return set()
+    prefix = f"{output_name}_"
+    try:
+        return {
+            str(p)
+            for p in sample_dir.iterdir()
+            if p.is_file()
+            and p.name.startswith(prefix)
+            and p.suffix.lower() == ".png"
+        }
+    except OSError:
+        return set()
+
+
+def _parse_sample(path: str, output_name: str) -> Optional[SampleImage]:
+    """Parse step/epoch/prompt-index out of a Kohya sample filename.
+
+    Returns a SampleImage with a `sample/<file>` POSIX path relative to
+    output_path, or None for a name that doesn't fit the grammar.
+    """
+    name = Path(path).name
+    prefix = f"{output_name}_"
+    if not name.startswith(prefix):
+        return None
+    match = SAMPLE_NAME_RE.match(name[len(prefix):])
+    if not match:
+        return None
+    epoch = int(match.group(1)) if match.group(1) else None
+    # Epoch-cadence runs encode the epoch, not the step, so the step is unknown.
+    step = int(match.group(2)) if match.group(2) else 0
+    prompt_index = int(match.group(3))
+    return SampleImage(
+        path=f"sample/{name}",
+        step=step,
+        epoch=epoch,
+        prompt_index=prompt_index,
+    )
+
+
+def _collect_new_samples(
+    output_path: str,
+    output_name: str,
+    seen: set[str],
+    samples: list[SampleImage],
+) -> None:
+    """Diff the sample dir against `seen`, appending freshly-written samples.
+
+    Mutates both `seen` (so a file is claimed once) and `samples` (the running
+    ordered list forwarded on JobProgress).
+    """
+    current = _scan_sample_files(output_path, output_name)
+    new_files = current - seen
+    if not new_files:
+        return
+    seen |= new_files
+    for path in sorted(new_files):
+        entry = _parse_sample(path, output_name)
+        if entry is not None:
+            samples.append(entry)
 
 
 class KohyaProvider(TrainingProvider):
@@ -660,9 +742,18 @@ class KohyaProvider(TrainingProvider):
             with open(prompt_file, "w", encoding="utf-8") as f:
                 f.write("\n".join(prompt_lines))
             args.append(f"--sample_prompts={prompt_file}")
-            args.append(
-                f"--sample_every_n_steps={int(hp.get('sample_every_n_steps', 250))}"
-            )
+            # Sampling cadence in exactly one unit — mirrors the save-cadence
+            # dual field above. sd-scripts supports --sample_every_n_epochs
+            # natively, so pass whichever unit the user chose (the Node side
+            # zeroes the other). Epoch cadence wins when set.
+            sample_every_steps = int(hp.get("sample_every_n_steps", 0) or 0)
+            sample_every_epochs = int(hp.get("sample_every_n_epochs", 0) or 0)
+            if sample_every_epochs > 0:
+                args.append(f"--sample_every_n_epochs={sample_every_epochs}")
+            else:
+                args.append(
+                    f"--sample_every_n_steps={sample_every_steps or 250}"
+                )
             args.append(
                 f"--sample_sampler={hp.get('sample_sampler', 'euler_a')}"
             )
@@ -729,7 +820,14 @@ class KohyaProvider(TrainingProvider):
 
         log_lines: list[str] = []
         stderr_lines: list[str] = []
-        sample_paths: list[str] = []
+        # Sample collection: scan-diff `<output_path>/sample/` (shared across
+        # runs) against a seen-set seeded now, so pre-existing files from
+        # earlier runs are never claimed. sd-scripts never prints per-file
+        # sample paths, so the directory is the only source.
+        samples: list[SampleImage] = []
+        seen_samples: set[str] = _scan_sample_files(
+            request.output_path, request.output_name
+        )
         current_epoch = 0
         total_epochs = 0
 
@@ -835,6 +933,13 @@ class KohyaProvider(TrainingProvider):
                 if loss_match:
                     last_loss = float(loss_match.group(1))
 
+                _collect_new_samples(
+                    request.output_path,
+                    request.output_name,
+                    seen_samples,
+                    samples,
+                )
+
                 yield JobProgress(
                     job_id=job_id,
                     status=JobStatus.TRAINING,
@@ -845,7 +950,7 @@ class KohyaProvider(TrainingProvider):
                     loss=last_loss,
                     eta_seconds=eta,
                     speed=speed,
-                    sample_image_paths=sample_paths,
+                    samples=samples,
                     log_lines=log_lines[-50:],
                     # An advancing step means we're actively training — clear
                     # any transient activity label (e.g. a prior "Saving").
@@ -857,12 +962,6 @@ class KohyaProvider(TrainingProvider):
                 _append_log_line(log_lines, line)
 
                 lower = line.lower()
-                if "saved sample" in lower or (
-                    "sample" in lower
-                    and (line.endswith(".png") or line.endswith(".jpg"))
-                ):
-                    sample_paths.append(line.rsplit(" ", 1)[-1].strip())
-
                 if training_started:
                     # Between steps sd-scripts pauses to save checkpoints or
                     # generate samples — the step bar freezes during that, so
@@ -888,6 +987,12 @@ class KohyaProvider(TrainingProvider):
                         activity = "Checkpoint saved"
                         saved = [current_step]
                     if activity is not None:
+                        _collect_new_samples(
+                            request.output_path,
+                            request.output_name,
+                            seen_samples,
+                            samples,
+                        )
                         yield JobProgress(
                             job_id=job_id,
                             status=JobStatus.TRAINING,
@@ -898,7 +1003,7 @@ class KohyaProvider(TrainingProvider):
                             loss=last_loss,
                             phase=activity,
                             saved_checkpoints=saved,
-                            sample_image_paths=sample_paths,
+                            samples=samples,
                             log_lines=log_lines[-50:],
                         )
                 else:
@@ -929,7 +1034,6 @@ class KohyaProvider(TrainingProvider):
                         speed=prep_speed,
                         phase=preparing_phase,
                         log_lines=log_lines[-50:],
-                        sample_image_paths=sample_paths,
                     )
 
         await stdout_task
@@ -942,6 +1046,17 @@ class KohyaProvider(TrainingProvider):
         if self._cancelled:
             return
 
+        # Final scan — samples generated at the last save/end land after the
+        # last training-bar update, so catch any stragglers here. Runs on the
+        # failure path too: progress updates replace client state wholesale, so
+        # a terminal yield without `samples` would wipe everything collected.
+        _collect_new_samples(
+            request.output_path,
+            request.output_name,
+            seen_samples,
+            samples,
+        )
+
         if return_code == 0:
             yield JobProgress(
                 job_id=job_id,
@@ -953,7 +1068,7 @@ class KohyaProvider(TrainingProvider):
                 current_epoch=current_epoch,
                 total_epochs=total_epochs,
                 log_lines=log_lines[-50:],
-                sample_image_paths=sample_paths,
+                samples=samples,
             )
         else:
             tail = stderr_lines[-10:] if stderr_lines else log_lines[-10:]
@@ -967,6 +1082,7 @@ class KohyaProvider(TrainingProvider):
                 status=JobStatus.FAILED,
                 error=error_msg,
                 log_lines=merged_logs,
+                samples=samples,
             )
 
     async def cancel_training(self) -> None:

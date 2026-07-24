@@ -161,6 +161,19 @@ export function buildSidecarStartRequest(config: ClientFormConfig): {
   const saveEveryNSteps =
     saveEnabled && saveMode === 'steps' ? saveEverySteps : 0;
 
+  // Sampling cadence mirrors the save-cadence dual field: the user picks one
+  // unit, and the sidecar reads whichever is non-zero. Kohya passes
+  // --sample_every_n_epochs natively; the ai-toolkit provider converts epochs
+  // to steps. The inactive unit is zeroed here so exactly one wins.
+  const samplingEnabled = (config.samplingEnabled as boolean) ?? false;
+  const sampleMode = (config.sampleMode as string) ?? 'steps';
+  const sampleEveryEpochs = (config.sampleEveryEpochs as number) ?? 1;
+  const sampleEverySteps = (config.sampleEverySteps as number) ?? 250;
+  const sampleEveryNEpochs =
+    samplingEnabled && sampleMode === 'epochs' ? sampleEveryEpochs : 0;
+  const sampleEveryNSteps =
+    samplingEnabled && sampleMode === 'steps' ? sampleEverySteps : 0;
+
   const hyperparameters: Record<string, unknown> = {
     // `steps` is authoritative in steps-mode; in epochs-mode it's a converted
     // estimate and `epochs` is authoritative. Providers that can count epochs
@@ -209,7 +222,8 @@ export function buildSidecarStartRequest(config: ClientFormConfig): {
     guidance_scale: config.guidanceScale,
     sample_steps: config.sampleSteps,
     sample_sampler: config.sampleSampler,
-    sample_every_n_steps: config.sampleEverySteps,
+    sample_every_n_epochs: sampleEveryNEpochs,
+    sample_every_n_steps: sampleEveryNSteps,
     save_every_n_epochs: saveEveryNEpochs,
     save_every_n_steps: saveEveryNSteps,
     save_format: config.saveFormat,
@@ -246,6 +260,10 @@ export function buildSidecarStartRequest(config: ClientFormConfig): {
     output_name: outputName,
     datasets,
     hyperparameters,
-    sample_prompts: (config.samplePrompts as string[]) ?? [],
+    // Providers enable sampling purely on a non-empty prompt list, so the
+    // toggle must clear it — prompts persist in Redux while the section is off.
+    sample_prompts: samplingEnabled
+      ? ((config.samplePrompts as string[]) ?? [])
+      : [],
   };
 }

@@ -536,7 +536,6 @@ class AiToolkitProvider(TrainingProvider):
 
         log_lines: list[str] = []
         stderr_lines: list[str] = []
-        sample_paths: list[str] = []
 
         async def read_stream(
             stream: asyncio.StreamReader, is_stderr: bool = False
@@ -624,7 +623,6 @@ class AiToolkitProvider(TrainingProvider):
                     loss=float(loss_match.group(1)) if loss_match else None,
                     learning_rate=float(lr_match.group(1)) if lr_match else None,
                     eta_seconds=eta,
-                    sample_image_paths=sample_paths,
                     log_lines=log_lines[-50:],
                 )
             else:
@@ -633,17 +631,11 @@ class AiToolkitProvider(TrainingProvider):
                 # text 30/30" etc. under the Preparing label.
                 log_lines.append(line)
 
-                if "sample" in line.lower() and (
-                    line.endswith(".png") or line.endswith(".jpg")
-                ):
-                    sample_paths.append(line.strip())
-
                 if not training_started:
                     yield JobProgress(
                         job_id=job_id,
                         status=JobStatus.PREPARING,
                         log_lines=log_lines[-50:],
-                        sample_image_paths=sample_paths,
                     )
 
         await stdout_task
@@ -661,7 +653,6 @@ class AiToolkitProvider(TrainingProvider):
                 job_id=job_id,
                 status=JobStatus.COMPLETED,
                 log_lines=log_lines[-50:],
-                sample_image_paths=sample_paths,
             )
         else:
             # Surface stderr — ai-toolkit often only logs useful errors there

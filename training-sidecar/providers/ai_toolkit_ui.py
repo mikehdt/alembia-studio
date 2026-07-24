@@ -38,7 +38,7 @@ from typing import Optional
 import httpx
 
 from ai_toolkit_server import AiToolkitServer
-from models import JobProgress, JobStatus, StartJobRequest
+from models import JobProgress, JobStatus, SampleImage, StartJobRequest
 from providers.ai_toolkit import (
     SUPPORTED_MODELS,
     _find_model,
@@ -46,6 +46,7 @@ from providers.ai_toolkit import (
     _resolve_sample_sampler,
     _resolve_save_every_steps,
     _split_csv,
+    _steps_per_epoch,
 )
 from providers.base import TrainingProvider
 
@@ -170,6 +171,75 @@ def _steps_for_new_checkpoints(
         _step_from_checkpoint_name(Path(p).name, output_name, fallback_step)
         for p in new_files
     ]
+
+
+# ai-toolkit writes samples as `[time]_<step>_[count].ext`, where <step> is a
+# leading underscore plus a 9-digit zero-padded step (so effectively a double
+# underscore, e.g. `1721800000__000000500_0.jpg`) and [count] is the prompt
+# index. Match the trailing `_<9 digits>_<index>.<ext>` from the end.
+SAMPLE_NAME_RE = re.compile(r"_(\d{9})_(\d+)\.(?:jpg|jpeg|png|webp)$", re.IGNORECASE)
+
+
+def _scan_samples(output_path: str, output_name: str) -> set[str]:
+    """Return the sample images ai-toolkit has written for this job so far.
+
+    ai-toolkit writes samples to `<training_folder>/<name>/samples/` — the same
+    `save_root` the checkpoints sit beside — so scan that subfolder. Mirrors
+    `_scan_checkpoints`: non-recursive, plain-string matching (via the filename
+    regex) rather than a glob, since `output_name` can carry glob metacharacters.
+    """
+    root = Path(output_path) / output_name / "samples"
+    if not root.exists():
+        return set()
+    try:
+        return {
+            str(p)
+            for p in root.iterdir()
+            if p.is_file() and SAMPLE_NAME_RE.search(p.name)
+        }
+    except OSError:
+        return set()
+
+
+def _parse_sample(path: str, output_name: str) -> Optional[SampleImage]:
+    """Parse step/prompt-index from an ai-toolkit sample filename.
+
+    Returns a SampleImage with an `<output_name>/samples/<file>` POSIX path
+    relative to output_path, or None for a name that doesn't fit the grammar.
+    ai-toolkit's sampling is steps-only, so `epoch` is always None.
+    """
+    name = Path(path).name
+    match = SAMPLE_NAME_RE.search(name)
+    if not match:
+        return None
+    return SampleImage(
+        path=f"{output_name}/samples/{name}",
+        step=int(match.group(1)),
+        epoch=None,
+        prompt_index=int(match.group(2)),
+    )
+
+
+def _collect_new_samples(
+    output_path: str,
+    output_name: str,
+    seen: set[str],
+    samples: list[SampleImage],
+) -> None:
+    """Diff the samples dir against `seen`, appending freshly-written samples.
+
+    Mutates `seen` (so each file is claimed once) and `samples` (the running
+    ordered list forwarded on JobProgress).
+    """
+    current = _scan_samples(output_path, output_name)
+    new_files = current - seen
+    if not new_files:
+        return
+    seen |= new_files
+    for path in sorted(new_files):
+        entry = _parse_sample(path, output_name)
+        if entry is not None:
+            samples.append(entry)
 
 
 def _loss_log_path(output_path: str, output_name: str) -> Path:
@@ -501,7 +571,7 @@ class AiToolkitUiProvider(TrainingProvider):
             # ai-toolkit runs by steps and reports no epoch; we derive one for
             # the UI from the effective epoch count the client sends.
             total_epochs = int(request.hyperparameters.get("epochs", 0) or 0)
-            sample_paths: list[str] = []
+            samples: list[SampleImage] = []
             last_step = -1
             last_status_label = ""
             # Setup-phase state, recovered by tailing the worker's log.txt.
@@ -518,6 +588,12 @@ class AiToolkitUiProvider(TrainingProvider):
             seen_checkpoints: set[str] = _scan_checkpoints(
                 request.output_path, request.output_name
             )
+            # Sample collection via the same scan-diff pattern: seed with
+            # whatever's already on disk so a resumed run's earlier-leg samples
+            # aren't re-claimed, then diff each poll.
+            seen_samples: set[str] = _scan_samples(
+                request.output_path, request.output_name
+            )
             # ai-toolkit's UILogger writes per-step loss/lr here once training
             # begins (we enable it via logging.use_ui_logger in the config).
             loss_db_path = _loss_log_path(
@@ -532,11 +608,20 @@ class AiToolkitUiProvider(TrainingProvider):
                     continue
                 row = res.json()
                 if row is None:
-                    # Job vanished (deleted out from under us).
+                    # Job vanished (deleted out from under us). Carry the
+                    # collected samples — progress updates replace client
+                    # state wholesale, so omitting them here would wipe them.
+                    _collect_new_samples(
+                        request.output_path,
+                        request.output_name,
+                        seen_samples,
+                        samples,
+                    )
                     yield JobProgress(
                         job_id=local_job_id,
                         status=JobStatus.FAILED,
                         error="ai-toolkit job row disappeared",
+                        samples=samples,
                     )
                     break
 
@@ -637,6 +722,15 @@ class AiToolkitUiProvider(TrainingProvider):
                         )
                         seen_checkpoints = current_files
 
+                    # Watch the samples dir on the same cadence — any new file
+                    # is a fresh sample, parsed to a structured entry.
+                    _collect_new_samples(
+                        request.output_path,
+                        request.output_name,
+                        seen_samples,
+                        samples,
+                    )
+
                     if step != last_step or info != last_status_label or newly_saved:
                         last_step = step
                         # Prefer ai-toolkit's structured metrics DB; fall
@@ -667,7 +761,7 @@ class AiToolkitUiProvider(TrainingProvider):
                             speed=rate,
                             phase=phase_label,
                             saved_checkpoints=newly_saved,
-                            sample_image_paths=sample_paths,
+                            samples=samples,
                             log_lines=(log_tail + prep_log)[-50:],
                         )
                 elif aitk_status in TERMINAL_STATUSES:
@@ -729,6 +823,15 @@ class AiToolkitUiProvider(TrainingProvider):
                         )
                         seen_checkpoints = current_files
 
+                    # One last sample sweep — samples generated during the final
+                    # save land after the last "running" poll.
+                    _collect_new_samples(
+                        request.output_path,
+                        request.output_name,
+                        seen_samples,
+                        samples,
+                    )
+
                     error_text: Optional[str] = None
                     if final_status == JobStatus.FAILED:
                         # `info` is only a one-line summary; fold in the server
@@ -753,6 +856,7 @@ class AiToolkitUiProvider(TrainingProvider):
                         ),
                         total_epochs=total_epochs,
                         saved_checkpoints=final_saved,
+                        samples=samples,
                         error=error_text,
                         log_lines=(log_tail + prep_log)[-50:],
                     )
@@ -781,6 +885,31 @@ class AiToolkitUiProvider(TrainingProvider):
 # ---------------------------------------------------------------------------
 # Config builder (mirrors providers/ai_toolkit.py but emits ui_trainer)
 # ---------------------------------------------------------------------------
+
+
+def _resolve_sample_every_steps(hp: dict, defaults: dict) -> int:
+    """Resolve the sampling cadence in *steps* — ai-toolkit's native unit.
+
+    Mirrors `_resolve_save_every_steps`: the Node side sends
+    `sample_every_n_steps` for step cadence or `sample_every_n_epochs` for
+    epoch cadence (the inactive unit zeroed). ai-toolkit's `sample_every` is
+    steps-only, so an epoch cadence is converted with the same steps-per-epoch
+    math the save cadence and duration epoch-faking already use
+    (`_steps_per_epoch`). With no epoch count `_steps_per_epoch` returns the
+    total step count, so epoch cadence on a steps-only duration samples once
+    at the end; the step value (default 250) is only the last-resort fallback.
+    """
+    sample_every_steps = int(hp.get("sample_every_n_steps", 0) or 0)
+    sample_every_epochs = int(hp.get("sample_every_n_epochs", 0) or 0)
+    if sample_every_epochs > 0:
+        converted = _steps_per_epoch(
+            sample_every_epochs,
+            int(hp.get("epochs", 0) or 0),
+            int(hp.get("steps", defaults.get("steps", 2000)) or 0),
+        )
+        if converted > 0:
+            return converted
+    return sample_every_steps or 250
 
 
 def _build_config_dict(request: StartJobRequest, gpu_id: int = 0) -> dict:
@@ -996,8 +1125,8 @@ def _build_config_dict(request: StartJobRequest, gpu_id: int = 0) -> dict:
                         {
                             "sample": {
                                 "sampler": _resolve_sample_sampler(hp, defaults),
-                                "sample_every": hp.get(
-                                    "sample_every_n_steps", 250
+                                "sample_every": _resolve_sample_every_steps(
+                                    hp, defaults
                                 ),
                                 "width": _first_resolution(hp, defaults),
                                 "height": _first_resolution(hp, defaults),

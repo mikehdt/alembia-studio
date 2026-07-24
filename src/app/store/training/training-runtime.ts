@@ -46,7 +46,12 @@ type SidecarJobProgress = {
   prep_speed_history?: { step: number; sec_per_it: number }[];
   learning_rate?: number | null;
   eta_seconds?: number | null;
-  sample_image_paths?: string[];
+  samples?: Array<{
+    path: string;
+    step: number;
+    epoch: number | null;
+    prompt_index: number;
+  }>;
   checkpoint_steps?: number[];
   saved_checkpoints?: number[];
   log_lines?: string[];
@@ -137,7 +142,12 @@ function buildProgress(
     })),
     learningRate: msg.learning_rate ?? null,
     etaSeconds: msg.eta_seconds ?? null,
-    sampleImagePaths: msg.sample_image_paths ?? [],
+    samples: (msg.samples ?? []).map((s) => ({
+      path: s.path,
+      step: s.step,
+      epoch: s.epoch,
+      promptIndex: s.prompt_index,
+    })),
     checkpointSteps,
     savedCheckpoints: msg.saved_checkpoints ?? [],
     logLines: msg.log_lines ?? [],

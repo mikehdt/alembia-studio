@@ -41,6 +41,19 @@ export type LossPoint = { step: number; loss: number };
  */
 export type SpeedPoint = { step: number; secPerIt: number };
 
+/**
+ * One training-time sample image discovered on disk by the sidecar. Path is
+ * relative to the loras root (POSIX separators) so the client resolves it
+ * against the samples serving route without any path math. Step and prompt
+ * index come from the filename; epoch is only set for Kohya epoch-cadence runs.
+ */
+export type SampleImage = {
+  path: string;
+  step: number;
+  epoch: number | null;
+  promptIndex: number;
+};
+
 export type TrainingProgress = {
   jobId: string;
   status: TrainingJobStatus;
@@ -72,7 +85,7 @@ export type TrainingProgress = {
   prepSpeedHistory: SpeedPoint[];
   learningRate: number | null;
   etaSeconds: number | null;
-  sampleImagePaths: string[];
+  samples: SampleImage[];
   /** Predicted checkpoint step positions derived from the save cadence. */
   checkpointSteps: number[];
   /** Steps at which the trainer confirmed a checkpoint was actually written. */

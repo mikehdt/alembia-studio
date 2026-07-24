@@ -43,6 +43,21 @@ class SpeedPoint(BaseModel):
     sec_per_it: float
 
 
+class SampleImage(BaseModel):
+    """A training-time sample image discovered on disk by the provider.
+
+    Emitted with a path relative to the job's output_path (the loras root),
+    using POSIX separators so the client can build a serving URL without
+    knowing the machine's absolute layout. Step and prompt index are recovered
+    from the filename; epoch is only set for Kohya epoch-cadence runs.
+    """
+
+    path: str
+    step: int  # 0 if unknown
+    epoch: int | None = None  # Kohya epoch-cadence runs only
+    prompt_index: int
+
+
 class DatasetEntry(BaseModel):
     path: str
     num_repeats: int = 1
@@ -97,7 +112,7 @@ class JobProgress(BaseModel):
     prep_speed_history: list[SpeedPoint] = []
     learning_rate: Optional[float] = None
     eta_seconds: Optional[int] = None
-    sample_image_paths: list[str] = []
+    samples: list[SampleImage] = []
     # PREDICTED checkpoint step positions, computed once from the job's save
     # cadence at start. Persisted so the UI's upcoming-save ticks survive a
     # page refresh rather than being re-derived client-side.
