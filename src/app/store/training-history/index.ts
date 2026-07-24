@@ -19,6 +19,8 @@ import {
   type PayloadAction,
 } from '@reduxjs/toolkit';
 
+import type { SampleImage } from '@/app/services/training/types';
+
 import type { RootState } from '../index';
 import type { TrainingJob } from '../jobs/types';
 
@@ -81,6 +83,21 @@ const trainingHistorySlice = createSlice({
       if (entry) entry.dismissedFromPanel = true;
     },
 
+    /**
+     * Repoint a stored run's samples at their archived paths once the
+     * terminal-time move completes. Only touches `progress.samples`; the rest
+     * of the snapshot (and `dismissedFromPanel`) is untouched. Being a
+     * trainingHistory/ mutation, it re-persists like any other.
+     */
+    updateEntrySamples: (
+      state,
+      action: PayloadAction<{ id: string; samples: SampleImage[] }>,
+    ) => {
+      const entry = state.entries[action.payload.id];
+      if (!entry?.progress) return;
+      entry.progress.samples = action.payload.samples;
+    },
+
     /** Remove a single run from the archive. */
     deleteHistoryEntry: (state, action: PayloadAction<string>) => {
       delete state.entries[action.payload];
@@ -109,6 +126,7 @@ export const trainingHistoryReducer = trainingHistorySlice.reducer;
 
 export const {
   recordTrainingRun,
+  updateEntrySamples,
   dismissAllFromPanel,
   dismissFromPanel,
   deleteHistoryEntry,

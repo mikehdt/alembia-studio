@@ -11,7 +11,10 @@ import {
   type PayloadAction,
 } from '@reduxjs/toolkit';
 
-import type { TrainingProgress } from '@/app/services/training/types';
+import type {
+  SampleImage,
+  TrainingProgress,
+} from '@/app/services/training/types';
 
 import type { RootState } from '../index';
 import type {
@@ -107,6 +110,21 @@ const jobsSlice = createSlice({
         job.status = 'cancelled';
         job.completedAt = Date.now();
       }
+    },
+
+    /**
+     * Repoint a training job's samples at their archived paths after the
+     * terminal-time archive move, so the live detail view never references
+     * files the archive step has relocated. Guarded: job must exist, be a
+     * training job, and have progress.
+     */
+    updateTrainingSamples: (
+      state,
+      action: PayloadAction<{ id: string; samples: SampleImage[] }>,
+    ) => {
+      const job = state.jobs[action.payload.id];
+      if (!job || job.type !== 'training' || !job.progress) return;
+      job.progress.samples = action.payload.samples;
     },
 
     // --- Download-specific progress ---
@@ -277,6 +295,7 @@ export const {
   addJob,
   updateJobStatus,
   updateTrainingProgress,
+  updateTrainingSamples,
   updateDownloadProgress,
   completeDownload,
   failDownload,

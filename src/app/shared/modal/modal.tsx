@@ -274,7 +274,7 @@ export const Modal = ({
             )}
 
             {/* Modal content */}
-            <div className={!preventClose ? 'mt-2' : ''}>{children}</div>
+            {children}
           </div>
         </div>,
         portalContainer,

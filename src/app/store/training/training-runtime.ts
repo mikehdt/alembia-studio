@@ -463,6 +463,27 @@ export function hydrateActiveTraining(): AppThunk {
       ? Date.parse(active.started_at)
       : Date.now();
     ws.startedAtByJob.set(active.job_id, seededAt);
+
+    // A terminal job that's already snapshotted in Run History needs no
+    // reconstruction: the history entry (full config, archived sample paths)
+    // is the durable record, and re-seeding the minimal skeleton below would
+    // re-record it over that snapshot — the skeleton's completedAt is
+    // unknowable here, so the persistence middleware's idempotency guard
+    // can't match. This arises when a dismissed run's /api/training/clear
+    // never reached the sidecar, leaving it reporting the finished job as
+    // active across a refresh.
+    const isTerminal =
+      active.status === 'completed' ||
+      active.status === 'failed' ||
+      active.status === 'cancelled';
+    if (
+      isTerminal &&
+      !existing &&
+      (getState() as RootState).trainingHistory.entries[active.job_id]
+    ) {
+      return;
+    }
+
     if (!existing) {
       // Reconstruct a minimal TrainingJob. Sidecar config is snake_case —
       // pick out the fields used for rendering the job card.
